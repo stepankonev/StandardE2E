@@ -1,0 +1,14 @@
+sphinx>=7.2
+furo>=2024.8
+myst-parser>=3.0
+sphinx-autodoc-typehints>=2.3
+sphinx-copybutton>=0.5
+
+numpy>=1.25
+pandas>=2.0
+pydantic>=2.6
+pyarrow>=16.0
+Pillow>=10.0
+tqdm>=4.66
+pyyaml>=6.0
+protobuf>=5.27

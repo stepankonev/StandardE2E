@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+.cache/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CI/CD artifacts
+*.log
+.mypy_cache/
+.bandit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs build artifacts
+docs/_build/
+docs/reference/generated/
+docs/reference/containers.html
+docs/reference/constants.html
+docs/reference/data_structures.html
+docs/reference/unified_dataset.html
+docs/reference/dataset_utils.html
+docs/reference/augmentation.html
+docs/reference/indexing.html
+docs/reference/caching.html
+docs/reference/utils.html
+docs/reference/enums.html
+
+# OS
+.DS_Store
+Thumbs.db

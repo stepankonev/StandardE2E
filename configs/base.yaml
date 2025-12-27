@@ -1,0 +1,35 @@
+preprocessing:
+  adapters:
+    - name: pano_adapter
+      params:
+        top_cut_frac: 0.0
+        max_size: 384
+    - name: intent_identity_adapter
+    - name: future_states_identity_adapter
+    - name: past_states_identity_adapter
+    - name: preference_trajectory_adapter
+    - name: detections_3d_identity_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - intent
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+        - preference_trajectory
+      selector:
+        name: current
+    - frame_name: future_1second
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 1.0
+        

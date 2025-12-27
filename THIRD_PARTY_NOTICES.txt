@@ -1,0 +1,4 @@
+This project includes code derived from the Waymo Open Dataset
+(standard_e2e/third_party/waymo_open_dataset),
+© Waymo Open Dataset Authors,
+licensed under the Apache License 2.0.

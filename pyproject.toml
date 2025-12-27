@@ -1,0 +1,169 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "standard_e2e"
+dynamic = ["version"]
+authors = [
+    {name = "Stepan Konev"},
+]
+description = "A unified framework for autonomous driving dataset management for end-to-end model development"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "torch",
+    "pandas",
+    "pyarrow",
+    "Pillow",
+    "albumentations",
+    "pyyaml",
+    "tensorflow-cpu",
+    "tqdm",
+    "pydantic>=2.6,<3",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+keywords = ["autonomous-driving", "computer-vision", "deep-learning", "pytorch", "dataset-management", "end-to-end"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "lark",
+    # Type stubs for pandas to satisfy mypy
+    "pandas-stubs>=2.2.0.240909",
+    # Additional type stubs used in the project
+    "types-PyYAML",
+    "types-tqdm",
+    "types-tensorflow",
+    "matplotlib"
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+]
+lint = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    # Include pandas type stubs when running linting/type checking
+    "pandas-stubs>=2.2.0.240909",
+    "types-PyYAML",
+    "types-tqdm",
+    "types-tensorflow"
+]
+
+[project.urls]
+Homepage = "https://github.com/stepankonev/StandardE2E"
+Repository = "https://github.com/stepankonev/StandardE2E.git"
+Issues = "https://github.com/stepankonev/StandardE2E/issues"
+
+[tool.setuptools.packages.find]
+include = ["standard_e2e*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "standard_e2e.__version__"}
+
+[tool.black]
+line-length = 88
+target-version = ['py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | standard_e2e/third_party
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+src_paths = ["standard_e2e", "tests"]
+skip_glob = ["standard_e2e/third_party/*"]
+
+[tool.coverage.run]
+source = ["standard_e2e"]
+relative_files = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+    "setup.py",
+    "standard_e2e/third_party/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+exclude = [
+    "^standard_e2e/third_party/.*$",
+]
+
+[[tool.mypy.overrides]]
+module = "standard_e2e.third_party.*"
+follow_imports = "skip"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "albumentations.*"
+ignore_missing_imports = true
