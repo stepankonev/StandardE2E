@@ -6,12 +6,6 @@ import torch
 from standard_e2e.enums import TrajectoryComponent
 from standard_e2e.utils import _assert_strictly_increasing
 
-# from torch.utils.data._utils.collate import collate as _torch_collate
-# from torch.utils.data._utils.collate import (
-#     default_collate_fn_map,
-# )
-
-
 # ======================= Helpers (module-level) =======================
 
 Array1DNP = Union[
@@ -79,7 +73,7 @@ def _validate_components_arg(
 
 class Trajectory:
     """
-    NumPy-only trajectory container.
+    Single trajectory data container (numpy) with helpers for processing.
 
     - Components: 1D np.float32 arrays of equal length N.
     - Accepts shapes (N,) or (N,1) from ndarray/list/tuple; stored as (N,).
@@ -106,6 +100,11 @@ class Trajectory:
     # ----- basics -----
     @property
     def length(self) -> int:
+        """Return the number of timesteps stored in this trajectory.
+        If no data has been added yet, this returns 0.
+        Returns:
+            int: Number of timesteps (rows) in the trajectory.
+        """
         if not self._data:
             return 0
         first_key = next(iter(self._data))
@@ -113,6 +112,7 @@ class Trajectory:
 
     @property
     def isEmpty(self) -> bool:
+        """Check if the trajectory is empty or has no valid data."""
         if self.length == 0:
             return True
         if self.get(TrajectoryComponent.IS_VALID, strict=False).sum() == 0:
@@ -120,9 +120,11 @@ class Trajectory:
         return False
 
     def components(self) -> List[TrajectoryComponent]:
+        """List the trajectory components currently stored."""
         return list(self._data.keys())
 
     def has(self, component: TrajectoryComponent) -> bool:
+        """Check if a trajectory component is present."""
         return component in self._data
 
     # ----- set/get -----
@@ -167,7 +169,7 @@ class Trajectory:
         *,
         strict: bool = True,
     ) -> np.ndarray:
-        """Fetch one or more components as a stacked ``(N, K)`` float32 array."""
+        """Fetch one or more components as a stacked ``(N, K)`` array."""
         components_list = _validate_components_arg(components)
         length = self.length
 
@@ -425,7 +427,7 @@ class Trajectory:
 
 class BatchedTrajectory:
     """
-    PyTorch batch of trajectories (collate-time).
+    Data container for a batch of trajectories.
 
     - __init__ accepts a NON-EMPTY list of Trajectory objects.
     - Empty trajectories inside the list are allowed and zero-filled.
@@ -530,28 +532,35 @@ class BatchedTrajectory:
     # ---- basics ----
     @property
     def device(self) -> torch.device:
+        """Return the device on which the trajectory data is stored."""
         return self._device
 
     @property
     def batch_size(self) -> int:
+        """Return the number of trajectories in the batch."""
         return int(self._scores.shape[0])
 
     @property
     def length(self) -> int:
+        """Return the length of the trajectories in the batch (automatically padded)."""
         return 0 if not self._data else int(next(iter(self._data.values())).shape[1])
 
     @property
     def scores(self) -> torch.Tensor:
+        """Return the scores associated with each trajectory in the batch."""
         return self._scores
 
     @property
     def is_empty_mask(self) -> torch.Tensor:
+        """Return a mask indicating which trajectories in the batch are empty."""
         return self._is_empty_mask
 
     def components(self) -> List[TrajectoryComponent]:
+        """List the trajectory components currently stored."""
         return list(self._data.keys())
 
     def has(self, component: TrajectoryComponent) -> bool:
+        """Check if a trajectory component is present."""
         return component in self._data
 
     # ---- get ----
