@@ -15,14 +15,6 @@ Frame data
    TransformedFrameData
    TransformedFrameDataBatch
 
-Functions
-~~~~~~~~~
-
-.. autosummary::
-   :toctree: generated/data_structures
-   :nosignatures:
-
-   collate_trajectory_fn
 
 Trajectories
 ------------
@@ -33,3 +25,17 @@ Trajectories
 
    Trajectory
    BatchedTrajectory
+
+Modality Containers
+----------
+
+.. autosummary::
+   :toctree: generated/data_structures
+   :nosignatures:
+
+   CameraData
+   LidarData
+   Detection3D
+   FrameDetections3D
+   BatchedFrameDetections3D
+   

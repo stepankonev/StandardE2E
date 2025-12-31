@@ -2,6 +2,7 @@ from standard_e2e.data_structures.containers import (
     CameraData,
     Detection3D,
     FrameDetections3D,
+    BatchedFrameDetections3D,
     LidarData,
 )
 from standard_e2e.data_structures.frame_data import (
@@ -20,6 +21,7 @@ __all__ = [
     "CameraData",
     "Detection3D",
     "FrameDetections3D",
+    "BatchedFrameDetections3D",
     "LidarData",
     "FrameIndexData",
     "StandardFrameData",

@@ -6,7 +6,6 @@ API Reference
 
 	unified_dataset
 	data_structures
-	containers
 	enums
 	caching
 	dataset_utils
