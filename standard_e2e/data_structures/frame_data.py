@@ -43,14 +43,20 @@ class StandardFrameData(BaseModel):
         segment_id (str): Identifier of the segment or scene containing the frame.
         dataset_name (str): Name of the dataset this frame belongs to.
         split (str): Dataset split (e.g., "train", "val", "test").
-        global_position (Optional[Trajectory]): Global trajectory or pose for the ego entity at this frame.
-        intent (Optional[Intent]): Predicted or annotated intent associated with the frame.
-        cameras (dict[CameraDirection, CameraData]): Camera data keyed by camera direction.
+        global_position (Optional[Trajectory]):
+            Global trajectory or pose for the ego entity at this frame.
+        intent (Optional[Intent]):
+            Predicted or annotated intent associated with the frame.
+        cameras (dict[CameraDirection, CameraData]):
+            Camera data keyed by camera direction.
         lidar (Optional[LidarData]): LiDAR data for the frame, if available.
-        future_states (Optional[Trajectory]): Future trajectory states relative to this frame.
-        past_states (Optional[Trajectory]): Past trajectory states leading up to this frame.
+        future_states (Optional[Trajectory]):
+            Future trajectory states relative to this frame.
+        past_states (Optional[Trajectory]):
+            Past trajectory states leading up to this frame.
         hd_map (Any): High-definition map data associated with the frame.
-        frame_detections_3d (Optional[FrameDetections3D]): 3D detections present in the frame.
+        frame_detections_3d (Optional[FrameDetections3D]):
+            3D detections present in the frame.
         aux_data (Optional[Dict[str, Any]]): Additional auxiliary data.
         extra_index_data (Optional[Dict[str, Any]]): Extra indexing or lookup data.
     """

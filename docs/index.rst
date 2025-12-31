@@ -1,25 +1,25 @@
 StandardE2E Documentation
 =========================
 
-**Unified end-to-end autonomous driving dataset processing and loading.**
+**A framework for unified end-to-end autonomous driving datasets processing**
 
-StandardE2E standardizes multimodal autonomous driving datasets into a single, unified format for training models on multiple datasets using one consistent API.
+StandardE2E provides a consistent interface for preprocessing, loading, and training with multimodal data from various end-to-end autonomous driving datasets. It standardizes the complex process of working with different dataset formats, allowing researchers to focus on model development rather than data engineering.
 
 .. image:: ../assets/standard_e2e_scheme.png
    :alt: StandardE2E Architecture
    :align: center
-   :width: 80%
+   :width: 100%
 
 |
 
 Key Features
 ------------
 
-✨ **Unified Data Format** - Single representation for all datasets
+✨ **Unified Data Format and API** - Single representation and consistent interface for all datasets
 
 🔄 **Multimodal Support** - Camera, trajectories, detections, WIP LiDAR, maps, etc
 
-⚙️ **Parametrizable Pipelines** - Configure programmatically or via YAML
+⚙️ **Parametrizable Pipelines** - Configure programmatically or via YAML files
 
 🚀 **PyTorch Native** - Seamless DataLoader integration
 
@@ -28,7 +28,7 @@ Key Features
 Getting Started
 ---------------
 
-From PyPI:
+Install from PyPI:
 
 .. code-block:: bash
 
@@ -55,7 +55,6 @@ Documentation
 
    quickstart
    overview
-   user_guide
 
 .. toctree::
    :maxdepth: 2

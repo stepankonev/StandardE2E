@@ -13,6 +13,7 @@ Frame data
    StandardFrameData
    FrameIndexData
    TransformedFrameData
+   TransformedFrameDataBatch
 
 Functions
 ~~~~~~~~~

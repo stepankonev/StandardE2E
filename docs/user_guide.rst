@@ -65,7 +65,7 @@ The **index** is a Parquet file (see ``standard_e2e.constants.INDEX_FILE_NAME``)
 
 The index enables:
 
-- **Fast filtering**: Query frames by attributes without loading data
+- **Fast filtering**: Query frames by attributes without loading frame data
 - **Efficient sampling**: Random access to specific frames
 - **Multi-dataset alignment**: Common schema across datasets
 

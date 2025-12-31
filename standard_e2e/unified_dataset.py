@@ -49,7 +49,8 @@ class UnifiedE2EDataset(Dataset):
     label_loaders_config : dict | list[dict] | None, optional
         Configuration(s) to build label frame loaders when label_loaders is None.
     augmentations : list[FrameAugmentation] | None, optional
-        Ordered list of frame augmentations to apply; defaults to IdentityFrameAugmentation.
+        Ordered list of frame augmentations to apply;
+        defaults to IdentityFrameAugmentation.
     index_filters : list[IndexFilter] | None, optional
         Filters applied to index_data to select usable rows.
     modality_defaults : dict[Modality, ModalityDefaults] | None, optional

@@ -16,7 +16,7 @@
 
 <div align="center">
 
-  [![Docs](https://readthedocs.org/projects/standard-e2e/badge/?version=latest)](https://standard-e2e.readthedocs.io/en/latest/)
+  [![Docs](https://readthedocs.org/projects/standarde2e/badge/?version=latest)](https://standarde2e.readthedocs.io/en/latest/)
   [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/vJnQNcQGQ8)
 
 </div>
@@ -34,7 +34,7 @@ StandardE2E provides a consistent interface for preprocessing, loading, and trai
 
 ## 📖 Documentation
 
-- Latest docs: https://standard-e2e.readthedocs.io/en/latest/
+- Latest docs: https://standarde2e.readthedocs.io/en/latest/
 
 ## 📦 Installation
 
