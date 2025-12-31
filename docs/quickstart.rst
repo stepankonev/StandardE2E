@@ -22,10 +22,35 @@ Or from source for development:
    conda activate standard_e2e
    pip install -e .
 
+Preprocessing (required before training)
+----------------------------------------
+
+Convert raw data into the unified format before any training or loading. This
+Waymo End-to-End example (training split) builds scene files containing
+:class:`~standard_e2e.data_structures.frame_data.TransformedFrameData` and the index used by the :class:`~standard_e2e.unified_dataset.UnifiedE2EDataset`.
+
+.. code-block:: bash
+
+   python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+       --input_path=path/to/input \
+       --output_path=path/to/output \
+       --split=training \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+See the in-repo examples for the exact flow:
+- Script: `examples/dataset_preprocessing.py <https://github.com/stepankonev/StandardE2E/blob/main/examples/dataset_preprocessing.py>`_
+- Notebook walkthrough: `notebooks/intro_tutorial.ipynb <https://github.com/stepankonev/StandardE2E/blob/main/notebooks/intro_tutorial.ipynb>`_
+
+.. tip::
+   For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
+   truncate segment continuity in this mode, so use only for smoke-testing.
+
 Interactive Tutorials
 ---------------------
 
-The best way to learn StandardE2E is through our interactive Jupyter notebooks. Follow them in order:
+The best way to learn StandardE2E is through our interactive Jupyter notebooks:
 
 1. **Introduction Tutorial** (`intro_tutorial.ipynb <https://github.com/stepankonev/StandardE2E/blob/main/notebooks/intro_tutorial.ipynb>`_)
    
@@ -87,17 +112,14 @@ This guide covers:
 
 Next Steps
 ----------
-
-- 📚 Read the :doc:`user_guide` for detailed explanations
 - 🔍 Explore the :doc:`overview` to understand the architecture
 - 📖 Check the :doc:`reference/api` for complete API documentation
-- 💡 Browse `examples/ <https://github.com/stepankonev/StandardE2E/tree/main/examples>`_ for more code samples
+- 💡 Browse `examples/ <https://github.com/stepankonev/StandardE2E/tree/main/examples>`_ and the notebooks for tested flows
 
 Need Help?
 ----------
 
 - 🐛 Report issues on `GitHub Issues <https://github.com/stepankonev/StandardE2E/issues>`_
-- 💬 Ask questions in `Discussions <https://github.com/stepankonev/StandardE2E/discussions>`_
-- 📧 Reach out to the maintainers
+- 📧 Reach out to the maintainers in `Discord <https://discord.gg/vJnQNcQGQ8>`_
 
 Happy coding! 🚗💨
