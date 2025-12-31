@@ -9,7 +9,6 @@ API Reference
 	enums
 	caching
 	dataset_utils
+	modality_defaults
 	augmentation
 	indexing
-	utils
-	constants

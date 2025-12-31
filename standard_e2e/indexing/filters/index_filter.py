@@ -5,7 +5,7 @@ import pandas as pd
 
 
 class IndexFilter(ABC):
-    """Class to filter index data based on specific criteria."""
+    """Base class to filter index data based on specific criteria."""
 
     FILTERING_COL_NAME = "_FILTERING_COL"
 

@@ -35,16 +35,17 @@ from standard_e2e.enums import TrajectoryComponent as TC
 
 class StandardFrameData(BaseModel):
     """
-    Represents a single standardized frame and associated metadata for a dataset.
+    Represents a single frame data in intermediate standardized format:
+    Raw frame data -> StandardFrameData -> TransformedFrameData.
 
     Attributes:
         timestamp (float): Timestamp of the frame in seconds.
         frame_id (int): Unique identifier of the frame within a sequence.
-        segment_id (str): Identifier of the segment or scene containing the frame.
+        segment_id (str): Unique identifier of the segment this frame belongs to.
         dataset_name (str): Name of the dataset this frame belongs to.
         split (str): Dataset split (e.g., "train", "val", "test").
         global_position (Optional[Trajectory]):
-            Global trajectory or pose for the ego entity at this frame.
+            Pose for the ego entity at this frame in global coordinates.
         intent (Optional[Intent]):
             Predicted or annotated intent associated with the frame.
         cameras (dict[CameraDirection, CameraData]):
@@ -54,7 +55,7 @@ class StandardFrameData(BaseModel):
             Future trajectory states relative to this frame.
         past_states (Optional[Trajectory]):
             Past trajectory states leading up to this frame.
-        hd_map (Any): High-definition map data associated with the frame.
+        hd_map (Any): High-definition map data associated with the frame. WIP
         frame_detections_3d (Optional[FrameDetections3D]):
             3D detections present in the frame.
         aux_data (Optional[Dict[str, Any]]): Additional auxiliary data.
@@ -161,17 +162,18 @@ def _to_device_recursive(x: Any, device: torch.device) -> Any:
 
 
 class TransformedFrameData(BaseModel):
-    """Represents a single transformed frame with associated metadata, positional
-    trajectory, and modality-specific payloads.
+    """Represents a single frame data with associated metadata, transformed by Adapters.
+    A finalized, training-ready structure, loaded by Dataset:
+    Raw frame data -> StandardFrameData -> TransformedFrameData.
 
     Attributes:
         dataset_name (str): Name of the dataset containing this frame.
         segment_id (str): Identifier of the sequence/segment this frame belongs to.
-        frame_id (int): Index of the frame within the segment.
+        frame_id (int): Unique identifier of the frame within the segment.
         timestamp (float): Timestamp of the frame in seconds.
         split (str): Dataset split (e.g., train/val/test) for this frame.
-        global_position (Trajectory | None): World-frame trajectory data; defaults
-            to a zeroed trajectory if not provided.
+        global_position (Trajectory | None): World-frame position data; defaults
+            to a zeroed position if not provided.
         filename (str | None): Auto-generated file name of the frame npz; computed
             as ``{dataset_name}/{split}/{segment_id}_{frame_id}.npz`` when missing.
         aux_data (dict[str, Any] | None): Optional auxiliary metadata.
@@ -183,6 +185,7 @@ class TransformedFrameData(BaseModel):
     Private Attributes:
         _modality_data (dict[Modality, Any]): Raw modality-specific payloads,
             stored privately for compatibility with legacy code.
+        Use get_modality_data() to access.
 
     Methods:
         set_modality_data(modality, data): Store payload for a given modality.
@@ -190,10 +193,10 @@ class TransformedFrameData(BaseModel):
             modality, optionally normalizing via its default handler.
         get_present_modality_keys(): List the modalities currently stored.
         to_npz(path): Serialize the frame (including modality data) to a compressed
-            ``.npz`` file, omitting non-serializable defaults and index-only data.
-        from_npz(path, required_modalities=None): Load a frame from ``.npz``,
+            ``.npz`` file.
+        from_npz(path, required_modalities=None): Loads a frame from ``.npz``,
             optionally ensuring required modalities exist (inserting None) and
-            dropping extraneous modalities.
+            applying defaults.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
@@ -365,9 +368,6 @@ def collate_modalities(
     are turned into a `BatchedTrajectory`. Everything else is native behavior.
     """
     device = device or torch.device("cpu")
-    # collate_fn_map = {
-    #     Trajectory: lambda b, **kw: _collate_trajectory(b, device=device, **kw),
-    # }
     # Collate fn map must accept broader key types required by torch's internal typing
     extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
         Trajectory: collate_trajectory_fn,
@@ -381,8 +381,6 @@ def collate_modalities(
 class TransformedFrameDataBatch:
     """
     Data structure to hold a batch of frame data (PyTorch-friendly).
-    Values inside _modality_data can be tensors,
-    BatchedTrajectory, or nested containers thereof.
     """
 
     dataset_name: list[str]
