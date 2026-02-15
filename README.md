@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/standard_e2e_logo_contrast.png" alt="StandardE2E Logo" width="400"/>
+  <img src="https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/standard_e2e_logo_contrast.png" alt="StandardE2E Logo" width="400"/>
   
   <p><em>A framework for unified end-to-end autonomous driving datasets processing</em></p>
 
@@ -10,7 +10,7 @@
   [![codecov](https://codecov.io/github/stepankonev/StandardE2E/graph/badge.svg?token=3MWJNB10OO)](https://codecov.io/github/stepankonev/StandardE2E)
   [![Code Style](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
   [![mypy](https://img.shields.io/badge/mypy-checked-2A6DB2?logo=mypy&logoColor=white)](http://mypy-lang.org/)
-  [![StandardE2E](assets/StandardE2E_gh_badge_dark.svg)](https://github.com/stepankonev/StandardE2E)
+  [![StandardE2E](https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/StandardE2E_gh_badge_dark.svg)](https://github.com/stepankonev/StandardE2E)
   
 </div>
 
@@ -28,7 +28,7 @@ StandardE2E provides a consistent interface for preprocessing, loading, and trai
 > This project is in **early beta**. **Read the Docs** and the **PyPI** package are **not yet available**, but will be available soon.
 
 
-![StandardE2E Architecture](assets/standard_e2e_scheme.png)
+![StandardE2E Architecture](https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/standard_e2e_scheme.png)
 
 ---
 
@@ -43,14 +43,20 @@ StandardE2E provides a consistent interface for preprocessing, loading, and trai
 pip install standard-e2e
 ```
 
-### Option 2: Manual Development Setup
+### Option 2: Development with uv (recommended)
 ```bash
-# Create a new conda environment
+# Install uv: https://docs.astral.sh/uv/
+git clone https://github.com/stepankonev/StandardE2E.git
+cd StandardE2E
+uv sync --all-extras   # installs deps and dev deps from uv.lock
+uv run pytest tests/   # run tests
+```
+
+### Option 3: Manual development (pip/conda)
+```bash
 conda create -n standard_e2e python=3.12
 conda activate standard_e2e
-
-# Install the package in development mode
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ## Plan for E2E Autonomous Driving Datasets Support
@@ -124,7 +130,7 @@ If you find this project useful, you can support it by giving it a ⭐, or by co
   url={https://github.com/stepankonev/StandardE2E}
 }
 ```
-and using the badge [![StandardE2E](assets/StandardE2E_gh_badge_dark.svg)](https://github.com/stepankonev/StandardE2E)
+and using the badge [![StandardE2E](https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/StandardE2E_gh_badge_dark.svg)](https://github.com/stepankonev/StandardE2E)
 
 Markdown
 

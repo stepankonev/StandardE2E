@@ -2,7 +2,7 @@
 StandardE2E - A modern Python package for end-to-end testing standards.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.3"
 __author__ = "stepankonev"
 
 from standard_e2e.unified_dataset import UnifiedE2EDataset
