@@ -408,10 +408,8 @@ class TransformedFrameDataBatch:
         """
 
         if not frames:
-            raise ValueError(
-                "TransformedFrameDataBatch requires a non-empty \
-                    list of TransformedFrameData."
-            )
+            raise ValueError("TransformedFrameDataBatch requires a non-empty \
+                    list of TransformedFrameData.")
         device = device or torch.device("cpu")
 
         self.dataset_name = [frame.dataset_name for frame in frames]
