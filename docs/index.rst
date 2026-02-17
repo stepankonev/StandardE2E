@@ -40,9 +40,7 @@ Or for development:
 
    git clone https://github.com/stepankonev/StandardE2E.git
    cd StandardE2E
-   conda create -n standard_e2e python=3.12
-   conda activate standard_e2e
-   pip install -e .
+   uv sync --all-extras
 
 Refer to the :doc:`quickstart` guide for detailed usage.
 

@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+import torchvision
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
@@ -54,9 +55,8 @@ class VerySimpleE2EModel(nn.Module):
 
     def __init__(self, out_dim: int = 40):
         super(VerySimpleE2EModel, self).__init__()
-        self._cnn_backbone = torch.hub.load(
-            "pytorch/vision:v0.10.0", "resnet18", pretrained=True
-        )
+        self._cnn_backbone = torchvision.models.resnet18(
+            weights="ResNet18_Weights.IMAGENET1K_V1")
         self._cnn_backbone.fc = nn.Identity()
         self._out_dim = out_dim
         self._fusion_layer = nn.Sequential(

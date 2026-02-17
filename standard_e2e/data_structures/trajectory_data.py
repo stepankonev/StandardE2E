@@ -134,10 +134,8 @@ class Trajectory:
         if component is TrajectoryComponent.TIMESTAMP:
             _assert_strictly_increasing(array)
         if self.length and array.shape[0] != self.length:
-            raise ValueError(
-                f"Length mismatch for {component.name}: \
-                    {array.shape[0]} != {self.length}"
-            )
+            raise ValueError(f"Length mismatch for {component.name}: \
+                    {array.shape[0]} != {self.length}")
         self._data[component] = array
 
         # Auto-create is_valid=1 for first real component

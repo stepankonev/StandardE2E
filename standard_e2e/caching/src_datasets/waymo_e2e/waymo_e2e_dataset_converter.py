@@ -25,8 +25,7 @@ class WaymoE2EDatasetConverter(TFRecSourceDatasetConverter):
             arguments=arguments,
         )
         if self._args.n_shards > 1:
-            logging.warning(
-                """
+            logging.warning("""
                 Using sharding with Waymo E2E dataset.
                 The frames in the Waymo E2E dataset are stored in a shuffled order.
                 When using sharded data, consecutive frames are not guaranteed
@@ -34,8 +33,7 @@ class WaymoE2EDatasetConverter(TFRecSourceDatasetConverter):
                 use cases that require sequential frames.
                 For such scenarios, consider preparing and using the full,
                 unsharded dataset.
-                """
-            )
+                """)
 
     def _get_processing_files(self):
         """Return a list of files to process."""

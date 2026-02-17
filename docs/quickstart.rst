@@ -12,15 +12,15 @@ Install from PyPI:
 
    pip install standard-e2e
 
-Or from source for development:
+Or from source for development (with uv):
 
 .. code-block:: bash
 
    git clone https://github.com/stepankonev/StandardE2E.git
    cd StandardE2E
-   conda create -n standard_e2e python=3.12
-   conda activate standard_e2e
-   pip install -e .
+   uv sync --all-extras
+
+Or with pip/conda: create a venv, then ``pip install -e ".[dev]"``.
 
 Preprocessing (required before training)
 ----------------------------------------
@@ -31,7 +31,7 @@ Waymo End-to-End example (training split) builds scene files containing
 
 .. code-block:: bash
 
-   python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+   uv run python -m standard_e2e.caching.process_source_dataset waymo_e2e \
        --input_path=path/to/input \
        --output_path=path/to/output \
        --split=training \
@@ -77,7 +77,7 @@ For complete working examples, see:
 
    .. code-block:: bash
 
-      python examples/dataset_preprocessing.py \
+      uv run python examples/dataset_preprocessing.py \
           --e2e_dataset_path /path/to/raw/waymo/e2e \
           --split training \
           --processed_data_path /path/to/processed
@@ -86,14 +86,14 @@ For complete working examples, see:
 
    .. code-block:: bash
 
-      python examples/very_simple_training.py \
+      uv run python examples/very_simple_training.py \
           --processed_data_path /path/to/processed
 
 3. **Multi-Dataset DataLoader** - `creating_unified_dataloader.py <https://github.com/stepankonev/StandardE2E/blob/main/examples/creating_unified_dataloader.py>`_
 
    .. code-block:: bash
 
-      python examples/creating_unified_dataloader.py \
+      uv run python examples/creating_unified_dataloader.py \
           --processed_data_path /path/to/processed
 
 Adding New Datasets
