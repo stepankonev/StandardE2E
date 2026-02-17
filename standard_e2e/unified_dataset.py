@@ -71,8 +71,10 @@ class UnifiedE2EDataset(Dataset):
         modality_defaults: dict[Modality, ModalityDefaults] | None = None,
     ):
         if regime not in FrameAugmentation.ALLOWED_REGIMES:
-            raise ValueError(f"Invalid regime: {regime}. Must be one of \
-                    {FrameAugmentation.ALLOWED_REGIMES}.")
+            raise ValueError(
+                f"Invalid regime: {regime}. Must be one of \
+                    {FrameAugmentation.ALLOWED_REGIMES}."
+            )
         _check_modality_defaults_dict(modality_defaults)
         self._regime = regime
         self._index_data = index_data.copy()

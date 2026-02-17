@@ -23,9 +23,7 @@
 
 StandardE2E provides a consistent interface for preprocessing, loading, and training with multimodal data from various end-to-end autonomous driving datasets. It standardizes the complex process of working with different dataset formats, allowing researchers to focus on model development rather than data engineering.
 
-> ⚠️ **Early Beta**
->
-> This project is in **early beta**. **Read the Docs** and the **PyPI** package are **not yet available**, but will be available soon.
+
 
 
 ![StandardE2E Architecture](https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/standard_e2e_scheme.png)
@@ -94,23 +92,26 @@ pip install -e ".[dev]"
 - [creating_custom_adapter.ipynb](notebooks/creating_custom_adapter.ipynb) - Creating custom dataset adapters
 
 ### Code Examples
+
+Run from the project root so `uv run` uses the project environment. If you use pip/conda instead, activate your env and use `python` in place of `uv run python`.
+
 1. **Preprocess Waymo End-to-end dataset** - Convert raw dataset to standardized format ([`dataset_preprocessing.py`](examples/dataset_preprocessing.py))
-    ```
-    python examples/dataset_preprocessing.py \
+    ```bash
+    uv run python examples/dataset_preprocessing.py \
       --e2e_dataset_path E2E_DATASET_PATH \
       --split {training,val,test} \
       --processed_data_path PROCESSED_DATA_PATH
     ```
 2. **Train your model** - End-to-end training with multimodal data ([`very_simple_training.py`](examples/very_simple_training.py)). This example illustrates iteration over the preprocessed dataset. Also, in this example for validation we use 2 DataLoaders - full validation split and filtered validation split that only contains samples with preferred trajectories.
-    ```
-    python examples/very_simple_training.py --processed_data_path PROCESSED_DATA_PATH
+    ```bash
+    uv run python examples/very_simple_training.py --processed_data_path PROCESSED_DATA_PATH
     ```
 3. **Create a unified DataLoader**: This example shows how to process 2 different datasets within same DataLoader. First, please do preprocessing for `Waymo E2E` and `Waymo Perception` datasets in order to utilize them in the DataLoader with the script ([`prepare_datasets_waymo_e2e_perception.sh`](scripts/prepare_datasets_waymo_e2e_perception.sh)).
 
     The script [`creating_unified_dataloader.py`](examples/creating_unified_dataloader.py) created a unified dataloader that iterates over both `Waymo E2E` and `Waymo Perception` in one epoch providing consistent data structure.
 
-    ```
-    python examples/creating_unified_dataloader.py --processed_data_path PROCESSED_DATA_PATH
+    ```bash
+    uv run python examples/creating_unified_dataloader.py --processed_data_path PROCESSED_DATA_PATH
     ```
 4. **Add a new dataset adapter** - Guide for adding support for new datasets ([`adding_new_dataset.md`](standard_e2e/caching/src_datasets/adding_new_dataset.md))
 

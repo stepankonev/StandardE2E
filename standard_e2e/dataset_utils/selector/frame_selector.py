@@ -18,8 +18,10 @@ class FrameSelector(ABC):
         """
         self._index_data = kwargs.get("index_data")
         if location not in self._ALLOWED_LOCATIONS:
-            raise ValueError(f"Invalid location '{location}'. Allowed locations are: \
-                    {self._ALLOWED_LOCATIONS}")
+            raise ValueError(
+                f"Invalid location '{location}'. Allowed locations are: \
+                    {self._ALLOWED_LOCATIONS}"
+            )
         self._location = location
         self._validate_params()
 
