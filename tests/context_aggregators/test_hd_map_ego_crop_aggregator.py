@@ -41,7 +41,11 @@ def _ego_pose_at(x: float, y: float) -> np.ndarray:
 
 
 class _FakeAggregator(HDMapEgoCropAggregator):
-    """Concrete subclass that returns a hand-built segment map."""
+    """Concrete subclass that returns a hand-built segment map.
+
+    Bypasses ``_resolve_segment_source_path`` by parsing the fixture map
+    from in-memory state directly inside ``_parse_world_segment_map``.
+    """
 
     def __init__(self, data_path: str, raw_map: RawSegmentHDMap, **kwargs):
         super().__init__(
@@ -53,6 +57,11 @@ class _FakeAggregator(HDMapEgoCropAggregator):
         )
         self._fixture_map = raw_map
         self.parse_calls = 0
+
+    def _resolve_segment_source_path(self, segment_id: str) -> Path:
+        raise NotImplementedError(
+            "_FakeAggregator parses from memory; the source path hook is unused."
+        )
 
     def _parse_world_segment_map(self, segment_id: str) -> RawSegmentHDMap:
         self.parse_calls += 1

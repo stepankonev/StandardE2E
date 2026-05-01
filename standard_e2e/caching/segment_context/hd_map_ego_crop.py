@@ -1,4 +1,4 @@
-"""Abstract per-source HD-map ego-crop aggregator (per ADR 0007).
+"""Abstract per-source HD-map ego-crop aggregator.
 
 Each per-source subclass implements ``_parse_world_segment_map`` to
 produce a world-frame ``RawSegmentHDMap`` from the source-native HD map
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 from abc import abstractmethod
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -56,6 +57,17 @@ class HDMapEgoCropAggregator(SegmentContextAggregator):
     @property
     def crop_extent(self) -> tuple[float, float]:
         return self._x_range, self._y_range
+
+    @abstractmethod
+    def _resolve_segment_source_path(self, segment_id: str) -> Path:
+        """Locate the segment's source-native HD-map artifact.
+
+        For Waymo Perception this is a tfrecord; for AV2 it will be a
+        ``log_map_archive_*.json`` file. Subclasses encapsulate the
+        per-source filesystem layout. ``_parse_world_segment_map`` is
+        free to call this hook (or not — some subclasses may parse
+        from in-memory state instead).
+        """
 
     @abstractmethod
     def _parse_world_segment_map(self, segment_id: str) -> RawSegmentHDMap:

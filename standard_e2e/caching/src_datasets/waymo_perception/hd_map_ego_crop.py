@@ -1,4 +1,4 @@
-"""Concrete ``WaymoHDMapEgoCropAggregator`` (per ADR 0007).
+"""Concrete ``WaymoHDMapEgoCropAggregator``.
 
 Implements the abstract ``_parse_world_segment_map(segment_id)`` hook by
 opening the segment's tfrecord under ``source_data_path``, taking the
@@ -31,7 +31,7 @@ from standard_e2e.data_structures import RawSegmentHDMap
 class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
     """Per-segment Waymo HD-map parse + per-frame ego crop."""
 
-    def _resolve_tfrecord_path(self, segment_id: str) -> Path:
+    def _resolve_segment_source_path(self, segment_id: str) -> Path:
         """Find the tfrecord for ``segment_id`` under ``source_data_path``.
 
         ``segment_id`` is ``frame.context.name`` from the Waymo proto.
@@ -85,7 +85,7 @@ class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
             Frame as WaymoFrame,
         )
 
-        tfrecord_path = self._resolve_tfrecord_path(segment_id)
+        tfrecord_path = self._resolve_segment_source_path(segment_id)
         dataset = tf.data.TFRecordDataset([str(tfrecord_path)], compression_type="")
         for raw_record in dataset:
             frame = WaymoFrame()
