@@ -183,3 +183,24 @@ def test_get_modality_data_absent_returns_none():
     f2 = make_frame(2)
     batch = TransformedFrameDataBatch([f1, f2])
     assert batch.get_modality_data(Modality.CAMERAS) is None
+
+
+class _StrictDict(dict):
+    """Dict subclass that rejects positional construction.
+
+    Used to verify ``_collate_dict_fn`` does not silently downgrade a
+    typed wrapper to a plain dict when reconstruction fails: a real
+    regression where a wrapper grows a required kwarg should surface as
+    a TypeError, not be papered over.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+def test_collate_dict_fn_surfaces_typeerror_from_wrapper_init():
+    from standard_e2e.data_structures.frame_data import _collate_dict_fn
+
+    batch = [_StrictDict(a=1), _StrictDict(a=2)]
+    with pytest.raises(TypeError):
+        _collate_dict_fn(batch)

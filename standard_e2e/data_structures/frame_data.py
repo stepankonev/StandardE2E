@@ -442,10 +442,7 @@ def _collate_dict_fn(
         )
         for key in keys
     }
-    try:
-        return elem_type(collated)
-    except TypeError:
-        return collated
+    return elem_type(collated)
 
 
 def collate_modalities(

@@ -67,6 +67,28 @@ def test_constructor_param_exclusivity():
         FuturePastStatesFromMatricesAggregator("unused", max_history_length=-1)
 
 
+def test_fetch_value_missing_pose_matrix_raises(tmp_path: Path):
+    """Mirrors the HDMapEgoCropAggregator precondition: if a source
+    processor (e.g. WaymoE2EDatasetProcessor) doesn't populate
+    aux_data['pose_matrix'], aggregator must fail loudly with a clear
+    message rather than an opaque KeyError."""
+    bad = TransformedFrameData(
+        dataset_name="ds",
+        split="train",
+        segment_id="segMP",
+        frame_id=0,
+        timestamp=0.0,
+        # aux_data left as None (E2E processor's behavior pre-fix).
+    )
+    out = tmp_path / bad.filename
+    out.parent.mkdir(parents=True, exist_ok=True)
+    bad.to_npz(str(out))
+    idx = _index_from_frames([bad])
+    aggr = FuturePastStatesFromMatricesAggregator(str(tmp_path))
+    with pytest.raises(ValueError, match="pose_matrix"):
+        aggr.process(idx)
+
+
 def test_fetch_value_shape_validation(tmp_path: Path):
     # Write a frame with wrong pose shape
     bad = TransformedFrameData(

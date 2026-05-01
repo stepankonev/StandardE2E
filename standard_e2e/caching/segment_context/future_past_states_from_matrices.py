@@ -52,6 +52,15 @@ class FuturePastStatesFromMatricesAggregator(SegmentContextAggregator):
         self._max_future_delta_t = max_future_delta_t
 
     def _fetch_value_from_transformed_frame(self, transformed_frame):
+        if (
+            transformed_frame.aux_data is None
+            or "pose_matrix" not in transformed_frame.aux_data
+        ):
+            raise ValueError(
+                "FuturePastStatesFromMatricesAggregator requires "
+                "aux_data['pose_matrix'] on every frame; the source processor "
+                "must populate it."
+            )
         matrix = transformed_frame.aux_data["pose_matrix"]
         if not matrix.shape == (4, 4):
             raise ValueError("Invalid pose_matrix shape")
