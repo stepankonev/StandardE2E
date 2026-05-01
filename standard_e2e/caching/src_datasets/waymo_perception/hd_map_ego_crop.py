@@ -1,0 +1,80 @@
+"""Concrete ``WaymoHDMapEgoCropAggregator`` (per ADR 0007).
+
+Implements the abstract ``_parse_world_segment_map(segment_id)`` hook by
+opening the segment's tfrecord under ``source_data_path``, taking the
+first record (Waymo Perception populates ``map_features`` only on the
+first frame of each segment), and calling
+``parse_waymo_map_features`` to build the world-frame
+``RawSegmentHDMap``. The base class handles the per-frame ego crop and
+persistence; the world-frame map exists only as a local in
+``_process_segment``.
+
+The Waymo segment id (``frame.context.name``) is the tfrecord filename
+without the ``.tfrecord`` extension. ``source_data_path`` should point
+at the directory holding the segment tfrecords (e.g. the
+``validation/`` subdirectory of the Waymo Perception v1.4.x release).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from standard_e2e.caching.segment_context.hd_map_ego_crop import (
+    HDMapEgoCropAggregator,
+)
+from standard_e2e.caching.src_datasets.waymo_perception.hd_map_parser import (
+    parse_waymo_map_features,
+)
+from standard_e2e.data_structures import RawSegmentHDMap
+
+
+class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
+    """Per-segment Waymo HD-map parse + per-frame ego crop."""
+
+    def _resolve_tfrecord_path(self, segment_id: str) -> Path:
+        """Find the tfrecord for ``segment_id`` under ``source_data_path``.
+
+        Tries a direct ``{source_data_path}/{segment_id}.tfrecord`` first
+        (matches the v1.4.x release layout), falls back to a recursive
+        glob so the aggregator works for layouts where tfrecords are
+        split across subdirectories.
+        """
+        direct = Path(self._source_data_path) / f"{segment_id}.tfrecord"
+        if direct.exists():
+            return direct
+        matches = list(
+            Path(self._source_data_path).glob(f"**/{segment_id}.tfrecord")
+        )
+        if not matches:
+            raise FileNotFoundError(
+                f"No tfrecord for segment '{segment_id}' under "
+                f"{self._source_data_path}"
+            )
+        return matches[0]
+
+    def _parse_world_segment_map(self, segment_id: str) -> RawSegmentHDMap:
+        # TF is required for tfrecord IO; imported lazily so the rest
+        # of the cache pipeline does not pull TF when only the lidar /
+        # detection paths run.
+        import tensorflow as tf  # noqa: PLC0415
+
+        # pylint: disable=no-name-in-module
+        from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import (
+            Frame as WaymoFrame,
+        )
+
+        tfrecord_path = self._resolve_tfrecord_path(segment_id)
+        dataset = tf.data.TFRecordDataset(
+            [str(tfrecord_path)], compression_type=""
+        )
+        for raw_record in dataset:
+            frame = WaymoFrame()
+            frame.ParseFromString(raw_record.numpy())
+            return parse_waymo_map_features(frame)
+        raise ValueError(
+            f"Segment tfrecord {tfrecord_path} (segment_id={segment_id!r}) "
+            "is empty; cannot parse HD map."
+        )
+
+
+__all__ = ["WaymoHDMapEgoCropAggregator"]

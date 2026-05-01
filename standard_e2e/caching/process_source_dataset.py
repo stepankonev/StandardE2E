@@ -48,11 +48,19 @@ def main(argv=None):
     arguments = converter_cls_typed.get_arg_parser().parse_args(rest)
     config = load_yaml_config(arguments.config_file)
     adapters = get_adapters_from_config(config["preprocessing"]["adapters"])
-    dataset_processor = dataset_processor_cls(
-        common_output_path=arguments.output_path,
-        split=arguments.split,
-        adapters=adapters,
-    )
+    processor_kwargs: dict = {
+        "common_output_path": arguments.output_path,
+        "split": arguments.split,
+        "adapters": adapters,
+    }
+    # Waymo Perception's HD-map aggregator needs the source tfrecord
+    # directory; pass it through when it's the right processor type so
+    # other processors are unaffected.
+    if dataset_processor_cls is WaymoPerceptionDatasetProcessor:
+        processor_kwargs["source_data_path"] = (
+            f"{arguments.input_path}/{arguments.split}"
+        )
+    dataset_processor = dataset_processor_cls(**processor_kwargs)
     dataset_converter = dataset_converter_cls(
         source_processor=dataset_processor,
         input_path=arguments.input_path,

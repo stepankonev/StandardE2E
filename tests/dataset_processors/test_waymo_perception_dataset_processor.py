@@ -42,6 +42,23 @@ def test_waymo_perception_defaults(tmp_path: Path):
     assert LidarPCIdentityAdapter in adapter_types
 
 
+def test_waymo_perception_hd_map_wired_when_source_data_path_set(tmp_path: Path):
+    """When ``source_data_path`` is provided, the HD-map adapter and
+    ``WaymoHDMapEgoCropAggregator`` are added to the defaults."""
+    from standard_e2e.caching.adapters import HDMapIdentityAdapter
+    from standard_e2e.caching.src_datasets.waymo_perception.hd_map_ego_crop import (
+        WaymoHDMapEgoCropAggregator,
+    )
+
+    proc = _wpdp.WaymoPerceptionDatasetProcessor(
+        str(tmp_path), split="training", source_data_path=str(tmp_path / "src")
+    )
+    adapter_types = {type(a) for a in getattr(proc, "_adapters")}
+    assert HDMapIdentityAdapter in adapter_types
+    aggregator_types = {type(a) for a in proc.context_aggregators}
+    assert WaymoHDMapEgoCropAggregator in aggregator_types
+
+
 def _build_standard_frame(
     segment_id: str,
     frame_id: int,

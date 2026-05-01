@@ -1,15 +1,21 @@
+from typing import Any
+
 import numpy as np
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
     Detections3DIdentityAdapter,
+    HDMapIdentityAdapter,
     LidarPCIdentityAdapter,
     PanoImageAdapter,
 )
 from standard_e2e.caching.segment_context import (
     FutureDetectionsAggregator,
     FuturePastStatesFromMatricesAggregator,
+)
+from standard_e2e.caching.src_datasets.waymo_perception.hd_map_ego_crop import (
+    WaymoHDMapEgoCropAggregator,
 )
 from standard_e2e.data_structures import (
     Detection3D,
@@ -40,6 +46,31 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         CameraDirection.SIDE_LEFT: 4,
         CameraDirection.SIDE_RIGHT: 5,
     }
+    DEFAULT_HD_MAP_CROP_EXTENT_M = 75.0
+
+    def __init__(
+        self,
+        common_output_path: str,
+        split: str,
+        source_data_path: str | None = None,
+        hd_map_crop_extent_m: float | None = None,
+        **kwargs: Any,
+    ):
+        """Construct the Waymo Perception processor.
+
+        ``source_data_path`` (when provided) lets the default HD-map
+        ego-crop aggregator find each segment's tfrecord (per ADR
+        0007). When ``None`` the HD-map adapter and aggregator are
+        omitted from defaults so unit tests / lidar-only conversions
+        do not need the source data.
+        """
+        self._source_data_path = source_data_path
+        self._hd_map_crop_extent_m = (
+            hd_map_crop_extent_m
+            if hd_map_crop_extent_m is not None
+            else self.DEFAULT_HD_MAP_CROP_EXTENT_M
+        )
+        super().__init__(common_output_path=common_output_path, split=split, **kwargs)
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -54,17 +85,30 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [
+        adapters: list[AbstractAdapter] = [
             PanoImageAdapter(),
             Detections3DIdentityAdapter(),
             LidarPCIdentityAdapter(),
         ]
+        if self._source_data_path is not None:
+            adapters.append(HDMapIdentityAdapter())
+        return adapters
 
     def _get_default_context_aggregators(self):
-        return [
+        aggregators = [
             FuturePastStatesFromMatricesAggregator(self.output_path),
             FutureDetectionsAggregator(self.output_path),
         ]
+        if self._source_data_path is not None:
+            aggregators.append(
+                WaymoHDMapEgoCropAggregator(
+                    data_path=self.output_path,
+                    source_data_path=self._source_data_path,
+                    x_range=self._hd_map_crop_extent_m,
+                    y_range=self._hd_map_crop_extent_m,
+                )
+            )
+        return aggregators
 
     def _waymo_agent_type_to_canonical(self, agent_type):
         if agent_type == 0:
