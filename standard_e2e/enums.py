@@ -73,7 +73,7 @@ class DetectionType(StrEnum):
 
 
 class LaneType(StrEnum):
-    """Coarse lane semantic class (per ADR 0006).
+    """Coarse lane semantic class.
 
     Source-side enums (Waymo ``LaneType``, AV2 ``LaneType``) collapse into
     this small set; granularity is intentionally lossy — it is the

@@ -89,7 +89,8 @@ class LidarPCIdentityAdapter(IdentityAdapter):
 
     Mirrors ``CamerasIdentityAdapter``: returns the typed ``LidarData``
     object (Pydantic model wrapping a DataFrame) so downstream consumers
-    keep the schema. Lossless; no padding (per ADR 0008).
+    keep the schema. The adapter is identity; per-batch padding happens
+    at collate time, not here.
     """
 
     def __init__(self):

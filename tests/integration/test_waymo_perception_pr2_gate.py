@@ -126,7 +126,7 @@ def test_all_four_modalities_populated(processed_segment):
 
 def test_hd_map_payload_is_ego_type_not_world_type(processed_segment):
     """Regression guard: catches accidental persistence of world-frame
-    RawSegmentHDMap (per ADR 0007)."""
+    RawSegmentHDMap."""
     from standard_e2e.data_structures import RawSegmentHDMap
 
     _cache_dir, frame_paths = processed_segment
@@ -138,8 +138,8 @@ def test_hd_map_payload_is_ego_type_not_world_type(processed_segment):
 
 
 def test_no_segment_map_npz_files_written_by_default(processed_segment):
-    """Per ADR 0007, no ``{segment_id}__map.npz`` artifact lands by
-    default — only per-frame ego HDMapData inside the standard
+    """No ``{segment_id}__map.npz`` artifact lands by default — only
+    per-frame ego HDMapData inside the standard
     ``{segment_id}_{frame_id}.npz``."""
     cache_dir, _ = processed_segment
     map_artifacts = list(Path(cache_dir).rglob("*__map.npz"))
@@ -159,8 +159,8 @@ def test_frame_loader_has_no_hd_map_specific_branch():
     body = src[from_npz_idx:next_def_idx]
     for token in forbidden:
         assert token not in body, (
-            f"FrameLoader path mentions {token!r}; ADR 0007 forbids HD-map-"
-            f"specific code in TransformedFrameData.from_npz."
+            f"FrameLoader path mentions {token!r}; HD-map-specific code "
+            f"is forbidden in TransformedFrameData.from_npz."
         )
 
 
@@ -261,7 +261,7 @@ def test_render_visual_gate_pngs(processed_segment, render_module):
 
 
 def test_hd_map_content_is_finite_and_in_extent(processed_segment):
-    """Audit HD-map polyline / polygon content per ADR 0006 + 0007.
+    """Audit HD-map polyline / polygon content.
 
     The existing PR2 gate checks the *type* of the HD-map payload
     (``HDMapData`` rather than ``RawSegmentHDMap``) and the *absence*

@@ -43,7 +43,7 @@ pip install standard-e2e
 
 # Add the Waymo extra to convert the Waymo Open Dataset (Perception or
 # E2E). This is what pulls TensorFlow + the Waymo proto deps; the base
-# install does NOT touch TF (per ADR 0005).
+# install does NOT touch TF.
 pip install "standard-e2e[waymo]"
 ```
 

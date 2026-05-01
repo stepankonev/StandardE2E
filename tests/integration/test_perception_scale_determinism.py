@@ -8,8 +8,8 @@ independent passes over the same input.
 Two failure modes this catches that the single-segment PR2 gate cannot:
 
 * **Per-segment lifecycle leaks** — e.g. a segment-scoped object such as
-  ``RawSegmentHDMap`` (ADR 0007) accidentally retained on the
-  aggregator instance and consulted on the next segment. Single-segment
+  ``RawSegmentHDMap`` accidentally retained on the aggregator instance
+  and consulted on the next segment. Single-segment
   tests cannot see this; two segments will diverge from a single-
   segment baseline if such retention exists.
 

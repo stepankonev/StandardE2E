@@ -5,8 +5,8 @@ band. That band catches truly broken outputs (zero bytes, multi-MB
 blobs) but passes a regressed-to-blank renderer that emits a 50 KB
 solid-gray PNG. This module replaces the size-band check with a
 content-based check that distinguishes a real render from a blank one
-without requiring a human in the loop (per ADR 0009 visual verification
-remains humans-look-at-PNGs; this is just the *automated* floor).
+without requiring a human in the loop. Visual verification still
+ultimately means humans-look-at-PNGs; this is just the *automated* floor.
 """
 
 from __future__ import annotations

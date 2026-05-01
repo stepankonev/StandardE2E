@@ -1,5 +1,5 @@
 """Parse a Waymo Perception ``Frame.map_features`` into a world-frame
-``RawSegmentHDMap`` (per ADR 0006).
+``RawSegmentHDMap``.
 
 Waymo stores HD-map points in a per-segment "segment frame" that is
 shifted from the world frame for numerical precision; the shift is the
@@ -121,10 +121,9 @@ def parse_waymo_map_features(frame: "WaymoFrame") -> RawSegmentHDMap:
             centerline = _polyline_to_array(feat.lane.polyline, offset)
             if centerline.shape[0] < 1:
                 continue
-            # Boundary feature ids (opaque source IDs; per ADR 0006 we
-            # keep them as identifiers for re-deduplication, not as a
-            # full per-lane slice — that lossier dereferencing can land
-            # in a follow-up).
+            # Boundary feature ids stay as opaque source IDs for
+            # re-deduplication, not as a full per-lane slice — the
+            # lossier dereferencing can land in a follow-up.
             left_ids = [str(b.boundary_feature_id) for b in feat.lane.left_boundaries]
             right_ids = [str(b.boundary_feature_id) for b in feat.lane.right_boundaries]
             lanes.append(

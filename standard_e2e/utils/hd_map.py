@@ -1,4 +1,4 @@
-"""HD-map crop helper: world-frame -> ego-frame conversion (per ADR 0006).
+"""HD-map crop helper: world-frame -> ego-frame conversion.
 
 This module exposes exactly one public function,
 ``crop_hd_map_ego_relative``: the **single bridge** between the
@@ -85,8 +85,8 @@ def crop_hd_map_ego_relative(
 
     Args:
         raw: World-frame ``RawSegmentHDMap``. Passing an ``HDMapData``
-            (already ego-frame) raises ``TypeError`` — see ADR 0006 on
-            why the two are distinct types.
+            (already ego-frame) raises ``TypeError`` because the two are
+            deliberately distinct types.
         ego_pose: 4x4 ``world<-ego`` SE(3) at the current frame's
             timestamp.
         x_range: half-extent in meters along the ego x axis.

@@ -1,8 +1,8 @@
 """Tests for ``crop_hd_map_ego_relative`` (PR 2 step 2.4b).
 
 The crop helper is the **only** function that bridges the world-frame
-``RawSegmentHDMap`` and the ego-frame ``HDMapData`` (per ADR 0006). All
-its tests are pure-numpy synthetic, no source data required.
+``RawSegmentHDMap`` and the ego-frame ``HDMapData``. All its tests are
+pure-numpy synthetic, no source data required.
 """
 
 from __future__ import annotations
@@ -166,7 +166,7 @@ def test_raw_segment_hd_map_has_no_persistence_methods():
     """Negative regression guard: RawSegmentHDMap is runtime-only Pydantic.
 
     If anyone adds to_npz/from_npz to it, this test must fail so the
-    reviewer notices the ADR 0007 invariant has changed.
+    reviewer notices the runtime-only invariant has changed.
     """
     assert not hasattr(RawSegmentHDMap, "to_npz")
     assert not hasattr(RawSegmentHDMap, "from_npz")
