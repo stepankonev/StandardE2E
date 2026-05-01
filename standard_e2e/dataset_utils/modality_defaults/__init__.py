@@ -6,6 +6,9 @@ Public re-export location for modality defaults now under dataset namespace.
 from standard_e2e.enums import Modality
 
 from .modality_defaults import (
+    EmptyDetectionsDefaults,
+    EmptyHDMapDefaults,
+    EmptyLidarDefaults,
     IntentDefaults,
     ModalityDefaults,
     PreferredTrajectoryDefaults,
@@ -41,6 +44,9 @@ def _check_modality_defaults_dict(
 
 
 __all__ = [
+    "EmptyDetectionsDefaults",
+    "EmptyHDMapDefaults",
+    "EmptyLidarDefaults",
     "IntentDefaults",
     "ModalityDefaults",
     "PreferredTrajectoryDefaults",
