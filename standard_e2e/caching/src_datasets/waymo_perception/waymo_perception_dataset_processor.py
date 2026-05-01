@@ -1,7 +1,11 @@
 import numpy as np
 
 from standard_e2e.caching import SourceDatasetProcessor
-from standard_e2e.caching.adapters import AbstractAdapter, PanoImageAdapter
+from standard_e2e.caching.adapters import (
+    AbstractAdapter,
+    Detections3DIdentityAdapter,
+    PanoImageAdapter,
+)
 from standard_e2e.caching.segment_context import (
     FutureDetectionsAggregator,
     FuturePastStatesFromMatricesAggregator,
@@ -48,7 +52,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [PanoImageAdapter()]
+        return [PanoImageAdapter(), Detections3DIdentityAdapter()]
 
     def _get_default_context_aggregators(self):
         return [
