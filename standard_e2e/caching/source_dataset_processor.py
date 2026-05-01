@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -60,6 +61,18 @@ class SourceDatasetProcessor(ABC):
 
     def _get_default_context_aggregators(self) -> list[SegmentContextAggregator]:
         return []
+
+    @classmethod
+    def extra_processor_kwargs(cls, args: argparse.Namespace) -> dict[str, Any]:
+        """Return per-source kwargs forwarded to ``__init__`` from the CLI.
+
+        Override in subclasses that need to thread CLI-derived parameters
+        (e.g. an HD-map source directory) through the unified
+        ``process_source_dataset`` entrypoint. The base implementation
+        returns an empty dict so most processors stay unaffected.
+        """
+
+        return {}
 
     @final
     def _prepare_output_directory(self) -> str:

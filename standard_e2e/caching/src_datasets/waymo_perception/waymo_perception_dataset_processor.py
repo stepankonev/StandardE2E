@@ -1,3 +1,4 @@
+import argparse
 import logging
 from typing import Any
 
@@ -62,10 +63,9 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         """Construct the Waymo Perception processor.
 
         ``source_data_path`` (when provided) lets the default HD-map
-        ego-crop aggregator find each segment's tfrecord (per ADR
-        0007). When ``None`` the HD-map adapter and aggregator are
-        omitted from defaults so unit tests / lidar-only conversions
-        do not need the source data.
+        ego-crop aggregator find each segment's tfrecord. When ``None``
+        the HD-map adapter and aggregator are omitted from defaults so
+        unit tests / lidar-only conversions do not need the source data.
         """
         self._source_data_path = source_data_path
         self._hd_map_crop_extent_m = (
@@ -74,6 +74,14 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             else self.DEFAULT_HD_MAP_CROP_EXTENT_M
         )
         super().__init__(common_output_path=common_output_path, split=split, **kwargs)
+
+    @classmethod
+    def extra_processor_kwargs(cls, args: argparse.Namespace) -> dict[str, Any]:
+        """Pass the source tfrecord directory through so the default HD-map
+        aggregator can locate per-segment data.
+        """
+
+        return {"source_data_path": f"{args.input_path}/{args.split}"}
 
     @property
     def allowed_splits(self) -> list[str]:

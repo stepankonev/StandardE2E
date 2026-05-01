@@ -3,6 +3,7 @@ import logging
 from typing import Protocol, Type, cast
 
 from standard_e2e.caching.adapters import get_adapters_from_config
+from standard_e2e.caching.source_dataset_processor import SourceDatasetProcessor
 from standard_e2e.caching.src_datasets.waymo_e2e import (
     WaymoE2EDatasetConverter,
     WaymoE2EDatasetProcessor,
@@ -36,10 +37,11 @@ def main(argv=None):
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
-    dataset_processor_cls = {
+    dataset_processor_map: dict[str, Type[SourceDatasetProcessor]] = {
         "waymo_e2e": WaymoE2EDatasetProcessor,
         "waymo_perception": WaymoPerceptionDatasetProcessor,
-    }.get(dataset_name)
+    }
+    dataset_processor_cls = dataset_processor_map.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
 
@@ -52,14 +54,8 @@ def main(argv=None):
         "common_output_path": arguments.output_path,
         "split": arguments.split,
         "adapters": adapters,
+        **dataset_processor_cls.extra_processor_kwargs(arguments),
     }
-    # Waymo Perception's HD-map aggregator needs the source tfrecord
-    # directory; pass it through when it's the right processor type so
-    # other processors are unaffected.
-    if dataset_processor_cls is WaymoPerceptionDatasetProcessor:
-        processor_kwargs["source_data_path"] = (
-            f"{arguments.input_path}/{arguments.split}"
-        )
     dataset_processor = dataset_processor_cls(**processor_kwargs)
     dataset_converter = dataset_converter_cls(
         source_processor=dataset_processor,
