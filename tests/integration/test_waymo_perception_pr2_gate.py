@@ -24,6 +24,7 @@ from standard_e2e.data_structures import (
     TransformedFrameData,
 )
 from standard_e2e.enums import CameraDirection, Modality
+from tests.integration._render_assertions import assert_png_has_real_content
 
 WAYMO_PERCEPTION_VAL = Path(
     "/mnt/bigdisk/datasets/waymo/waymo_open_dataset_v_1_4_3"
@@ -254,12 +255,157 @@ def test_render_visual_gate_pngs(processed_segment, render_module):
                 npz_path=str(npz_path), modality=modality, out_path=str(out)
             )
             assert out.exists()
-            size = out.stat().st_size
-            assert (
-                5 * 1024 <= size <= 2 * 1024 * 1024
-            ), f"PNG {out} size out of band: {size} bytes"
+            assert_png_has_real_content(out)
             produced.append(out)
     assert len(produced) == RENDER_FRAMES * len(RENDER_MODALITIES)
+
+
+def test_hd_map_content_is_finite_and_in_extent(processed_segment):
+    """Audit HD-map polyline / polygon content per ADR 0006 + 0007.
+
+    The existing PR2 gate checks the *type* of the HD-map payload
+    (``HDMapData`` rather than ``RawSegmentHDMap``) and the *absence*
+    of a ``__map.npz`` artifact, but it does not look at the numbers.
+    Three classes of bug pass that gate today:
+
+    * A NaN / Inf vertex slipping into a lane centerline (e.g. via a
+      degenerate world->ego transform when ego z is undefined).
+    * A masking bug in the crop step that emits ``lane_boundaries`` /
+      ``road_edges`` with points outside the ±extent box - the renderer
+      would then draw map elements far outside the visible plot.
+    * A coord-frame leak that ships world-frame km-scale coordinates
+      under the ego-frame ``HDMapData`` type.
+
+    Lane centerlines in Waymo are kept whole when *any* point intersects
+    the box (per ``crop_hd_map_ego_relative``), so they legitimately
+    extend past ±extent (we observe lanes reaching ~390 m forward of
+    ego in the validation segment used here). We therefore enforce two
+    different bounds:
+
+    * ``lane_boundaries`` / ``road_edges`` / ``stop_signs``: all points
+      must sit inside ±extent within a small float-rounding slack -
+      these collections *are* mask-filtered to the inside set.
+    * ``lanes`` and polygons (crosswalks etc.): only require at least
+      one in-extent vertex (the cropping criterion) plus a coarse
+      sanity bound (no point > 1 km from ego) to catch full world-frame
+      leaks.
+    """
+    # Mirrors ``WaymoPerceptionDatasetProcessor.DEFAULT_HD_MAP_CROP_EXTENT_M``
+    # without forcing a top-level Waymo proto import (other integration tests
+    # in this file follow the same lazy-import convention).
+    extent = 75.0
+    # Float slack: world->ego rotation can place a vertex at ±extent
+    # plus rounding error from the rigid transform.
+    slack = 1e-2
+    # Coarse outer bound: any point > 1 km from ego in either axis is
+    # implausible at the 75 m crop level, even for forward-stretching
+    # lane centerlines.
+    coarse_bound = 1000.0
+
+    _cache_dir, frame_paths = processed_segment
+    asserted_at_least_one_lane = False
+    for path in frame_paths:
+        frame = TransformedFrameData.from_npz(str(path))
+        hd = frame.get_modality_data(Modality.HD_MAP)
+        assert isinstance(hd, HDMapData)
+
+        # 1) Mask-filtered collections: every point must be inside ±extent.
+        for label, items, attr in (
+            ("lane_boundaries", hd.lane_boundaries, "polyline"),
+            ("road_edges", hd.road_edges, "polyline"),
+        ):
+            for idx, item in enumerate(items):
+                pts = getattr(item, attr)
+                assert pts.ndim == 2 and pts.shape[1] == 3, (
+                    f"{path.name}: {label}[{idx}] {attr} has unexpected shape "
+                    f"{pts.shape}"
+                )
+                assert np.isfinite(pts).all(), (
+                    f"{path.name}: {label}[{idx}] {attr} contains NaN/Inf - "
+                    "indicates a degenerate world->ego transform leaked into "
+                    "the cropped HD map."
+                )
+                assert (np.abs(pts[:, 0]) <= extent + slack).all(), (
+                    f"{path.name}: {label}[{idx}] x out of crop: max |x|="
+                    f"{float(np.abs(pts[:, 0]).max()):.2f} m exceeds "
+                    f"{extent} m + {slack} slack."
+                )
+                assert (np.abs(pts[:, 1]) <= extent + slack).all(), (
+                    f"{path.name}: {label}[{idx}] y out of crop: max |y|="
+                    f"{float(np.abs(pts[:, 1]).max()):.2f} m exceeds "
+                    f"{extent} m + {slack} slack."
+                )
+
+        # 2) Stop signs: single position, must be inside the box.
+        for idx, sign in enumerate(hd.stop_signs):
+            pos = sign.position
+            assert np.isfinite(pos).all(), (
+                f"{path.name}: stop_signs[{idx}].position contains NaN/Inf"
+            )
+            assert abs(float(pos[0])) <= extent + slack, (
+                f"{path.name}: stop_signs[{idx}] x={pos[0]} outside ±{extent} m"
+            )
+            assert abs(float(pos[1])) <= extent + slack, (
+                f"{path.name}: stop_signs[{idx}] y={pos[1]} outside ±{extent} m"
+            )
+
+        # 3) Lanes + polygons: at least one in-extent point and no
+        # km-scale leaks. Centerlines extend past the crop legitimately
+        # so we don't lock them to ±extent.
+        polygon_collections = (
+            ("crosswalks", hd.crosswalks, "polygon"),
+            ("speed_bumps", hd.speed_bumps, "polygon"),
+            ("drivable_areas", hd.drivable_areas, "polygon"),
+            ("driveways", hd.driveways, "polygon"),
+        )
+        for label, items, attr in polygon_collections:
+            for idx, item in enumerate(items):
+                pts = getattr(item, attr)
+                assert np.isfinite(pts).all(), (
+                    f"{path.name}: {label}[{idx}] {attr} contains NaN/Inf"
+                )
+                in_extent = (np.abs(pts[:, 0]) <= extent + slack) & (
+                    np.abs(pts[:, 1]) <= extent + slack
+                )
+                assert in_extent.any(), (
+                    f"{path.name}: {label}[{idx}] kept after crop but no point "
+                    f"sits inside ±{extent} m - cropping criterion broken."
+                )
+                assert (np.abs(pts[:, :2]) <= coarse_bound).all(), (
+                    f"{path.name}: {label}[{idx}] has point > {coarse_bound} m "
+                    f"from ego (max |xy|={float(np.abs(pts[:, :2]).max()):.1f} m); "
+                    "indicates world-frame coordinates leaked into HDMapData."
+                )
+
+        for idx, lane in enumerate(hd.lanes):
+            pts = lane.centerline
+            assert pts.ndim == 2 and pts.shape[1] == 3, (
+                f"{path.name}: lane[{idx}].centerline has unexpected shape "
+                f"{pts.shape}"
+            )
+            assert np.isfinite(pts).all(), (
+                f"{path.name}: lane[{idx}].centerline contains NaN/Inf - "
+                "indicates a degenerate world->ego transform."
+            )
+            in_extent = (np.abs(pts[:, 0]) <= extent + slack) & (
+                np.abs(pts[:, 1]) <= extent + slack
+            )
+            assert in_extent.any(), (
+                f"{path.name}: lane[{idx}] centerline has no point inside "
+                f"±{extent} m; cropping criterion broken."
+            )
+            assert (np.abs(pts[:, :2]) <= coarse_bound).all(), (
+                f"{path.name}: lane[{idx}] centerline has point > "
+                f"{coarse_bound} m from ego "
+                f"(max |xy|={float(np.abs(pts[:, :2]).max()):.1f} m); "
+                "indicates world-frame coordinates leaked into HDMapData."
+            )
+            asserted_at_least_one_lane = True
+
+    assert asserted_at_least_one_lane, (
+        "no lanes were exercised across the segment; the test is no "
+        "longer reaching the lane-content assertion path."
+    )
 
 
 def test_processed_frame_has_five_cameras(processed_segment):

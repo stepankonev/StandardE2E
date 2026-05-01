@@ -34,9 +34,11 @@ from standard_e2e.caching.segment_context import (
 )
 from standard_e2e.data_structures import (
     BatchedCameraData,
+    LidarData,
     TransformedFrameData,
     TransformedFrameDataBatch,
 )
+from standard_e2e.data_structures.trajectory_data import BatchedTrajectory
 from standard_e2e.enums import CameraDirection, Modality
 
 WAYMO_E2E_ROOT = Path(
@@ -182,7 +184,15 @@ def perception_batch(tmp_path_factory) -> TransformedFrameDataBatch:
     for aggregator in processor.context_aggregators:
         aggregator.process(index_df)
 
-    keep = [Modality.CAMERAS, Modality.FUTURE_STATES, Modality.PAST_STATES]
+    # LIDAR_PC is kept because the non-camera CUDA round-trip test
+    # below needs a list[LidarData] payload to exercise the
+    # ``_to_device_recursive`` walk for that modality.
+    keep = [
+        Modality.CAMERAS,
+        Modality.FUTURE_STATES,
+        Modality.PAST_STATES,
+        Modality.LIDAR_PC,
+    ]
     for record in index_records:
         path = Path(cache_dir) / record["filename"]
         frames.append(
@@ -238,3 +248,109 @@ def test_shared_encoder_runs_on_both_datasets(
             NUM_CLASSES,
         ), f"{label}: unexpected logit shape {logits.shape}"
         assert torch.isfinite(logits).all(), f"{label}: non-finite logits"
+
+
+def test_e2e_cameras_backward_pass_finite_grads(
+    e2e_batch: TransformedFrameDataBatch, cuda_device: torch.device
+):
+    """One full forward + ``loss.backward()`` produces finite parameter grads.
+
+    Forward-only smoke verifies dtype / contiguity / cuBLAS happiness.
+    But many real bugs (NaN-spawning weight inits, non-differentiable
+    casts, accidental torch.no_grad in the data path, integer-tensor
+    inputs that compute but break autograd) only surface under a
+    backward pass. This is the cheapest gate that exercises the full
+    autograd chain on cached batch data without bringing in a full
+    trainer. We exercise it on the E2E batch (8 cameras) rather than
+    Perception so the test stays at sub-second wall clock — the autograd
+    path is dataset-agnostic, so one of the two suffices.
+    """
+    cameras = e2e_batch.get_modality_data(Modality.CAMERAS)
+    assert isinstance(cameras, BatchedCameraData)
+    images_hwc = cameras.images[CameraDirection.FRONT].to(cuda_device)
+    images_chw = _images_to_chw_float(images_hwc)
+    encoder = _build_camera_encoder().to(cuda_device).train()
+
+    # Synthetic targets: just enough to drive a real cross-entropy gradient.
+    targets = torch.zeros(NUM_FRAMES, dtype=torch.long, device=cuda_device)
+    logits = encoder(images_chw)
+    loss = torch.nn.functional.cross_entropy(logits, targets)
+    assert torch.isfinite(loss), f"forward loss not finite: {loss.item()}"
+    loss.backward()
+
+    # Every learnable parameter must have a finite, non-None grad. NaN
+    # grads anywhere mean the autograd path is broken even though the
+    # forward was clean.
+    for name, param in encoder.named_parameters():
+        assert param.grad is not None, f"param {name!r} has no grad after backward"
+        assert torch.isfinite(
+            param.grad
+        ).all(), f"param {name!r} grad contains NaN/Inf: {param.grad}"
+
+
+def test_batched_trajectory_cuda_round_trip(
+    perception_batch: TransformedFrameDataBatch, cuda_device: torch.device
+):
+    """``BatchedTrajectory`` survives ``.to(cuda).to(cpu)`` round-trip.
+
+    Cross-dataset parity asserts dtype + shape on cpu but never moves
+    the trajectory tensors off-device. A regression that drops a tensor
+    from the recursive ``.to()`` walk (e.g. by introducing a new private
+    attribute that is not migrated) ships silently because cpu-only
+    consumers never notice. This round-trip catches it.
+    """
+    future = perception_batch.get_modality_data(Modality.FUTURE_STATES)
+    assert isinstance(future, BatchedTrajectory)
+    assert future.device.type == "cpu", "fixture must start on CPU"
+
+    future.to(cuda_device)
+    assert future.device.type == "cuda"
+    # Stored tensors must follow the container's reported device.
+    for component in future.components():
+        tensor = future.get(component)
+        assert (
+            tensor.device.type == "cuda"
+        ), f"component {component} not on cuda after .to(cuda)"
+
+    future.to(torch.device("cpu"))
+    assert future.device.type == "cpu"
+    for component in future.components():
+        tensor = future.get(component)
+        assert (
+            tensor.device.type == "cpu"
+        ), f"component {component} not on cpu after .to(cpu)"
+
+
+def test_lidar_data_list_cuda_passthrough(
+    perception_batch: TransformedFrameDataBatch, cuda_device: torch.device
+):
+    """``list[LidarData]`` survives the batch ``.to(cuda)`` walk.
+
+    LidarData wraps a pandas DataFrame (per ADR 0008 it is variable-
+    length and intentionally not GPU-resident yet), so the recursive
+    device walk must traverse the list without trying to ``.to()`` the
+    DataFrame and without dropping the payload. A regression that
+    starts treating ``LidarData`` as a no-op (silently filtering it
+    out) or attempting a tensor move on the DataFrame would surface
+    here as an exception or a missing modality.
+    """
+    lidar = perception_batch.get_modality_data(Modality.LIDAR_PC)
+    assert isinstance(lidar, list) and len(lidar) > 0
+    for item in lidar:
+        assert isinstance(item, LidarData)
+
+    perception_batch.to(cuda_device)
+    # DataFrame-backed payload is intentionally still on host memory;
+    # the contract here is "no exception, no payload loss".
+    lidar_after = perception_batch.get_modality_data(Modality.LIDAR_PC)
+    assert isinstance(lidar_after, list)
+    assert len(lidar_after) == len(lidar)
+    for item in lidar_after:
+        assert isinstance(item, LidarData)
+        # Points DataFrame must still expose the canonical x/y/z columns
+        # so a downstream ``frame.lidar.points`` consumer cannot trip on
+        # a stripped-down passthrough.
+        for col in ("x", "y", "z"):
+            assert col in item.points.columns
+
+    perception_batch.to(torch.device("cpu"))

@@ -231,8 +231,8 @@ def _project_ego_to_image(
 def test_close_range_detections_project_into_some_camera(
     perception_segment_frames: list[TransformedFrameData],
 ):
-    """At least one close-range detection projects into at least one of
-    the surround cameras. Catches:
+    """At least half of *forward* close-range detections land inside
+    ≥1 surround camera. Catches:
 
     * extrinsic drift / inversion bugs (a wrong-handed extrinsic puts
       every box behind every camera or off-image),
@@ -241,16 +241,30 @@ def test_close_range_detections_project_into_some_camera(
     * convention flips (X-forward becoming Z-forward without the
       corresponding axes-permutation getting updated).
 
-    We sweep all 5 Perception cameras because the FRONT camera's
-    horizontal FOV is narrow (~50 deg) - close-range agents to the side
-    or rear are visible in the side cameras, not FRONT, and we don't
-    want a perfectly fine pipeline to fail just because the picked
-    segment happened to have no agents in the narrow FRONT cone. The
-    PR2 cross-modality test compares lidar radius vs detection-centre
-    radius - it can pass even when cameras are misaligned with the
-    world. This is the missing complementary check.
+    The previous "at least one" formulation was too lax: a regression
+    where 99% of close-range detections project to garbage but a single
+    box happens to land inside still passed. We replace it with an
+    aggregate fraction across the segment.
+
+    We restrict the denominator to the **forward hemisphere** (ego-frame
+    ``x > 0``) because Waymo Perception ships only 5 cameras (FRONT,
+    FRONT_LEFT, FRONT_RIGHT, SIDE_LEFT, SIDE_RIGHT) - no REAR. Roughly
+    two-thirds of close-range agents in dense traffic sit behind ego
+    and *cannot* project into any camera by construction; including
+    them in the denominator would force the threshold below 40% just
+    to pass on healthy data, defeating the whole point of tightening.
+    Forward-only with 50% is achievable on a working pipeline and
+    rejects the 5%-survives single-hit failure mode.
+
+    We sweep all 5 cameras because the FRONT camera's horizontal FOV
+    is narrow (~50 deg) and forward agents at angles in ±60..±90° are
+    visible only in the SIDE cameras. The PR2 cross-modality test
+    compares lidar radius vs detection-centre radius - it can pass
+    even when cameras are misaligned with the world; this is the
+    missing complementary check.
     """
-    found_inside = False
+    total_forward_close = 0
+    total_forward_inside_any = 0
     debug_per_frame: list[str] = []
     for i, frame in enumerate(perception_segment_frames):
         cameras = frame.get_modality_data(Modality.CAMERAS)
@@ -260,19 +274,29 @@ def test_close_range_detections_project_into_some_camera(
             "FutureDetectionsAggregator should NOT have run for this fixture."
         )
 
-        centers: list[np.ndarray] = []
+        all_centers: list[np.ndarray] = []
+        forward_mask: list[bool] = []
         for det in detections.detections:
             xyz = det.trajectory.get([TC.X, TC.Y, TC.Z])
             assert xyz.shape == (1, 3)
             radius = float(np.linalg.norm(xyz[0]))
             if radius <= DETECTION_CLOSE_RANGE_M:
-                centers.append(xyz[0].astype(np.float64))
-        if not centers:
+                all_centers.append(xyz[0].astype(np.float64))
+                # Waymo ego frame: x-forward. A 1 m buffer past the
+                # axis avoids classifying a box straddling x ≈ 0 as
+                # forward when it is really to the side.
+                forward_mask.append(bool(xyz[0, 0] > 1.0))
+        if not all_centers:
             debug_per_frame.append(f"frame {i}: no close-range detections")
             continue
 
-        centers_np = np.stack(centers, axis=0)
-        per_camera_inside = {}
+        centers_np = np.stack(all_centers, axis=0)
+        forward_np = np.array(forward_mask, dtype=bool)
+
+        # Track which detections land inside at least one camera.
+        # OR-reduce across cameras so one hit per detection counts.
+        inside_any = np.zeros(centers_np.shape[0], dtype=bool)
+        per_camera_inside: dict = {}
         for direction, cam in cameras.items():
             cam_data: CameraData = cam
             pixels, in_front = _project_ego_to_image(
@@ -293,15 +317,29 @@ def test_close_range_detections_project_into_some_camera(
             )
             valid = in_front & in_image
             per_camera_inside[direction] = int(valid.sum())
-            if valid.any():
-                found_inside = True
+            inside_any |= valid
 
+        total_forward_close += int(forward_np.sum())
+        total_forward_inside_any += int((inside_any & forward_np).sum())
         debug_per_frame.append(
-            f"frame {i}: {len(centers)} close-range; "
+            f"frame {i}: {centers_np.shape[0]} close-range "
+            f"({int(forward_np.sum())} forward); "
+            f"{int((inside_any & forward_np).sum())} forward inside ≥1 cam; "
             f"per-camera inside={per_camera_inside}"
         )
 
-    assert found_inside, (
-        "No close-range (<{:.0f} m) detection projected inside ANY surround "
-        "camera across {} frames. Per-frame stats: {}"
-    ).format(DETECTION_CLOSE_RANGE_M, len(perception_segment_frames), debug_per_frame)
+    assert total_forward_close > 0, (
+        "no forward close-range detections found across the segment; the test "
+        "is no longer exercising the projection path. The picked segment "
+        "appears not to contain any agents in front of ego at <30 m."
+    )
+    fraction_inside = total_forward_inside_any / total_forward_close
+    assert fraction_inside >= 0.5, (
+        f"Only {total_forward_inside_any}/{total_forward_close} "
+        f"({fraction_inside:.0%}) forward close-range "
+        f"(<{DETECTION_CLOSE_RANGE_M:.0f} m, x > 1 m) detections projected "
+        "inside ≥1 surround camera; expected ≥50%. Indicates a systemic "
+        "projection bug (extrinsic inversion / intrinsic transposition / "
+        "X-forward convention flip) rather than isolated edge cases. "
+        f"Per-frame stats: {debug_per_frame}"
+    )

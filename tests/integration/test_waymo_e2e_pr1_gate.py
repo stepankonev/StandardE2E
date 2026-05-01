@@ -18,6 +18,7 @@ import pytest
 
 from standard_e2e.data_structures import TransformedFrameData
 from standard_e2e.enums import CameraDirection, Intent, Modality
+from tests.integration._render_assertions import assert_png_has_real_content
 
 WAYMO_E2E_ROOT = Path(
     "/mnt/bigdisk/datasets/waymo/waymo_open_dataset_end_to_end_camera_v_1_0_0"
@@ -133,9 +134,6 @@ def test_render_visual_gate_pngs(processed_frames, render_module):
                 npz_path=str(npz_path), modality=modality, out_path=str(out)
             )
             assert out.exists()
-            size = out.stat().st_size
-            assert (
-                5 * 1024 <= size <= 2 * 1024 * 1024
-            ), f"PNG {out} size out of band: {size} bytes"
+            assert_png_has_real_content(out)
             produced.append(out)
     assert len(produced) == NUM_FRAMES * len(RENDER_MODALITIES)
