@@ -2,6 +2,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import torch
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -158,6 +159,92 @@ class CameraData(BaseModel):
     def shape(self) -> tuple[int, int, int]:
         h, w, c = self.image.shape
         return int(h), int(w), int(c)
+
+
+class BatchedCameraData:
+    """Per-direction stacked camera tensors for a training batch.
+
+    Internal shape ``dict[CameraDirection, Tensor]`` (NOT a single
+    ``[B, N_cams, ...]`` stack) so:
+
+    * Cameras present in only some frames stay missing keys.
+    * Datasets with heterogeneous camera sets across directions (e.g. AV2
+      stereo) batch without padding tricks.
+
+    Per direction:
+      * ``images``: ``Tensor[B, H, W, C]`` ``uint8`` (matches ``CameraData.image``).
+      * ``intrinsics``: ``Tensor[B, 3, 3]`` ``float32``.
+      * ``extrinsics``: ``Tensor[B, 4, 4]`` ``float32``.
+    """
+
+    def __init__(self, frames: list[dict[CameraDirection, CameraData]]):
+        if not isinstance(frames, list):
+            raise TypeError(
+                "frames must be a list of dict[CameraDirection, CameraData]"
+            )
+        if not frames:
+            raise ValueError("BatchedCameraData requires a non-empty list of frames")
+        for frame in frames:
+            if not isinstance(frame, dict):
+                raise TypeError("each frame must be dict[CameraDirection, CameraData]")
+            for k, v in frame.items():
+                if not isinstance(k, CameraDirection):
+                    raise TypeError("camera dict keys must be CameraDirection")
+                if not isinstance(v, CameraData):
+                    raise TypeError("camera dict values must be CameraData")
+        self._batch_size = len(frames)
+        # Only stack directions present in every frame; missing-in-any drops.
+        common = set(frames[0].keys())
+        for frame in frames[1:]:
+            common &= set(frame.keys())
+        self._directions: list[CameraDirection] = sorted(common, key=lambda d: d.value)
+        self._images: dict[CameraDirection, torch.Tensor] = {}
+        self._intrinsics: dict[CameraDirection, torch.Tensor] = {}
+        self._extrinsics: dict[CameraDirection, torch.Tensor] = {}
+        for direction in self._directions:
+            images = np.stack([frame[direction].image for frame in frames], axis=0)
+            intrinsics = np.stack(
+                [frame[direction].intrinsics for frame in frames], axis=0
+            )
+            extrinsics = np.stack(
+                [frame[direction].extrinsics for frame in frames], axis=0
+            )
+            self._images[direction] = torch.from_numpy(images)
+            self._intrinsics[direction] = torch.from_numpy(intrinsics)
+            self._extrinsics[direction] = torch.from_numpy(extrinsics)
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def directions(self) -> list[CameraDirection]:
+        return list(self._directions)
+
+    @property
+    def images(self) -> dict[CameraDirection, torch.Tensor]:
+        return self._images
+
+    @property
+    def intrinsics(self) -> dict[CameraDirection, torch.Tensor]:
+        return self._intrinsics
+
+    @property
+    def extrinsics(self) -> dict[CameraDirection, torch.Tensor]:
+        return self._extrinsics
+
+    def to(self, device: torch.device) -> "BatchedCameraData":
+        for direction in self._directions:
+            self._images[direction] = self._images[direction].to(
+                device=device, non_blocking=True
+            )
+            self._intrinsics[direction] = self._intrinsics[direction].to(
+                device=device, non_blocking=True
+            )
+            self._extrinsics[direction] = self._extrinsics[direction].to(
+                device=device, non_blocking=True
+            )
+        return self
 
 
 class LidarData(BaseModel):

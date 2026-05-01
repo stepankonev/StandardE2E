@@ -13,9 +13,9 @@
 import argparse
 
 from standard_e2e.caching.adapters import (
+    CamerasIdentityAdapter,
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
-    PanoImageAdapter,
     PastStatesIdentityAdapter,
 )
 from standard_e2e.caching.src_datasets.waymo_e2e import (
@@ -58,7 +58,7 @@ def main():
         common_output_path=output_path,
         split=split,
         adapters=[
-            PanoImageAdapter(max_size=384),
+            CamerasIdentityAdapter(),
             IntentIdentityAdapter(),
             PastStatesIdentityAdapter(),
             FutureStatesIdentityAdapter(),

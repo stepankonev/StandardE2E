@@ -84,22 +84,20 @@ class PreferenceTrajectoryAdapter(AbstractAdapter):
         }
 
 
-# class LidarIdentityAdapter(IdentityAdapter):
-#     """Identity adapter for lidar data."""
+class LidarPCIdentityAdapter(IdentityAdapter):
+    """Identity adapter for lidar point-cloud data.
 
-#     def __init__(self):
-#         super().__init__(Modality.LIDAR_PC, "lidar")
+    Mirrors ``CamerasIdentityAdapter``: returns the typed ``LidarData``
+    object (Pydantic model wrapping a DataFrame) so downstream consumers
+    keep the schema. Lossless; no padding (per ADR 0008).
+    """
 
-#     @property
-#     def name(self) -> str:
-#         return "LidarIdentityAdapter"
+    def __init__(self):
+        super().__init__(Modality.LIDAR_PC, "lidar")
 
-#     def transform(
-#         self, standard_frame_data: StandardFrameData) -> dict[Modality, any]:
-#         """
-#         Transform lidar data (stored as pd.DataFrame) to ndarray
-#         """
-#         return super().transform(standard_frame_data).values
+    @property
+    def name(self) -> str:
+        return "LidarPCIdentityAdapter"
 
 
 class FutureStatesIdentityAdapter(IdentityAdapter):

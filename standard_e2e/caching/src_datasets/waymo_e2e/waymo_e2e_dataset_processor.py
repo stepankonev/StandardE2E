@@ -5,9 +5,9 @@ import numpy as np
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
+    CamerasIdentityAdapter,
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
-    PanoImageAdapter,
     PastStatesIdentityAdapter,
     PreferenceTrajectoryAdapter,
 )
@@ -49,7 +49,7 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo E2E dataset."""
         return [
-            PanoImageAdapter(),
+            CamerasIdentityAdapter(),
             IntentIdentityAdapter(),
             PastStatesIdentityAdapter(),
             FutureStatesIdentityAdapter(),

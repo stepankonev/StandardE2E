@@ -4,6 +4,7 @@ from standard_e2e.caching.adapters.identity_adapters import (
     Detections3DIdentityAdapter,
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
+    LidarPCIdentityAdapter,
     PastStatesIdentityAdapter,
     PreferenceTrajectoryAdapter,
 )
@@ -18,6 +19,7 @@ def get_adapters_from_config(adapter_configs: list[dict]) -> list[AbstractAdapte
         "cameras_identity_adapter": CamerasIdentityAdapter,
         "future_states_identity_adapter": FutureStatesIdentityAdapter,
         "intent_identity_adapter": IntentIdentityAdapter,
+        "lidar_pc_identity_adapter": LidarPCIdentityAdapter,
         "past_states_identity_adapter": PastStatesIdentityAdapter,
         "pano_adapter": PanoImageAdapter,
         "preference_trajectory_adapter": PreferenceTrajectoryAdapter,
@@ -41,6 +43,7 @@ __all__ = [
     "CamerasIdentityAdapter",
     "FutureStatesIdentityAdapter",
     "IntentIdentityAdapter",
+    "LidarPCIdentityAdapter",
     "PastStatesIdentityAdapter",
     "PanoImageAdapter",
     "get_adapters_from_config",

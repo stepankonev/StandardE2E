@@ -18,6 +18,7 @@ from torch.utils.data._utils.collate import default_collate_fn_map
 
 from standard_e2e.constants import INDEX_FILE_NAME
 from standard_e2e.data_structures.containers import (
+    BatchedCameraData,
     BatchedFrameDetections3D,
     CameraData,
     FrameDetections3D,
@@ -151,6 +152,9 @@ def _to_device_recursive(x: Any, device: torch.device) -> Any:
         return x.to(device=device, non_blocking=True)
     if isinstance(x, BatchedTrajectory):
         x.to(device)  # in-place; returns self
+        return x
+    if isinstance(x, BatchedCameraData):
+        x.to(device)
         return x
     if isinstance(x, dict):
         return {k: _to_device_recursive(v, device) for k, v in x.items()}
@@ -360,6 +364,73 @@ def collate_frame_detections_fn(
     return BatchedFrameDetections3D(batch)
 
 
+def collate_lidar_fn(
+    batch,
+    *,
+    # pylint: disable=unused-argument
+    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
+) -> List[LidarData]:
+    """Collate a batch of ``LidarData`` into ``list[LidarData]`` (passthrough).
+
+    Per ADR 0008, the default lidar collation is lossless / variable-length;
+    a padded ``BatchedLidarData`` variant is deferred until a real consumer
+    asks for it.
+    """
+
+    return list(batch)
+
+
+def collate_cameras_fn(
+    batch: List[Dict[Any, CameraData]],
+) -> BatchedCameraData:
+    """Collate a batch of per-frame ``dict[CameraDirection, CameraData]``.
+
+    Returns a ``BatchedCameraData`` (per-direction stacked tensors). Default
+    torch collate would recurse by dict key and produce a list of CameraData
+    per direction, which is not training-ready.
+    """
+
+    return BatchedCameraData(list(batch))
+
+
+def _is_cameras_batch(batch: List[Any]) -> bool:
+    """Detect a batch of ``dict[CameraDirection, CameraData]`` payloads."""
+    if not batch or not all(isinstance(item, dict) for item in batch):
+        return False
+    has_any_entry = False
+    for item in batch:
+        for key, value in item.items():
+            has_any_entry = True
+            if not isinstance(key, CameraDirection) or not isinstance(
+                value, CameraData
+            ):
+                return False
+    return has_any_entry
+
+
+def _collate_dict_fn(
+    batch,
+    *,
+    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
+):
+    """Dict collate that detects camera batches before recursing per key."""
+    if _is_cameras_batch(batch):
+        return collate_cameras_fn(batch)
+    elem = batch[0]
+    elem_type = type(elem)
+    keys = elem.keys()
+    collated = {
+        key: _torch_collate(
+            [item[key] for item in batch], collate_fn_map=collate_fn_map
+        )
+        for key in keys
+    }
+    try:
+        return elem_type(collated)
+    except TypeError:
+        return collated
+
+
 def collate_modalities(
     batch: List[Any], *, device: Optional[torch.device] = None
 ) -> Any:
@@ -368,13 +439,13 @@ def collate_modalities(
     are turned into a `BatchedTrajectory`. Everything else is native behavior.
     """
     device = device or torch.device("cpu")
-    # Collate fn map must accept broader key types required by torch's internal typing
     extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
+        **default_collate_fn_map,
         Trajectory: collate_trajectory_fn,
         FrameDetections3D: collate_frame_detections_fn,
+        LidarData: collate_lidar_fn,
+        dict: _collate_dict_fn,
     }
-    # default_collate_fn_map has type compatibility, update after copy
-    extended_map.update(default_collate_fn_map)
     return _torch_collate(batch, collate_fn_map=extended_map)
 
 

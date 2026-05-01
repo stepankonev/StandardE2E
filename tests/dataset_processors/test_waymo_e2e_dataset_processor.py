@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from standard_e2e.caching.adapters import (
+    CamerasIdentityAdapter,
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
-    PanoImageAdapter,
     PastStatesIdentityAdapter,
     PreferenceTrajectoryAdapter,
 )
@@ -22,7 +22,7 @@ def test_waymo_e2e_defaults(tmp_path: Path):
     assert set(["training", "val", "test"]).issubset(set(proc.allowed_splits))
     names = {type(a).__name__ for a in getattr(proc, "_adapters")}
     expected = {
-        PanoImageAdapter.__name__,
+        CamerasIdentityAdapter.__name__,
         IntentIdentityAdapter.__name__,
         PastStatesIdentityAdapter.__name__,
         FutureStatesIdentityAdapter.__name__,
