@@ -19,15 +19,11 @@ import numpy as np
 import torch
 import yaml
 
-from standard_e2e.caching.adapters import (
-    CamerasIdentityAdapter,
-    get_adapters_from_config,
-)
+from standard_e2e.caching.adapters import get_adapters_from_config
 from standard_e2e.data_structures import CameraData
 from standard_e2e.data_structures.containers import BatchedCameraData
 from standard_e2e.data_structures.frame_data import collate_modalities
 from standard_e2e.enums import CameraDirection
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,12 +42,14 @@ def _make_camera(
 
 
 def _make_8_cam_dict(seed: int) -> dict[CameraDirection, CameraData]:
-    return {d: _make_camera(d, seed=seed * 100 + i) for i, d in enumerate(CameraDirection)}
+    return {
+        d: _make_camera(d, seed=seed * 100 + i) for i, d in enumerate(CameraDirection)
+    }
 
 
 def test_waymo_e2e_default_adapter_is_cameras_identity():
     """Pano was the default; surround camera identity replaces it."""
-    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (
+    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (  # noqa: E501
         WaymoE2EDatasetProcessor,
     )
 

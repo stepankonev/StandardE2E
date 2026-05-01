@@ -38,9 +38,7 @@ def test_range_image_byte_exact_one_beam_single_range():
     """
     range_image = np.array([[10.0, 0.0, 0.0, 0.0]], dtype=np.float32)
     inclinations = np.array([0.0], dtype=np.float32)
-    pts = range_image_to_points_in_ego(
-        range_image, _identity_extrinsic(), inclinations
-    )
+    pts = range_image_to_points_in_ego(range_image, _identity_extrinsic(), inclinations)
     assert pts.shape == (1, 3)
     assert pts.dtype == np.float32
     expected = np.array(
@@ -141,7 +139,9 @@ def test_range_image_validates_input_shapes():
     # Wrong inclination length (H=1, but provide 2 inclinations)
     rng = np.zeros((1, 4), dtype=np.float32)
     with pytest.raises(ValueError):
-        range_image_to_points_in_ego(rng, extrinsic, np.array([0.0, 0.1], dtype=np.float32))
+        range_image_to_points_in_ego(
+            rng, extrinsic, np.array([0.0, 0.1], dtype=np.float32)
+        )
     # Wrong extrinsic shape
     with pytest.raises(ValueError):
         range_image_to_points_in_ego(rng, np.eye(3, dtype=np.float32), inclinations)

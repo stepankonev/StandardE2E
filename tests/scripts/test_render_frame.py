@@ -37,9 +37,8 @@ from standard_e2e.enums import (
     LaneType,
     Modality,
     RoadEdgeType,
-    TrajectoryComponent as TC,
 )
-
+from standard_e2e.enums import TrajectoryComponent as TC
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RENDER_SCRIPT = REPO_ROOT / "scripts" / "render_frame.py"
@@ -93,7 +92,10 @@ def _make_hd_map() -> HDMapData:
     return HDMapData(
         lanes=[
             Lane(
-                centerline=np.array([[-20, 0, 0], [-10, 0, 0], [0, 0, 0], [10, 0, 0], [20, 0, 0]], dtype=np.float32),
+                centerline=np.array(
+                    [[-20, 0, 0], [-10, 0, 0], [0, 0, 0], [10, 0, 0], [20, 0, 0]],
+                    dtype=np.float32,
+                ),
                 lane_type=LaneType.VEHICLE,
             )
         ],
@@ -110,11 +112,20 @@ def _make_hd_map() -> HDMapData:
             )
         ],
         crosswalks=[
-            Crosswalk(polygon=np.array([[5, -2, 0], [10, -2, 0], [10, 2, 0], [5, 2, 0]], dtype=np.float32))
+            Crosswalk(
+                polygon=np.array(
+                    [[5, -2, 0], [10, -2, 0], [10, 2, 0], [5, 2, 0]], dtype=np.float32
+                )
+            )
         ],
         stop_signs=[StopSign(position=np.array([15, 1, 0], dtype=np.float32))],
         drivable_areas=[
-            DrivableArea(polygon=np.array([[-30, -5, 0], [30, -5, 0], [30, 5, 0], [-30, 5, 0]], dtype=np.float32))
+            DrivableArea(
+                polygon=np.array(
+                    [[-30, -5, 0], [30, -5, 0], [30, 5, 0], [-30, 5, 0]],
+                    dtype=np.float32,
+                )
+            )
         ],
     )
 

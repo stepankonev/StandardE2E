@@ -46,10 +46,9 @@ if TYPE_CHECKING:
 def _polyline_to_array(repeated_points, offset: np.ndarray) -> np.ndarray:
     if len(repeated_points) == 0:
         return np.zeros((0, 3), dtype=np.float32)
-    pts = np.array(
-        [[p.x, p.y, p.z] for p in repeated_points], dtype=np.float32
-    )
-    return pts + offset
+    pts = np.array([[p.x, p.y, p.z] for p in repeated_points], dtype=np.float32)
+    out: np.ndarray = pts + offset
+    return out
 
 
 def _waymo_lane_type(value: int) -> LaneType:
@@ -85,7 +84,9 @@ def _waymo_road_line_type(value: int) -> LaneMarkType:
 
 def _waymo_road_edge_type(value: int) -> RoadEdgeType:
     # pylint: disable=no-name-in-module
-    from standard_e2e.third_party.waymo_open_dataset.protos.map_pb2 import RoadEdge as WaymoRoadEdge
+    from standard_e2e.third_party.waymo_open_dataset.protos.map_pb2 import (
+        RoadEdge as WaymoRoadEdge,
+    )
 
     return {
         WaymoRoadEdge.TYPE_UNKNOWN: RoadEdgeType.UNKNOWN,
@@ -124,12 +125,8 @@ def parse_waymo_map_features(frame: "WaymoFrame") -> RawSegmentHDMap:
             # keep them as identifiers for re-deduplication, not as a
             # full per-lane slice — that lossier dereferencing can land
             # in a follow-up).
-            left_ids = [
-                str(b.boundary_feature_id) for b in feat.lane.left_boundaries
-            ]
-            right_ids = [
-                str(b.boundary_feature_id) for b in feat.lane.right_boundaries
-            ]
+            left_ids = [str(b.boundary_feature_id) for b in feat.lane.left_boundaries]
+            right_ids = [str(b.boundary_feature_id) for b in feat.lane.right_boundaries]
             lanes.append(
                 Lane(
                     centerline=centerline,

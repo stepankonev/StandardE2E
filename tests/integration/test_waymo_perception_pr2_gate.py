@@ -100,7 +100,9 @@ def processed_segment(tmp_path_factory) -> tuple[Path, list[Path]]:
 
     assert len(written) == NUM_FRAMES
 
-    index_df = pd.DataFrame(index_records).sort_values(by="timestamp").reset_index(drop=True)
+    index_df = (
+        pd.DataFrame(index_records).sort_values(by="timestamp").reset_index(drop=True)
+    )
     for aggregator in processor.context_aggregators:
         aggregator.process(index_df)
 
@@ -175,9 +177,9 @@ def test_cross_modality_coord_frame_consistency(processed_segment):
         lidar_pts = lidar.points[["x", "y", "z"]].to_numpy()
         lidar_radius = np.linalg.norm(lidar_pts, axis=1)
         # Per the breakdown: 99th-percentile radius < 150 m on Waymo TOP.
-        assert np.percentile(lidar_radius, 99) < 150.0, (
-            "lidar 99th-pct radius > 150 m; coord-frame leak (likely world)"
-        )
+        assert (
+            np.percentile(lidar_radius, 99) < 150.0
+        ), "lidar 99th-pct radius > 150 m; coord-frame leak (likely world)"
 
         detections = frame.get_modality_data(Modality.DETECTIONS_3D)
         # After FutureDetectionsAggregator, DETECTIONS_3D is list[Detection3D];
@@ -194,9 +196,9 @@ def test_cross_modality_coord_frame_consistency(processed_segment):
                 from standard_e2e.enums import TrajectoryComponent as TC
 
                 xy = det.trajectory.get([TC.X, TC.Y])
-                assert np.all(np.abs(xy) < 200.0), (
-                    f"detection center > 200 m from ego on {path.name}: {xy}"
-                )
+                assert np.all(
+                    np.abs(xy) < 200.0
+                ), f"detection center > 200 m from ego on {path.name}: {xy}"
 
 
 def test_render_visual_gate_pngs(processed_segment, render_module):
@@ -212,9 +214,9 @@ def test_render_visual_gate_pngs(processed_segment, render_module):
             )
             assert out.exists()
             size = out.stat().st_size
-            assert 5 * 1024 <= size <= 2 * 1024 * 1024, (
-                f"PNG {out} size out of band: {size} bytes"
-            )
+            assert (
+                5 * 1024 <= size <= 2 * 1024 * 1024
+            ), f"PNG {out} size out of band: {size} bytes"
             produced.append(out)
     assert len(produced) == RENDER_FRAMES * len(RENDER_MODALITIES)
 

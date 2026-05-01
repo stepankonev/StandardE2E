@@ -77,11 +77,14 @@ def test_crop_translates_and_rotates_polylines_into_ego_frame():
 
 def test_crop_keeps_polygon_with_any_vertex_inside():
     inside_vertex = Crosswalk(
-        polygon=np.array([[0, 0, 0], [200, 0, 0], [200, 200, 0], [0, 200, 0]], dtype=np.float32)
+        polygon=np.array(
+            [[0, 0, 0], [200, 0, 0], [200, 200, 0], [0, 200, 0]], dtype=np.float32
+        )
     )
     fully_outside = Crosswalk(
         polygon=np.array(
-            [[200, 200, 0], [210, 200, 0], [210, 210, 0], [200, 210, 0]], dtype=np.float32
+            [[200, 200, 0], [210, 200, 0], [210, 210, 0], [200, 210, 0]],
+            dtype=np.float32,
         )
     )
     raw = RawSegmentHDMap(crosswalks=[inside_vertex, fully_outside])
@@ -139,12 +142,14 @@ def test_crop_filters_stop_signs_outside_box():
 
 def test_crop_returns_hd_map_data_not_raw():
     """Type-distinctness: output is the ego type, not the world type."""
-    raw = RawSegmentHDMap(road_edges=[
-        RoadEdge(
-            polyline=np.array([[0, 0, 0], [10, 0, 0]], dtype=np.float32),
-            road_edge_type=RoadEdgeType.BOUNDARY,
-        )
-    ])
+    raw = RawSegmentHDMap(
+        road_edges=[
+            RoadEdge(
+                polyline=np.array([[0, 0, 0], [10, 0, 0]], dtype=np.float32),
+                road_edge_type=RoadEdgeType.BOUNDARY,
+            )
+        ]
+    )
     out = crop_hd_map_ego_relative(raw, _ego_pose_at(0, 0), 50.0, 50.0)
     assert isinstance(out, HDMapData)
     assert not isinstance(out, RawSegmentHDMap)

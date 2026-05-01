@@ -11,7 +11,6 @@ not per-segment continuity.
 from __future__ import annotations
 
 import importlib.util
-import os
 import sys
 from pathlib import Path
 
@@ -19,7 +18,6 @@ import pytest
 
 from standard_e2e.data_structures import TransformedFrameData
 from standard_e2e.enums import CameraDirection, Intent, Modality
-
 
 WAYMO_E2E_ROOT = Path(
     "/mnt/bigdisk/datasets/waymo/waymo_open_dataset_end_to_end_camera_v_1_0_0"
@@ -55,14 +53,12 @@ def processed_frames(tmp_path_factory) -> list[Path]:
 
     import tensorflow as tf
 
-    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (
+    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (  # noqa: E501
         WaymoE2EDatasetProcessor,
     )
 
     out_dir = tmp_path_factory.mktemp("waymo_e2e_pr1")
-    processor = WaymoE2EDatasetProcessor(
-        common_output_path=str(out_dir), split="test"
-    )
+    processor = WaymoE2EDatasetProcessor(common_output_path=str(out_dir), split="test")
 
     written: list[Path] = []
     raw_iter = tf.data.TFRecordDataset(str(SHARD), compression_type="")
@@ -138,8 +134,8 @@ def test_render_visual_gate_pngs(processed_frames, render_module):
             )
             assert out.exists()
             size = out.stat().st_size
-            assert 5 * 1024 <= size <= 2 * 1024 * 1024, (
-                f"PNG {out} size out of band: {size} bytes"
-            )
+            assert (
+                5 * 1024 <= size <= 2 * 1024 * 1024
+            ), f"PNG {out} size out of band: {size} bytes"
             produced.append(out)
     assert len(produced) == NUM_FRAMES * len(RENDER_MODALITIES)

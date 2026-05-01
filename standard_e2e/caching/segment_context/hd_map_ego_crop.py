@@ -69,7 +69,10 @@ class HDMapEgoCropAggregator(SegmentContextAggregator):
     def _fetch_value_from_transformed_frame(
         self, transformed_frame: TransformedFrameData
     ) -> Any:
-        if transformed_frame.aux_data is None or "pose_matrix" not in transformed_frame.aux_data:
+        if (
+            transformed_frame.aux_data is None
+            or "pose_matrix" not in transformed_frame.aux_data
+        ):
             raise ValueError(
                 "HDMapEgoCropAggregator requires aux_data['pose_matrix'] on "
                 "every frame; the source processor must populate it."

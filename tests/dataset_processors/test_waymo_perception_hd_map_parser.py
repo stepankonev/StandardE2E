@@ -93,7 +93,9 @@ def test_parser_road_line_becomes_lane_boundary():
     assert boundary.boundary_type == LaneMarkType.SOLID_WHITE
     assert boundary.source_boundary_id == "42"
     np.testing.assert_allclose(
-        boundary.polyline, np.array([[10, 1, 0], [15, 1, 0]], dtype=np.float32), atol=1e-5
+        boundary.polyline,
+        np.array([[10, 1, 0], [15, 1, 0]], dtype=np.float32),
+        atol=1e-5,
     )
 
 
@@ -147,11 +149,15 @@ def test_parser_speed_bump_and_driveway():
     f = _frame_with_offset()
     feat_sb = f.map_features.add()
     feat_sb.id = 100
-    _add_polyline(feat_sb.speed_bump.polygon, [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])
+    _add_polyline(
+        feat_sb.speed_bump.polygon, [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+    )
 
     feat_dw = f.map_features.add()
     feat_dw.id = 101
-    _add_polyline(feat_dw.driveway.polygon, [(2, 0, 0), (3, 0, 0), (3, 1, 0), (2, 1, 0)])
+    _add_polyline(
+        feat_dw.driveway.polygon, [(2, 0, 0), (3, 0, 0), (3, 1, 0), (2, 1, 0)]
+    )
 
     out = parse_waymo_map_features(f)
     assert len(out.speed_bumps) == 1

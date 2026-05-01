@@ -65,11 +65,19 @@ def _build_full_field_kwargs() -> dict:
         polyline=_polyline_xyz((0, 5, 0), (10, 5, 0)),
         road_edge_type=RoadEdgeType.BOUNDARY,
     )
-    crosswalk = Crosswalk(polygon=_polyline_xyz((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)))
+    crosswalk = Crosswalk(
+        polygon=_polyline_xyz((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0))
+    )
     stop_sign = StopSign(position=np.array([5.0, 0.0, 0.0], dtype=np.float32))
-    speed_bump = SpeedBump(polygon=_polyline_xyz((2, -1, 0), (2, 1, 0), (3, 1, 0), (3, -1, 0)))
-    drivable_area = DrivableArea(polygon=_polyline_xyz((0, -2, 0), (10, -2, 0), (10, 2, 0), (0, 2, 0)))
-    driveway = Driveway(polygon=_polyline_xyz((-2, 0, 0), (-2, 2, 0), (0, 2, 0), (0, 0, 0)))
+    speed_bump = SpeedBump(
+        polygon=_polyline_xyz((2, -1, 0), (2, 1, 0), (3, 1, 0), (3, -1, 0))
+    )
+    drivable_area = DrivableArea(
+        polygon=_polyline_xyz((0, -2, 0), (10, -2, 0), (10, 2, 0), (0, 2, 0))
+    )
+    driveway = Driveway(
+        polygon=_polyline_xyz((-2, 0, 0), (-2, 2, 0), (0, 2, 0), (0, 0, 0))
+    )
     return dict(
         lanes=[lane],
         lane_boundaries=[lane_boundary],
@@ -139,9 +147,7 @@ def test_hd_map_data_persists_through_npz_roundtrip(tmp_path: Path):
     payload = reloaded.get_modality_data(Modality.HD_MAP)
     assert isinstance(payload, HDMapData)
     assert len(payload.lanes) == 1
-    np.testing.assert_array_equal(
-        payload.lanes[0].centerline, ego.lanes[0].centerline
-    )
+    np.testing.assert_array_equal(payload.lanes[0].centerline, ego.lanes[0].centerline)
 
 
 def test_hd_map_identity_adapter_lifts_field_into_modality():

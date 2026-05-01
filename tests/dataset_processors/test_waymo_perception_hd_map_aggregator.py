@@ -39,9 +39,7 @@ def _add_polyline(repeated_points, pts: list[tuple[float, float, float]]):
         p.z = z
 
 
-def _build_segment_tfrecord(
-    tfrecord_dir: Path, segment_id: str
-) -> Path:
+def _build_segment_tfrecord(tfrecord_dir: Path, segment_id: str) -> Path:
     """Write a tfrecord with one frame whose map_features contain a
     single lane at world (offset_x + 0..10, 0, 0) (offset = 100, 200, 5)."""
     tfrecord_dir.mkdir(parents=True, exist_ok=True)
@@ -132,15 +130,13 @@ def test_waymo_hd_map_aggregator_produces_ego_hd_map_per_frame(synthetic_waymo_s
         assert len(payload.lanes) == 1
         # World centerline: (100, 200, 5) -> (105, 200, 5) -> (110, 200, 5).
         # Ego at (105, 200, 0) -> ego centerline: (-5, 0, 5), (0, 0, 5), (5, 0, 5).
-        expected = np.array(
-            [[-5, 0, 5], [0, 0, 5], [5, 0, 5]], dtype=np.float32
-        )
-        np.testing.assert_allclose(
-            payload.lanes[0].centerline, expected, atol=1e-4
-        )
+        expected = np.array([[-5, 0, 5], [0, 0, 5], [5, 0, 5]], dtype=np.float32)
+        np.testing.assert_allclose(payload.lanes[0].centerline, expected, atol=1e-4)
 
 
-def test_waymo_hd_map_aggregator_no_segment_map_state_after_run(synthetic_waymo_segment):
+def test_waymo_hd_map_aggregator_no_segment_map_state_after_run(
+    synthetic_waymo_segment,
+):
     segment_id, source_path, cache_path = synthetic_waymo_segment
     frames = _write_per_frame_npz(cache_path, segment_id, [105.0])
 
@@ -153,9 +149,9 @@ def test_waymo_hd_map_aggregator_no_segment_map_state_after_run(synthetic_waymo_
     aggr.process(_index_df(frames))
 
     for attr_name, value in vars(aggr).items():
-        assert not isinstance(value, RawSegmentHDMap), (
-            f"aggregator retained RawSegmentHDMap on {attr_name!r}"
-        )
+        assert not isinstance(
+            value, RawSegmentHDMap
+        ), f"aggregator retained RawSegmentHDMap on {attr_name!r}"
 
 
 def test_waymo_hd_map_aggregator_raises_when_segment_missing(tmp_path: Path):

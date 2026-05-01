@@ -236,6 +236,7 @@ class TFRecSourceDatasetConverter(SourceDatasetConverter, ABC):
         # without the [waymo] extra can import this module.
         import tensorflow as tf  # noqa: PLC0415
 
+        dataset: "tf.data.Dataset"
         processing_files = self._get_processing_files()
         processing_files = tf.io.matching_files(processing_files)
         if os.environ.get("STANDARD_E2E_DEBUG", "false").lower() == "true":

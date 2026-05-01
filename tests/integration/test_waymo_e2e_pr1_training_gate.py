@@ -25,14 +25,10 @@ from standard_e2e.data_structures.trajectory_data import BatchedTrajectory
 from standard_e2e.enums import CameraDirection, Intent, Modality
 from standard_e2e.unified_dataset import UnifiedE2EDataset
 
-
 WAYMO_E2E_ROOT = Path(
     "/mnt/bigdisk/datasets/waymo/waymo_open_dataset_end_to_end_camera_v_1_0_0"
 )
-SHARD = (
-    WAYMO_E2E_ROOT
-    / "training_202504031202_202504151040.tfrecord-00000-of-00263"
-)
+SHARD = WAYMO_E2E_ROOT / "training_202504031202_202504151040.tfrecord-00000-of-00263"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RENDER_SCRIPT = REPO_ROOT / "scripts" / "render_frame.py"
@@ -63,7 +59,7 @@ def processed_frames(tmp_path_factory) -> list[Path]:
 
     import tensorflow as tf
 
-    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (
+    from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor import (  # noqa: E501
         WaymoE2EDatasetProcessor,
     )
 
@@ -95,12 +91,12 @@ def test_training_split_has_populated_trajectories(processed_frames):
 
         future = frame.get_modality_data(Modality.FUTURE_STATES)
         past = frame.get_modality_data(Modality.PAST_STATES)
-        assert future is not None and future.length > 0, (
-            f"training-split future_states should be non-empty in {path}"
-        )
-        assert past is not None and past.length > 0, (
-            f"training-split past_states should be non-empty in {path}"
-        )
+        assert (
+            future is not None and future.length > 0
+        ), f"training-split future_states should be non-empty in {path}"
+        assert (
+            past is not None and past.length > 0
+        ), f"training-split past_states should be non-empty in {path}"
 
 
 def test_training_split_render_combined(processed_frames, render_module):
@@ -115,9 +111,9 @@ def test_training_split_render_combined(processed_frames, render_module):
             )
             assert out.exists()
             size = out.stat().st_size
-            assert 5 * 1024 <= size <= 2 * 1024 * 1024, (
-                f"PNG {out} size out of band: {size} bytes"
-            )
+            assert (
+                5 * 1024 <= size <= 2 * 1024 * 1024
+            ), f"PNG {out} size out of band: {size} bytes"
             produced.append(out)
     assert len(produced) == 3 * len(RENDER_MODALITIES)
 
@@ -195,7 +191,9 @@ def test_camera_direction_mapping_matches_proto():
     Sanity check that PR 1's per-direction mapping matches the canonical
     proto enum without needing the full waymo-open-dataset SDK installed.
     """
-    from standard_e2e.third_party.waymo_open_dataset import dataset_pb2  # type: ignore[attr-defined]
+    from standard_e2e.third_party.waymo_open_dataset import (
+        dataset_pb2,  # type: ignore[attr-defined]
+    )
     from standard_e2e.utils.image_utils import WAYMO_CAMERAS_ORDER
 
     proto_enum = dataset_pb2.CameraName.Name  # pylint: disable=no-member

@@ -82,9 +82,7 @@ def range_image_to_points_in_ego(
     if range_image.ndim == 3:
         range_image = range_image[..., 0]
     if range_image.ndim != 2:
-        raise ValueError(
-            f"range_image must be 2D or 3D; got ndim={range_image.ndim}"
-        )
+        raise ValueError(f"range_image must be 2D or 3D; got ndim={range_image.ndim}")
     if extrinsic.shape != (4, 4):
         raise ValueError(f"extrinsic must be (4,4); got {extrinsic.shape}")
     height, width = range_image.shape
@@ -179,9 +177,7 @@ def frame_lasers_to_lidar_data(frame: "WaymoFrame") -> LidarData:
             raise ValueError(
                 f"Frame missing laser_calibration for laser name={laser.name}"
             )
-        ri = _decode_compressed_range_image(
-            laser.ri_return1.range_image_compressed
-        )
+        ri = _decode_compressed_range_image(laser.ri_return1.range_image_compressed)
         height = ri.shape[0]
         if cal.beam_inclinations:
             beam_inclinations = np.asarray(cal.beam_inclinations, dtype=np.float32)

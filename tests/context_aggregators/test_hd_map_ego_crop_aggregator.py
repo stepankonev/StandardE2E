@@ -45,7 +45,10 @@ class _FakeAggregator(HDMapEgoCropAggregator):
 
     def __init__(self, data_path: str, raw_map: RawSegmentHDMap, **kwargs):
         super().__init__(
-            data_path=data_path, source_data_path="<unused>", x_range=50.0, y_range=50.0,
+            data_path=data_path,
+            source_data_path="<unused>",
+            x_range=50.0,
+            y_range=50.0,
             **kwargs,
         )
         self._fixture_map = raw_map
@@ -56,7 +59,9 @@ class _FakeAggregator(HDMapEgoCropAggregator):
         return self._fixture_map
 
 
-def _write_frames(tmp_path: Path, segment_id: str, ego_xs: list[float]) -> list[TransformedFrameData]:
+def _write_frames(
+    tmp_path: Path, segment_id: str, ego_xs: list[float]
+) -> list[TransformedFrameData]:
     frames: list[TransformedFrameData] = []
     for i, x in enumerate(ego_xs):
         frame = TransformedFrameData(
@@ -166,9 +171,9 @@ def test_aggregator_releases_segment_map_after_process(tmp_path: Path):
     for attr_name, value in vars(aggr).items():
         if attr_name == "_fixture_map":
             continue
-        assert not isinstance(value, RawSegmentHDMap), (
-            f"aggregator retained a RawSegmentHDMap on {attr_name!r}"
-        )
+        assert not isinstance(
+            value, RawSegmentHDMap
+        ), f"aggregator retained a RawSegmentHDMap on {attr_name!r}"
 
 
 def test_frame_loader_returns_ego_hd_map_with_no_special_path(tmp_path: Path):

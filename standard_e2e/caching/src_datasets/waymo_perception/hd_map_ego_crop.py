@@ -74,9 +74,7 @@ class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
         )
 
         tfrecord_path = self._resolve_tfrecord_path(segment_id)
-        dataset = tf.data.TFRecordDataset(
-            [str(tfrecord_path)], compression_type=""
-        )
+        dataset = tf.data.TFRecordDataset([str(tfrecord_path)], compression_type="")
         for raw_record in dataset:
             frame = WaymoFrame()
             frame.ParseFromString(raw_record.numpy())

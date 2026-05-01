@@ -34,6 +34,6 @@ def test_base_import_does_not_pull_tensorflow():
         text=True,
         check=False,
     )
-    assert result.returncode == 0, (
-        f"base import smoke failed:\nstdout={result.stdout}\nstderr={result.stderr}"
-    )
+    assert (
+        result.returncode == 0
+    ), f"base import smoke failed:\nstdout={result.stdout}\nstderr={result.stderr}"

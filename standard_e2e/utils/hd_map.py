@@ -59,7 +59,8 @@ def _world_to_ego(points_world: np.ndarray, ego_pose: np.ndarray) -> np.ndarray:
         axis=1,
     )
     ego = (inv @ homog.T).T
-    return ego[:, :3].astype(np.float32, copy=False)
+    out: np.ndarray = ego[:, :3].astype(np.float32, copy=False)
+    return out
 
 
 def _within_box(points: np.ndarray, x_range: float, y_range: float) -> np.ndarray:
@@ -160,9 +161,7 @@ def crop_hd_map_ego_relative(
         in_x = -x_range <= float(ego_pos[0]) <= x_range
         in_y = -y_range <= float(ego_pos[1]) <= y_range
         if in_x and in_y:
-            stop_signs_out.append(
-                StopSign(position=ego_pos, lane_ids=list(s.lane_ids))
-            )
+            stop_signs_out.append(StopSign(position=ego_pos, lane_ids=list(s.lane_ids)))
 
     return HDMapData(
         lanes=lanes_out,
