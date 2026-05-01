@@ -13,6 +13,7 @@ import pandas as pd
 
 from standard_e2e.caching.adapters import (
     Detections3DIdentityAdapter,
+    LidarPCIdentityAdapter,
     PanoImageAdapter,
 )
 from standard_e2e.caching.segment_context import FutureDetectionsAggregator
@@ -38,6 +39,7 @@ def test_waymo_perception_defaults(tmp_path: Path):
     adapter_types = {type(a) for a in adapters}
     assert PanoImageAdapter in adapter_types
     assert Detections3DIdentityAdapter in adapter_types
+    assert LidarPCIdentityAdapter in adapter_types
 
 
 def _build_standard_frame(

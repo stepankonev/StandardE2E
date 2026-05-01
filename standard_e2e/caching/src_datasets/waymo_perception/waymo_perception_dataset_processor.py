@@ -4,6 +4,7 @@ from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
     Detections3DIdentityAdapter,
+    LidarPCIdentityAdapter,
     PanoImageAdapter,
 )
 from standard_e2e.caching.segment_context import (
@@ -25,6 +26,7 @@ from standard_e2e.utils import matrix_to_xyz_heading
 from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
 )
+from standard_e2e.utils.waymo_lidar import frame_lasers_to_lidar_data
 
 
 class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
@@ -52,7 +54,11 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [PanoImageAdapter(), Detections3DIdentityAdapter()]
+        return [
+            PanoImageAdapter(),
+            Detections3DIdentityAdapter(),
+            LidarPCIdentityAdapter(),
+        ]
 
     def _get_default_context_aggregators(self):
         return [
@@ -81,6 +87,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         timestamp = frame.timestamp_micros / 1_000_000.0
         frame_id = int(frame.timestamp_micros)
         cameras_data = waymo_fetch_images_from_frame(frame)
+        lidar_data = frame_lasers_to_lidar_data(frame) if frame.lasers else None
         extra_data = {
             "time_of_day": frame.context.stats.time_of_day,
             "location": frame.context.stats.location,
@@ -138,6 +145,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             ),
             split=self._split,
             cameras=cameras_data,
+            lidar=lidar_data,
             frame_detections_3d=FrameDetections3D(detections=detections_3d),
             aux_data={
                 **extra_data,
