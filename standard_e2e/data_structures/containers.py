@@ -15,6 +15,13 @@ from .trajectory_data import BatchedTrajectory, Trajectory
 class CameraData(BaseModel):
     """Camera sample containing image + calibration matrices.
 
+    Coord-frame invariant:
+    - extrinsics is T_ego_camera: a point p_cam in the camera frame maps to
+      p_ego = extrinsics @ p_cam in the ego/vehicle frame at the frame's
+      timestamp. Both Waymo (CameraCalibration.extrinsic) and AV2
+      (ego_SE3_cam) use this direction; sources that publish the inverse
+      must invert at parse time.
+
     Validation rules:
     - intrinsics (K): shape (3,3) float32
     - extrinsics (T): shape (4,4) float32
@@ -249,6 +256,12 @@ class BatchedCameraData:
 
 class LidarData(BaseModel):
     """Lidar point cloud container.
+
+    Coord-frame invariant: points are in the ego/vehicle frame at the
+    current frame's timestamp. Source-native frames (Waymo range-image
+    sensor frame, AV2 lidar sensor frame) are lifted to ego at convert
+    time via the corresponding laser/lidar extrinsic; consumers of
+    Modality.LIDAR can rely on this without checking.
 
     - points: pandas DataFrame with mandatory columns x,y,z
     """
