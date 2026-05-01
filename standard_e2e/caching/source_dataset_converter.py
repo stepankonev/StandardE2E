@@ -1,6 +1,12 @@
 """
 Module for converting source datasets to target formats with optional parallel
 processing and TFRecord support.
+
+The abstract ``SourceDatasetConverter`` base is TF-free; only the
+``TFRecSourceDatasetConverter`` subclass imports ``tensorflow``, and it
+does so lazily inside ``_get_source_dataset_iterator`` so that base
+installs (no ``[waymo]`` extra) can import the converter framework
+without pulling TF.
 """
 
 import argparse
@@ -8,10 +14,9 @@ import logging
 import multiprocessing
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, Union, cast, final
+from typing import Optional, Union, final
 
 import pandas as pd
-import tensorflow as tf
 from tqdm import tqdm
 
 from standard_e2e.caching.segment_context import SegmentContextAggregator
@@ -227,6 +232,10 @@ class TFRecSourceDatasetConverter(SourceDatasetConverter, ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     def _get_source_dataset_iterator(self):
+        # Lazy: only the Waymo converter path needs TF; base installs
+        # without the [waymo] extra can import this module.
+        import tensorflow as tf  # noqa: PLC0415
+
         processing_files = self._get_processing_files()
         processing_files = tf.io.matching_files(processing_files)
         if os.environ.get("STANDARD_E2E_DEBUG", "false").lower() == "true":
@@ -245,14 +254,9 @@ class TFRecSourceDatasetConverter(SourceDatasetConverter, ABC):
             self._split,
             self._source_processor.dataset_name,
         )
-        # Use generic Dataset variable for typing compatibility
-        # (mypy mismatch with subclass)
-        dataset = cast(
-            tf.data.Dataset,
-            tf.data.TFRecordDataset(
-                processing_files,
-                compression_type="",
-            ),
+        dataset = tf.data.TFRecordDataset(
+            processing_files,
+            compression_type="",
         )
         if getattr(self._args, "n_shards", 1) > 1:
             logging.info(

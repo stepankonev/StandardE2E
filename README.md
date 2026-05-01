@@ -38,7 +38,13 @@ StandardE2E provides a consistent interface for preprocessing, loading, and trai
 
 ### Option 1: From PyPI (Recommended for Users)
 ```bash
+# Base install: torch + pandas + albumentations stack only.
 pip install standard-e2e
+
+# Add the Waymo extra to convert the Waymo Open Dataset (Perception or
+# E2E). This is what pulls TensorFlow + the Waymo proto deps; the base
+# install does NOT touch TF (per ADR 0005).
+pip install "standard-e2e[waymo]"
 ```
 
 ### Option 2: Development with uv (recommended)
@@ -46,15 +52,19 @@ pip install standard-e2e
 # Install uv: https://docs.astral.sh/uv/
 git clone https://github.com/stepankonev/StandardE2E.git
 cd StandardE2E
-uv sync --all-extras   # installs deps and dev deps from uv.lock
-uv run pytest tests/   # run tests
+uv sync --extra test                 # base + test (no TF)
+uv sync --extra test --extra waymo   # for Waymo conversion paths
+uv sync --all-extras                 # everything (dev + waymo)
+uv run pytest tests/                 # run tests
 ```
 
 ### Option 3: Manual development (pip/conda)
 ```bash
 conda create -n standard_e2e python=3.12
 conda activate standard_e2e
-pip install -e ".[dev]"
+pip install -e ".[dev]"        # dev deps (already includes waymo extras)
+# or for a base-only env:
+pip install -e ".[test]"
 ```
 
 ## Plan for E2E Autonomous Driving Datasets Support

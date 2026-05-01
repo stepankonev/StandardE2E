@@ -1,12 +1,24 @@
+"""Waymo-specific image utilities.
+
+TF is imported lazily inside ``waymo_fetch_images_from_frame`` so the
+base install (no ``[waymo]`` extra) can import this module — albeit it
+will only crash if a caller actually invokes the function. The Waymo
+``Frame`` proto is type-only at module scope.
+"""
+
+from typing import TYPE_CHECKING
+
 import albumentations as A
 import numpy as np
-import tensorflow as tf
 
 from standard_e2e.data_structures import CameraData
 from standard_e2e.enums import CameraDirection
 
-# pylint: disable=no-name-in-module
-from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
+if TYPE_CHECKING:
+    # pylint: disable=no-name-in-module
+    from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import (
+        Frame as WaymoFrame,
+    )
 
 
 class CropTop(A.ImageOnlyTransform):
@@ -36,9 +48,11 @@ WAYMO_CAMERAS_ORDER = {
 
 
 def waymo_fetch_images_from_frame(
-    frame: WaymoFrame,
+    frame: "WaymoFrame",
 ) -> dict[CameraDirection, CameraData]:
     """Fetch images from a Waymo frame."""
+    import tensorflow as tf  # noqa: PLC0415  # lazy: only Waymo path needs TF
+
     camera_data = {}
     camera_idx_to_direction = {v: k for k, v in WAYMO_CAMERAS_ORDER.items()}
     for image_idx, image in enumerate(frame.images):

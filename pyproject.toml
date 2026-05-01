@@ -20,7 +20,6 @@ dependencies = [
     "Pillow",
     "albumentations",
     "pyyaml",
-    "tensorflow-cpu",
     "tqdm",
     "pydantic>=2.6,<3",
 ]
@@ -40,6 +39,10 @@ classifiers = [
 keywords = ["autonomous-driving", "computer-vision", "deep-learning", "pytorch", "dataset-management", "end-to-end"]
 
 [project.optional-dependencies]
+waymo = [
+    "tensorflow-cpu",
+    "protobuf",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -55,7 +58,11 @@ dev = [
     "types-PyYAML",
     "types-tqdm",
     "types-tensorflow",
-    "matplotlib"
+    "matplotlib",
+    # Pull the waymo extra so the type checker can resolve TF symbols
+    # used by the Waymo source path.
+    "tensorflow-cpu",
+    "protobuf",
 ]
 test = [
     "pytest>=7.0.0",
@@ -71,7 +78,9 @@ lint = [
     "pandas-stubs>=2.2.0.240909",
     "types-PyYAML",
     "types-tqdm",
-    "types-tensorflow"
+    "types-tensorflow",
+    "tensorflow-cpu",
+    "protobuf",
 ]
 
 [project.urls]
