@@ -1,9 +1,9 @@
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
-from standard_e2e.caching.adapters.hdmap_identity_adapter import HDMapIdentityAdapter
 from standard_e2e.caching.adapters.identity_adapters import (
     CamerasIdentityAdapter,
     Detections3DIdentityAdapter,
     FutureStatesIdentityAdapter,
+    HDMapIdentityAdapter,
     IntentIdentityAdapter,
     LidarPCIdentityAdapter,
     PastStatesIdentityAdapter,

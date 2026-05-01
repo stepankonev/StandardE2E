@@ -64,6 +64,17 @@ class Detections3DIdentityAdapter(IdentityAdapter):
         return "Detections3DIdentityAdapter"
 
 
+class HDMapIdentityAdapter(IdentityAdapter):
+    """Identity adapter for HD-map data."""
+
+    def __init__(self):
+        super().__init__(Modality.HD_MAP, "hd_map")
+
+    @property
+    def name(self) -> str:
+        return "HDMapIdentityAdapter"
+
+
 class PreferenceTrajectoryAdapter(AbstractAdapter):
     """Adapter for preference trajectory data."""
 
