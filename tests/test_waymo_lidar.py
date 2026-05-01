@@ -145,3 +145,96 @@ def test_range_image_validates_input_shapes():
     # Wrong extrinsic shape
     with pytest.raises(ValueError):
         range_image_to_points_in_ego(rng, np.eye(3, dtype=np.float32), inclinations)
+
+
+def test_intensity_column_extracted_from_3d_range_image():
+    """3D range image (H, W, C>=2) -> ``intensity`` column populated."""
+    extrinsic = _identity_extrinsic()
+    inclinations = np.array([0.0], dtype=np.float32)
+    # H=1, W=4, C=2: channel 0 = range, channel 1 = intensity.
+    ri = np.zeros((1, 4, 2), dtype=np.float32)
+    ri[0, 0, 0] = 10.0
+    ri[0, 0, 1] = 0.42
+    ri[0, 2, 0] = 5.0
+    ri[0, 2, 1] = 0.91
+    spec = LaserSpec(
+        laser_id=1, range_image=ri, extrinsic=extrinsic, beam_inclinations=inclinations
+    )
+    out = lasers_to_lidar_data([spec])
+    assert "intensity" in out.points.columns
+    # Two valid pixels in scan order (row-major).
+    np.testing.assert_allclose(
+        out.points["intensity"].to_numpy(), [0.42, 0.91], atol=1e-6
+    )
+
+
+def test_no_intensity_column_when_range_image_is_2d():
+    """2D range image -> no ``intensity`` column (back-compat)."""
+    extrinsic = _identity_extrinsic()
+    inclinations = np.array([0.0], dtype=np.float32)
+    rng = np.array([[10.0, 0.0]], dtype=np.float32)
+    spec = LaserSpec(
+        laser_id=1, range_image=rng, extrinsic=extrinsic, beam_inclinations=inclinations
+    )
+    out = lasers_to_lidar_data([spec])
+    assert "intensity" not in out.points.columns
+
+
+def test_spinning_laser_timestamp_centers_on_frame_ts():
+    """``is_spinning=True`` -> per-column timestamp in ``[-T/2, +T/2]`` of frame_ts."""
+    extrinsic = _identity_extrinsic()
+    inclinations = np.array([0.0], dtype=np.float32)
+    # H=1, W=4. Valid points at columns 0 and 3 (start and end of sweep).
+    rng = np.zeros((1, 4), dtype=np.float32)
+    rng[0, 0] = 10.0
+    rng[0, 3] = 12.0
+    spec = LaserSpec(
+        laser_id=1,
+        range_image=rng,
+        extrinsic=extrinsic,
+        beam_inclinations=inclinations,
+        is_spinning=True,
+    )
+    frame_ts_ns = 1_000_000_000_000  # 1000 s, arbitrary anchor
+    out = lasers_to_lidar_data(
+        [spec], frame_timestamp_ns=frame_ts_ns, sweep_period_ns=100_000_000
+    )
+    ts = out.points["timestamp_ns"].to_numpy()
+    assert ts.dtype == np.int64
+    # Column 0: fraction = 0.5/4 - 0.5 = -0.375 -> offset = -37_500_000 ns.
+    # Column 3: fraction = 3.5/4 - 0.5 =  0.375 -> offset = +37_500_000 ns.
+    assert ts[0] == frame_ts_ns - 37_500_000
+    assert ts[1] == frame_ts_ns + 37_500_000
+
+
+def test_fixed_laser_timestamp_is_uniform():
+    """``is_spinning=False`` -> every point shares ``frame_timestamp_ns``."""
+    extrinsic = _identity_extrinsic()
+    inclinations = np.array([0.0], dtype=np.float32)
+    rng = np.zeros((1, 4), dtype=np.float32)
+    rng[0, 0] = 10.0
+    rng[0, 3] = 12.0
+    spec = LaserSpec(
+        laser_id=2,
+        range_image=rng,
+        extrinsic=extrinsic,
+        beam_inclinations=inclinations,
+        is_spinning=False,
+    )
+    frame_ts_ns = 1_000_000_000_000
+    out = lasers_to_lidar_data([spec], frame_timestamp_ns=frame_ts_ns)
+    ts = out.points["timestamp_ns"].to_numpy()
+    assert ts.dtype == np.int64
+    assert (ts == frame_ts_ns).all()
+
+
+def test_no_timestamp_column_without_frame_ts():
+    """``frame_timestamp_ns=None`` -> no ``timestamp_ns`` column."""
+    extrinsic = _identity_extrinsic()
+    inclinations = np.array([0.0], dtype=np.float32)
+    rng = np.array([[10.0, 0.0]], dtype=np.float32)
+    spec = LaserSpec(
+        laser_id=1, range_image=rng, extrinsic=extrinsic, beam_inclinations=inclinations
+    )
+    out = lasers_to_lidar_data([spec])
+    assert "timestamp_ns" not in out.points.columns
