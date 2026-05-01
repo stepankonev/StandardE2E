@@ -22,6 +22,7 @@ from standard_e2e.data_structures.containers import (
     BatchedFrameDetections3D,
     CameraData,
     FrameDetections3D,
+    HDMapData,
     LidarData,
 )
 from standard_e2e.data_structures.trajectory_data import BatchedTrajectory, Trajectory
@@ -76,7 +77,7 @@ class StandardFrameData(BaseModel):
     lidar: Optional[LidarData] = None
     future_states: Optional[Trajectory] = None
     past_states: Optional[Trajectory] = None
-    hd_map: Any = None
+    hd_map: Optional[HDMapData] = None
     frame_detections_3d: Optional[FrameDetections3D] = None
     aux_data: Optional[Dict[str, Any]] = None
     extra_index_data: Optional[Dict[str, Any]] = None
@@ -380,6 +381,22 @@ def collate_lidar_fn(
     return list(batch)
 
 
+def collate_hd_map_fn(
+    batch,
+    *,
+    # pylint: disable=unused-argument
+    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
+) -> List[HDMapData]:
+    """Collate a batch of ``HDMapData`` into ``list[HDMapData]`` (passthrough).
+
+    Same shape as the lidar collate: variable-length, ragged-friendly,
+    lossless. A stacked / padded variant is deferred until a real
+    consumer asks for it (mirrors ADR 0008's stance on lidar).
+    """
+
+    return list(batch)
+
+
 def collate_cameras_fn(
     batch: List[Dict[Any, CameraData]],
 ) -> BatchedCameraData:
@@ -444,6 +461,7 @@ def collate_modalities(
         Trajectory: collate_trajectory_fn,
         FrameDetections3D: collate_frame_detections_fn,
         LidarData: collate_lidar_fn,
+        HDMapData: collate_hd_map_fn,
         dict: _collate_dict_fn,
     }
     return _torch_collate(batch, collate_fn_map=extended_map)

@@ -6,7 +6,13 @@ import torch
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from standard_e2e.enums import CameraDirection, DetectionType
+from standard_e2e.enums import (
+    CameraDirection,
+    DetectionType,
+    LaneMarkType,
+    LaneType,
+    RoadEdgeType,
+)
 from standard_e2e.enums import TrajectoryComponent as TC
 
 from .trajectory_data import BatchedTrajectory, Trajectory
@@ -297,6 +303,177 @@ class FrameDetections3D(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     detections: list[Detection3D]
+
+
+class Lane(BaseModel):
+    """One lane (per ADR 0006).
+
+    Coord-frame is determined by the enclosing container (HDMapData = ego,
+    RawSegmentHDMap = world).
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    centerline: NDArray[np.float32]  # (N, 3) polyline
+    left_boundary_id: str | None = None
+    right_boundary_id: str | None = None
+    predecessors: list[str] = []
+    successors: list[str] = []
+    is_intersection: bool = False
+    lane_type: LaneType = LaneType.UNKNOWN
+
+    @field_validator("centerline", mode="before")
+    @classmethod
+    def _coerce_centerline(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class LaneBoundary(BaseModel):
+    """A single lane-boundary polyline.
+
+    ``source_boundary_id`` keeps the upstream identifier so consumers can
+    re-deduplicate boundaries shared between adjacent lanes if they want
+    to (Waymo's per-lane slicing makes the same physical boundary appear
+    multiple times).
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polyline: NDArray[np.float32]  # (N, 3)
+    boundary_type: LaneMarkType = LaneMarkType.UNKNOWN
+    source_boundary_id: str | None = None
+
+    @field_validator("polyline", mode="before")
+    @classmethod
+    def _coerce_polyline(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class RoadEdge(BaseModel):
+    """A road-edge polyline. Waymo-only at the source layer."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polyline: NDArray[np.float32]
+    road_edge_type: RoadEdgeType = RoadEdgeType.UNKNOWN
+
+    @field_validator("polyline", mode="before")
+    @classmethod
+    def _coerce_polyline(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class Crosswalk(BaseModel):
+    """Crosswalk polygon. AV2 stitches its two parallel edges into one
+    polygon at parse time (per ADR 0006); Waymo provides one polygon
+    natively."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polygon: NDArray[np.float32]  # (M, 3)
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def _coerce_polygon(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class StopSign(BaseModel):
+    """A single stop sign. Waymo-only."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    position: NDArray[np.float32]  # (3,)
+    lane_ids: list[str] = []
+
+    @field_validator("position", mode="before")
+    @classmethod
+    def _coerce_position(cls, v):
+        arr = np.asarray(v, dtype=np.float32).reshape(-1)
+        if arr.size != 3:
+            raise ValueError(f"position must have 3 components; got {arr.shape}")
+        return arr
+
+
+class SpeedBump(BaseModel):
+    """Speed-bump polygon. Waymo-only."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polygon: NDArray[np.float32]
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def _coerce_polygon(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class DrivableArea(BaseModel):
+    """Drivable-area polygon. AV2-only."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polygon: NDArray[np.float32]
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def _coerce_polygon(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class Driveway(BaseModel):
+    """Driveway polygon. Waymo-only."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    polygon: NDArray[np.float32]
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def _coerce_polygon(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+
+class _HDMapFields(BaseModel):
+    """Shared field set for HDMapData (ego) and RawSegmentHDMap (world).
+
+    Defining the fields once keeps the two coord-frame variants in
+    lockstep without runtime branching. Each variant subclasses this
+    mixin and adds nothing — the *types are still distinct* so isinstance
+    checks discriminate, which is the whole point of splitting them
+    (ADR 0006 / 0007).
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    lanes: list[Lane] = []
+    lane_boundaries: list[LaneBoundary] = []
+    road_edges: list[RoadEdge] = []
+    crosswalks: list[Crosswalk] = []
+    stop_signs: list[StopSign] = []
+    speed_bumps: list[SpeedBump] = []
+    drivable_areas: list[DrivableArea] = []
+    driveways: list[Driveway] = []
+
+
+class HDMapData(_HDMapFields):
+    """Per-frame HD-map payload, **always in ego frame at the current
+    frame's timestamp** (ADR 0006).
+
+    This is what the cache stores under ``Modality.HD_MAP`` and what
+    consumers receive. The world-frame intermediate is the distinct type
+    ``RawSegmentHDMap``.
+    """
+
+
+class RawSegmentHDMap(_HDMapFields):
+    """Segment-wide HD-map payload in **world frame**.
+
+    Runtime-only Pydantic — never persisted (ADR 0007). Lives only inside
+    a per-source aggregator's ``_process_segment`` call as the input to
+    ``crop_hd_map_ego_relative`` (the single function that bridges world
+    -> ego).
+    """
 
 
 class BatchedFrameDetections3D:

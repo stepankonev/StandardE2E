@@ -70,3 +70,39 @@ class DetectionType(StrEnum):
 
     # https://github.com/waymo-research/waymo-open-dataset/blob/master/docs/labeling_specifications.md#sign-labeling-specifications
     SIGN = "sign"
+
+
+class LaneType(StrEnum):
+    """Coarse lane semantic class (per ADR 0006).
+
+    Source-side enums (Waymo ``LaneType``, AV2 ``LaneType``) collapse into
+    this small set; granularity is intentionally lossy — it is the
+    consumer-facing canonical taxonomy.
+    """
+
+    UNKNOWN = "unknown"
+    VEHICLE = "vehicle"
+    BIKE = "bike"
+    BUS = "bus"
+
+
+class LaneMarkType(StrEnum):
+    """Coarse lane-boundary marking type."""
+
+    UNKNOWN = "unknown"
+    SOLID_WHITE = "solid_white"
+    SOLID_YELLOW = "solid_yellow"
+    DASHED_WHITE = "dashed_white"
+    DASHED_YELLOW = "dashed_yellow"
+    DOUBLE_SOLID_WHITE = "double_solid_white"
+    DOUBLE_SOLID_YELLOW = "double_solid_yellow"
+    PASSING_DOUBLE_DASH = "passing_double_dash"
+    NONE = "none"
+
+
+class RoadEdgeType(StrEnum):
+    """Coarse road-edge type (Waymo-only modality at the source level)."""
+
+    UNKNOWN = "unknown"
+    BOUNDARY = "boundary"
+    MEDIAN = "median"
