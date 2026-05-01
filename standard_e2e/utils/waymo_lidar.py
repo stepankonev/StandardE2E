@@ -169,6 +169,16 @@ def frame_lasers_to_lidar_data(frame: "WaymoFrame") -> LidarData:
     forward to add later under the same DataFrame schema with a
     ``return_idx`` column).
     """
+    # TODO(lidar-features): geometry-only decode. Currently dropped:
+    #   - ri_return2: ~10% additional second-echo returns (transparent
+    #     surfaces, foliage interiors, dust).
+    #   - range_image channel 1 (intensity): reflectivity-based
+    #     classification (lane markings, retroreflective signs).
+    #   - range_image channel 2 (elongation): foliage discrimination.
+    #   - range_image channel 3 (NLZ flag): no-label-zone mask.
+    # Adding any of these requires extending LidarData.points with new
+    # columns (e.g., intensity, elongation, return_idx, nlz) and updating
+    # the cache format, collation, and downstream consumers.
     cal_by_name = {cal.name: cal for cal in frame.context.laser_calibrations}
     specs: list[LaserSpec] = []
     for laser in frame.lasers:

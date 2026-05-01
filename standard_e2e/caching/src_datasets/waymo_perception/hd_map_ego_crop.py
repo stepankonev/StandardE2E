@@ -44,7 +44,10 @@ class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
           ``_with_camera_labels`` suffix that the filename keeps).
 
         Resolution: try the direct ``{segment_id}.tfrecord`` first, then
-        fall back to a glob that matches both layouts.
+        fall back to a glob that matches both layouts. If a glob pattern
+        matches more than one file (e.g., layered installs of multiple
+        Waymo versions under the same root), raise rather than silently
+        loading the wrong segment's map.
         """
         root = Path(self._source_data_path)
         direct = root / f"{segment_id}.tfrecord"
@@ -56,8 +59,17 @@ class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
             f"**/*{segment_id}*.tfrecord",
         ):
             matches = list(root.glob(pattern))
-            if matches:
-                return matches[0]
+            if not matches:
+                continue
+            if len(matches) > 1:
+                listing = ", ".join(str(m) for m in sorted(matches))
+                raise FileNotFoundError(
+                    f"Ambiguous tfrecord for segment '{segment_id}' under "
+                    f"{self._source_data_path}: glob '{pattern}' matched "
+                    f"{len(matches)} files: [{listing}]. Disambiguate the "
+                    "data directory before running."
+                )
+            return matches[0]
         raise FileNotFoundError(
             f"No tfrecord for segment '{segment_id}' under {self._source_data_path}"
         )

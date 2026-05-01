@@ -144,19 +144,12 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         # camera_synced_box good, but often empty
         # https://github.com/waymo-research/waymo-open-dataset/blob/99a4cb3ff07e2fe06c2ce73da001f850f628e45a/src/waymo_open_dataset/label.proto#L108-#L133
         for laser_label in frame.laser_labels:
-            if np.allclose(
-                np.array(
-                    [
-                        laser_label.box.center_x,
-                        laser_label.box.center_y,
-                        laser_label.box.center_z,
-                    ]
-                ),
-                np.zeros((3,)),
-            ):
-                # Real detections at the exact ego origin are implausible;
-                # treat (0,0,0) as a malformed label and skip rather than
-                # emitting a ghost Detection3D into the cache.
+            box = laser_label.box
+            if box.center_x == 0.0 and box.center_y == 0.0 and box.center_z == 0.0:
+                # Real detections at the exact ego origin are implausible
+                # (would be inside the ego sensor stack); treat (0,0,0) as a
+                # malformed label and skip rather than emitting a ghost
+                # Detection3D into the cache.
                 _logger.warning(
                     "Skipping ghost laser label at ego origin "
                     "(segment=%s frame=%s agent=%s).",
@@ -165,20 +158,19 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                     laser_label.id,
                 )
                 continue
-            gt_box = laser_label.box
             detection = Detection3D(
                 unique_agent_id=laser_label.id,
                 detection_type=self._waymo_agent_type_to_canonical(laser_label.type),
                 trajectory=Trajectory(
                     {
                         TC.TIMESTAMP: [timestamp],
-                        TC.X: [gt_box.center_x],
-                        TC.Y: [gt_box.center_y],
-                        TC.Z: [gt_box.center_z],
-                        TC.HEADING: [gt_box.heading],
-                        TC.LENGTH: [gt_box.length],
-                        TC.WIDTH: [gt_box.width],
-                        TC.HEIGHT: [gt_box.height],
+                        TC.X: [box.center_x],
+                        TC.Y: [box.center_y],
+                        TC.Z: [box.center_z],
+                        TC.HEADING: [box.heading],
+                        TC.LENGTH: [box.length],
+                        TC.WIDTH: [box.width],
+                        TC.HEIGHT: [box.height],
                     }
                 ),
             )

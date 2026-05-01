@@ -46,19 +46,20 @@ from standard_e2e.data_structures import (
 )
 
 
-def _world_to_ego(points_world: np.ndarray, ego_pose: np.ndarray) -> np.ndarray:
+def _world_to_ego(points_world: np.ndarray, inv_ego_pose: np.ndarray) -> np.ndarray:
     """Transform (N, 3) world-frame points into the ego frame.
 
-    ``ego_pose`` is ``world<-ego``, so ``ego = inv(ego_pose) @ world``.
+    Takes the precomputed ``inv_ego_pose`` (``ego<-world``) so callers
+    that lift many element batches under one ego pose pay one inversion
+    instead of one per call.
     """
     if points_world.size == 0:
         return points_world.astype(np.float32, copy=False)
-    inv = np.linalg.inv(ego_pose).astype(np.float32, copy=False)
     homog = np.concatenate(
         [points_world, np.ones((len(points_world), 1), dtype=points_world.dtype)],
         axis=1,
     )
-    ego = (inv @ homog.T).T
+    ego = (inv_ego_pose @ homog.T).T
     out: np.ndarray = ego[:, :3].astype(np.float32, copy=False)
     return out
 
@@ -104,9 +105,11 @@ def crop_hd_map_ego_relative(
     if ego_pose.shape != (4, 4):
         raise ValueError(f"ego_pose must be (4,4); got {ego_pose.shape}")
 
+    inv_ego = np.linalg.inv(ego_pose).astype(np.float32, copy=False)
+
     lanes_out: list[Lane] = []
     for lane in raw.lanes:
-        ego_centerline = _world_to_ego(lane.centerline, ego_pose)
+        ego_centerline = _world_to_ego(lane.centerline, inv_ego)
         if _within_box(ego_centerline, x_range, y_range).any():
             lanes_out.append(
                 Lane(
@@ -122,7 +125,7 @@ def crop_hd_map_ego_relative(
 
     boundaries_out: list[LaneBoundary] = []
     for b in raw.lane_boundaries:
-        ego_pts = _world_to_ego(b.polyline, ego_pose)
+        ego_pts = _world_to_ego(b.polyline, inv_ego)
         mask = _within_box(ego_pts, x_range, y_range)
         if int(mask.sum()) >= 2:
             boundaries_out.append(
@@ -135,7 +138,7 @@ def crop_hd_map_ego_relative(
 
     edges_out: list[RoadEdge] = []
     for e in raw.road_edges:
-        ego_pts = _world_to_ego(e.polyline, ego_pose)
+        ego_pts = _world_to_ego(e.polyline, inv_ego)
         mask = _within_box(ego_pts, x_range, y_range)
         if int(mask.sum()) >= 2:
             edges_out.append(
@@ -145,7 +148,7 @@ def crop_hd_map_ego_relative(
     def _crop_polygon_list(items: list, cls):
         out: list = []
         for item in items:
-            ego_pts = _world_to_ego(item.polygon, ego_pose)
+            ego_pts = _world_to_ego(item.polygon, inv_ego)
             if _within_box(ego_pts, x_range, y_range).any():
                 out.append(cls(polygon=ego_pts))
         return out
@@ -157,7 +160,7 @@ def crop_hd_map_ego_relative(
 
     stop_signs_out: list[StopSign] = []
     for s in raw.stop_signs:
-        ego_pos = _world_to_ego(s.position[None, :], ego_pose)[0]
+        ego_pos = _world_to_ego(s.position[None, :], inv_ego)[0]
         in_x = -x_range <= float(ego_pos[0]) <= x_range
         in_y = -y_range <= float(ego_pos[1]) <= y_range
         if in_x and in_y:
