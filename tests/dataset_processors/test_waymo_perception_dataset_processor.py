@@ -1,10 +1,8 @@
-"""Tests for WaymoPerceptionDatasetProcessor (construction + defaults).
-
-We don't parse real protobuf frames here to keep the test lightweight.
-"""
+"""Tests for WaymoPerceptionDatasetProcessor (construction + defaults)."""
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -29,6 +27,21 @@ from standard_e2e.data_structures import (
 )
 from standard_e2e.enums import DetectionType, Modality
 from standard_e2e.enums import TrajectoryComponent as TC
+from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
+
+
+class _FakeRaw:
+    """Minimal stand-in for the ``tf.Tensor`` that the processor receives.
+
+    The processor only needs ``raw_frame_data.numpy()`` to return the
+    serialized bytes of a Waymo ``Frame`` proto.
+    """
+
+    def __init__(self, payload: bytes):
+        self._payload = payload
+
+    def numpy(self) -> bytes:
+        return self._payload
 
 
 def test_waymo_perception_defaults(tmp_path: Path):
@@ -101,6 +114,71 @@ def _build_standard_frame(
         frame_detections_3d=FrameDetections3D(detections=[detection]),
         aux_data={"pose_matrix": pose},
     )
+
+
+def _build_minimal_waymo_frame_proto(
+    *, with_ghost: bool, with_real: bool
+) -> WaymoFrame:
+    """Build a Waymo ``Frame`` proto with the minimum fields the
+    processor reads. Cameras/lasers are intentionally omitted so the
+    test stays decoupled from the image / lidar code paths.
+    """
+    frame = WaymoFrame()
+    frame.context.name = "ghost-test-segment"
+    frame.timestamp_micros = 1_000_000  # 1 second since epoch
+    # 4x4 identity pose, row-major (16 floats).
+    frame.pose.transform.extend(
+        [1.0 if i in (0, 5, 10, 15) else 0.0 for i in range(16)]
+    )
+
+    if with_ghost:
+        ghost = frame.laser_labels.add()
+        ghost.id = "ghost-agent"
+        ghost.type = 1  # VEHICLE
+        ghost.box.center_x = 0.0
+        ghost.box.center_y = 0.0
+        ghost.box.center_z = 0.0
+        ghost.box.heading = 0.0
+        ghost.box.length = 4.0
+        ghost.box.width = 2.0
+        ghost.box.height = 1.5
+
+    if with_real:
+        real = frame.laser_labels.add()
+        real.id = "real-agent"
+        real.type = 1  # VEHICLE
+        real.box.center_x = 12.0
+        real.box.center_y = 3.0
+        real.box.center_z = 0.5
+        real.box.heading = 0.0
+        real.box.length = 4.5
+        real.box.width = 2.1
+        real.box.height = 1.6
+
+    return frame
+
+
+def test_ghost_label_at_origin_is_skipped(tmp_path: Path, caplog):
+    """A laser_label with center (0,0,0) is treated as malformed: the
+    processor warns and skips it instead of emitting a ghost detection
+    at the ego origin into the cache."""
+    proc = _wpdp.WaymoPerceptionDatasetProcessor(str(tmp_path), split="training")
+    proto = _build_minimal_waymo_frame_proto(with_ghost=True, with_real=True)
+    raw = _FakeRaw(proto.SerializeToString())
+
+    with caplog.at_level(logging.WARNING, logger=_wpdp.__name__):
+        std = proc._prepare_standardized_frame_data(raw)  # noqa: SLF001
+
+    assert isinstance(std, StandardFrameData)
+    assert std.frame_detections_3d is not None
+    ids = [d.unique_agent_id for d in std.frame_detections_3d.detections]
+    assert ids == ["real-agent"], (
+        "ghost (0,0,0) detection should have been skipped, only the real "
+        f"detection emitted; got ids={ids}"
+    )
+    assert any(
+        "ghost laser label" in record.message.lower() for record in caplog.records
+    ), "expected a warning log for the skipped ghost label"
 
 
 def test_detections_3d_adapter_wired_through_to_aggregator(tmp_path: Path):

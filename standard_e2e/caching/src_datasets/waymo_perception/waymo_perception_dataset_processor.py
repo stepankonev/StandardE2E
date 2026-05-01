@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import numpy as np
@@ -33,6 +34,8 @@ from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
 )
 from standard_e2e.utils.waymo_lidar import frame_lasers_to_lidar_data
+
+_logger = logging.getLogger(__name__)
 
 
 class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
@@ -151,7 +154,17 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                 ),
                 np.zeros((3,)),
             ):
-                print("Laser label is centered at the origin.")
+                # Real detections at the exact ego origin are implausible;
+                # treat (0,0,0) as a malformed label and skip rather than
+                # emitting a ghost Detection3D into the cache.
+                _logger.warning(
+                    "Skipping ghost laser label at ego origin "
+                    "(segment=%s frame=%s agent=%s).",
+                    segment_id,
+                    frame_id,
+                    laser_label.id,
+                )
+                continue
             gt_box = laser_label.box
             detection = Detection3D(
                 unique_agent_id=laser_label.id,
