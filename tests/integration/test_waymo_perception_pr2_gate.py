@@ -201,6 +201,47 @@ def test_cross_modality_coord_frame_consistency(processed_segment):
                 ), f"detection center > 200 m from ego on {path.name}: {xy}"
 
 
+def test_aggregated_detections_carry_all_eight_components(processed_segment):
+    """After ``FutureDetectionsAggregator`` runs, each aggregated
+    ``Detection3D`` must carry the full 8-component shape that source
+    processors produce — TIMESTAMP, X, Y, Z, HEADING, LENGTH, WIDTH,
+    HEIGHT — not the {X, Y, HEADING}-only subset. Prevents regression
+    of the renderer falling back to ``"x"`` markers because pose-
+    invariant size components were silently dropped.
+    """
+    from standard_e2e.enums import TrajectoryComponent as TC
+
+    full_shape = (
+        TC.TIMESTAMP,
+        TC.X,
+        TC.Y,
+        TC.Z,
+        TC.HEADING,
+        TC.LENGTH,
+        TC.WIDTH,
+        TC.HEIGHT,
+    )
+    _cache_dir, frame_paths = processed_segment
+    asserted_at_least_one = False
+    for path in frame_paths:
+        frame = TransformedFrameData.from_npz(str(path))
+        detections = frame.get_modality_data(Modality.DETECTIONS_3D)
+        if not isinstance(detections, list):
+            continue
+        for det in detections:
+            assert isinstance(det, Detection3D)
+            if det.trajectory.length == 0:
+                continue
+            # All 8 components must be retrievable without KeyError.
+            full = det.trajectory.get(list(full_shape))
+            assert full.shape[1] == 8
+            asserted_at_least_one = True
+    assert asserted_at_least_one, (
+        "no non-empty aggregated detection was found across the segment; "
+        "test is no longer exercising the aggregator output"
+    )
+
+
 def test_render_visual_gate_pngs(processed_segment, render_module):
     _cache_dir, frame_paths = processed_segment
     VISUAL_OUT.mkdir(parents=True, exist_ok=True)

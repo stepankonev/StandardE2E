@@ -162,9 +162,7 @@ def _setup_bev(ax, title: str) -> None:
 
 def _render_cameras(frame: TransformedFrameData, title: str):
     cameras = frame.get_modality_data(Modality.CAMERAS)
-    if cameras is None or (
-        not isinstance(cameras, np.ndarray) and len(cameras) == 0
-    ):
+    if cameras is None or (not isinstance(cameras, np.ndarray) and len(cameras) == 0):
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "no cameras", ha="center", va="center")
         ax.set_axis_off()
@@ -297,8 +295,12 @@ def _render_hd_map(frame: TransformedFrameData, title: str):
         for boundary in hd_map.lane_boundaries:
             xy = boundary.polyline[:, :2]
             ax.plot(
-                xy[:, 0], xy[:, 1], color="tab:gray", linewidth=0.6,
-                linestyle="--", zorder=2,
+                xy[:, 0],
+                xy[:, 1],
+                color="tab:gray",
+                linewidth=0.6,
+                linestyle="--",
+                zorder=2,
             )
         for edge in hd_map.road_edges:
             xy = edge.polyline[:, :2]
@@ -310,7 +312,14 @@ def _render_hd_map(frame: TransformedFrameData, title: str):
             xy = da.polygon[:, :2]
             ax.fill(xy[:, 0], xy[:, 1], color="tab:green", alpha=0.15, zorder=1)
         for ss in hd_map.stop_signs:
-            ax.plot(ss.position[0], ss.position[1], marker="s", color="tab:red", markersize=6, zorder=4)
+            ax.plot(
+                ss.position[0],
+                ss.position[1],
+                marker="s",
+                color="tab:red",
+                markersize=6,
+                zorder=4,
+            )
     _draw_ego(ax)
     return fig
 
@@ -328,23 +337,13 @@ def _render_detections_3d(frame: TransformedFrameData, title: str):
     else:
         iterable = []
     for det in iterable:
-        try:
-            xy = det.trajectory.get([TC.X, TC.Y]).reshape(-1, 2)
-        except KeyError:
-            continue
+        xy = det.trajectory.get([TC.X, TC.Y]).reshape(-1, 2)
         if xy.shape[0] == 0:
             continue
         cx, cy = float(xy[0, 0]), float(xy[0, 1])
-        # Aggregated trajectories (post FutureDetectionsAggregator) only
-        # carry X, Y, HEADING; size components are absent. Fall back to
-        # a marker at the center in that case so detections still show.
-        try:
-            wh = det.trajectory.get([TC.LENGTH, TC.WIDTH]).reshape(-1, 2)
-            yaw = float(det.trajectory.get(TC.HEADING).reshape(-1)[0])
-            length, width = float(wh[0, 0]), float(wh[0, 1])
-        except KeyError:
-            ax.plot(cx, cy, marker="x", color="tab:red", markersize=5, zorder=3)
-            continue
+        wh = det.trajectory.get([TC.LENGTH, TC.WIDTH]).reshape(-1, 2)
+        yaw = float(det.trajectory.get(TC.HEADING).reshape(-1)[0])
+        length, width = float(wh[0, 0]), float(wh[0, 1])
         corners = _box_corners_2d(cx, cy, length, width, yaw)
         ax.plot(
             corners[[0, 1, 2, 3, 0], 0],
@@ -360,7 +359,9 @@ def _render_detections_3d(frame: TransformedFrameData, title: str):
     return fig
 
 
-def _box_corners_2d(cx: float, cy: float, length: float, width: float, yaw: float) -> np.ndarray:
+def _box_corners_2d(
+    cx: float, cy: float, length: float, width: float, yaw: float
+) -> np.ndarray:
     half_l = length / 2.0
     half_w = width / 2.0
     local = np.array(
@@ -381,10 +382,7 @@ def _box_corners_2d(cx: float, cy: float, length: float, width: float, yaw: floa
 def _plot_trajectory(ax, traj: Trajectory | None, color: str) -> None:
     if traj is None or traj.length == 0:
         return
-    try:
-        xy = traj.get([TC.X, TC.Y])
-    except KeyError:
-        return
+    xy = traj.get([TC.X, TC.Y])
     ax.plot(xy[:, 0], xy[:, 1], color=color, linewidth=1.5, marker=".", markersize=3)
 
 
