@@ -34,6 +34,7 @@ from standard_e2e.caching.segment_context import (
 )
 from standard_e2e.data_structures import (
     BatchedCameraData,
+    BatchedLidarData,
     LidarData,
     TransformedFrameData,
     TransformedFrameDataBatch,
@@ -185,7 +186,7 @@ def perception_batch(tmp_path_factory) -> TransformedFrameDataBatch:
         aggregator.process(index_df)
 
     # LIDAR_PC is kept because the non-camera CUDA round-trip test
-    # below needs a list[LidarData] payload to exercise the
+    # below needs a BatchedLidarData payload to exercise the
     # ``_to_device_recursive`` walk for that modality.
     keep = [
         Modality.CAMERAS,
@@ -321,36 +322,33 @@ def test_batched_trajectory_cuda_round_trip(
         ), f"component {component} not on cpu after .to(cpu)"
 
 
-def test_lidar_data_list_cuda_passthrough(
+def test_lidar_batched_cuda_round_trip(
     perception_batch: TransformedFrameDataBatch, cuda_device: torch.device
 ):
-    """``list[LidarData]`` survives the batch ``.to(cuda)`` walk.
+    """``BatchedLidarData`` survives ``.to(cuda).to(cpu)`` round-trip.
 
-    LidarData wraps a pandas DataFrame (per ADR 0008 it is variable-
-    length and intentionally not GPU-resident yet), so the recursive
-    device walk must traverse the list without trying to ``.to()`` the
-    DataFrame and without dropping the payload. A regression that
-    starts treating ``LidarData`` as a no-op (silently filtering it
-    out) or attempting a tensor move on the DataFrame would surface
-    here as an exception or a missing modality.
+    Lidar collate produces padded tensors (``points``, ``valid_mask``,
+    ``num_points``, plus any common optional columns), all of which must
+    follow the recursive ``.to()`` walk. A regression that drops the
+    container from the device walk (e.g. by moving the registration out
+    of ``_to_device_recursive``) would surface here as a tensor stuck on
+    cpu after the batch claims to be on cuda.
     """
     lidar = perception_batch.get_modality_data(Modality.LIDAR_PC)
-    assert isinstance(lidar, list) and len(lidar) > 0
-    for item in lidar:
-        assert isinstance(item, LidarData)
+    assert isinstance(lidar, BatchedLidarData)
+    assert lidar.batch_size > 0
+    assert lidar.points.device.type == "cpu", "fixture must start on CPU"
 
     perception_batch.to(cuda_device)
-    # DataFrame-backed payload is intentionally still on host memory;
-    # the contract here is "no exception, no payload loss".
     lidar_after = perception_batch.get_modality_data(Modality.LIDAR_PC)
-    assert isinstance(lidar_after, list)
-    assert len(lidar_after) == len(lidar)
-    for item in lidar_after:
-        assert isinstance(item, LidarData)
-        # Points DataFrame must still expose the canonical x/y/z columns
-        # so a downstream ``frame.lidar.points`` consumer cannot trip on
-        # a stripped-down passthrough.
-        for col in ("x", "y", "z"):
-            assert col in item.points.columns
+    assert isinstance(lidar_after, BatchedLidarData)
+    assert lidar_after.points.device.type == "cuda"
+    assert lidar_after.valid_mask.device.type == "cuda"
+    assert lidar_after.num_points.device.type == "cuda"
+    for col_tensor in lidar_after.extra_columns.values():
+        assert col_tensor.device.type == "cuda"
 
     perception_batch.to(torch.device("cpu"))
+    lidar_back = perception_batch.get_modality_data(Modality.LIDAR_PC)
+    assert isinstance(lidar_back, BatchedLidarData)
+    assert lidar_back.points.device.type == "cpu"

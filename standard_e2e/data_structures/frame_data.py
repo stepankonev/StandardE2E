@@ -20,6 +20,7 @@ from standard_e2e.constants import INDEX_FILE_NAME
 from standard_e2e.data_structures.containers import (
     BatchedCameraData,
     BatchedFrameDetections3D,
+    BatchedLidarData,
     CameraData,
     FrameDetections3D,
     HDMapData,
@@ -155,6 +156,9 @@ def _to_device_recursive(x: Any, device: torch.device) -> Any:
         x.to(device)  # in-place; returns self
         return x
     if isinstance(x, BatchedCameraData):
+        x.to(device)
+        return x
+    if isinstance(x, BatchedLidarData):
         x.to(device)
         return x
     if isinstance(x, dict):
@@ -370,15 +374,18 @@ def collate_lidar_fn(
     *,
     # pylint: disable=unused-argument
     collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
-) -> List[LidarData]:
-    """Collate a batch of ``LidarData`` into ``list[LidarData]`` (passthrough).
+) -> BatchedLidarData:
+    """Collate a batch of ``LidarData`` into ``BatchedLidarData`` (pad-and-stack).
 
-    Per ADR 0008, the default lidar collation is lossless / variable-length;
-    a padded ``BatchedLidarData`` variant is deferred until a real consumer
-    asks for it.
+    Mirrors the convention used by ``collate_cameras_fn`` and the
+    detection / trajectory collates: per-batch tensors with a
+    ``valid_mask`` for the ragged dimension. ``x, y, z`` stack as
+    ``points: Tensor[B, N_max, 3]`` float32 zero-padded to the largest
+    cloud in the batch; optional columns common to every frame land in
+    ``extra_columns``.
     """
 
-    return list(batch)
+    return BatchedLidarData(list(batch))
 
 
 def collate_hd_map_fn(
@@ -391,7 +398,7 @@ def collate_hd_map_fn(
 
     Same shape as the lidar collate: variable-length, ragged-friendly,
     lossless. A stacked / padded variant is deferred until a real
-    consumer asks for it (mirrors ADR 0008's stance on lidar).
+    consumer asks for it.
     """
 
     return list(batch)
@@ -411,18 +418,27 @@ def collate_cameras_fn(
 
 
 def _is_cameras_batch(batch: List[Any]) -> bool:
-    """Detect a batch of ``dict[CameraDirection, CameraData]`` payloads."""
-    if not batch or not all(isinstance(item, dict) for item in batch):
+    """Detect a batch of ``dict[CameraDirection, CameraData]`` payloads.
+
+    Early-exits on the first item: if it is not a non-empty dict whose
+    first key is a ``CameraDirection``, the batch cannot be a cameras
+    batch and we skip the per-frame walk. The full scan only runs once
+    the cheap check has already said "this looks like cameras."
+    """
+    if not batch or not isinstance(batch[0], dict) or not batch[0]:
         return False
-    has_any_entry = False
+    first_key = next(iter(batch[0]))
+    if not isinstance(first_key, CameraDirection):
+        return False
     for item in batch:
+        if not isinstance(item, dict):
+            return False
         for key, value in item.items():
-            has_any_entry = True
             if not isinstance(key, CameraDirection) or not isinstance(
                 value, CameraData
             ):
                 return False
-    return has_any_entry
+    return True
 
 
 def _collate_dict_fn(

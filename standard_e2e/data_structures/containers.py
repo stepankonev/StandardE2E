@@ -188,6 +188,11 @@ class BatchedCameraData:
       * ``images``: ``Tensor[B, H, W, C]`` ``uint8`` (matches ``CameraData.image``).
       * ``intrinsics``: ``Tensor[B, 3, 3]`` ``float32``.
       * ``extrinsics``: ``Tensor[B, 4, 4]`` ``float32``.
+
+    Intentionally not Pydantic — torch tensor lifecycle (``.to(device)``,
+    non-blocking transfers) does not round-trip cleanly through Pydantic;
+    this container is internal batching infrastructure, not a serialization
+    shape.
     """
 
     def __init__(self, frames: list[dict[CameraDirection, CameraData]]):
@@ -269,7 +274,21 @@ class LidarData(BaseModel):
     time via the corresponding laser/lidar extrinsic; consumers of
     Modality.LIDAR can rely on this without checking.
 
-    - points: pandas DataFrame with mandatory columns x,y,z
+    Schema:
+
+    * ``x, y, z`` (float32, required) — point coordinates in ego frame.
+    * Standard optional columns (no validator enforcement, but
+      ``BatchedLidarData`` knows these names + dtypes when stacking):
+
+      - ``intensity`` (float32) — return strength.
+      - ``timestamp_ns`` (int64) — per-point shot time, sensor-clock.
+      - ``range`` (float32) — meters, sensor-frame.
+      - ``laser_id`` (int8 / category) — sensor-of-origin tag (Waymo
+        TOP/FRONT/etc., AV2 UP/DOWN).
+
+    Per-source adapters may add further columns; only the canonical
+    optional ones above are guaranteed to keep their dtype through
+    ``BatchedLidarData``.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
@@ -285,6 +304,146 @@ class LidarData(BaseModel):
             if col not in v.columns:
                 raise ValueError(f"points must contain column '{col}'")
         return v
+
+
+class BatchedLidarData:
+    """Per-batch padded lidar tensors.
+
+    Required columns ``x, y, z`` stack into ``points: Tensor[B, N_max, 3]``
+    float32, padded with zeros for frames with fewer points.
+    ``valid_mask: Tensor[B, N_max]`` bool marks the real points;
+    ``num_points: Tensor[B] int64`` is the per-frame count.
+
+    Optional numeric columns (``intensity``, ``timestamp_ns``, ``range``,
+    ``laser_id``) materialize as ``extra_columns: dict[str, Tensor[B, N_max]]``
+    — only columns present in *every* frame are stacked (missing-in-any
+    drops, mirroring ``BatchedCameraData``). Non-numeric columns (e.g. a
+    string category) are silently skipped.
+
+    Intentionally not Pydantic — torch tensor lifecycle (``.to(device)``,
+    non-blocking transfers) does not round-trip cleanly through Pydantic;
+    this container is internal batching infrastructure, not a serialization
+    shape.
+    """
+
+    _CANONICAL_DTYPE: dict[str, torch.dtype] = {
+        "intensity": torch.float32,
+        "range": torch.float32,
+        "timestamp_ns": torch.int64,
+        "laser_id": torch.int8,
+    }
+
+    def __init__(self, frames: list[LidarData]):
+        if not isinstance(frames, list):
+            raise TypeError("frames must be a list of LidarData")
+        if not frames:
+            raise ValueError("BatchedLidarData requires a non-empty list of frames")
+        for f in frames:
+            if not isinstance(f, LidarData):
+                raise TypeError("each frame must be LidarData")
+
+        self._batch_size = len(frames)
+        num_points_list = [len(f.points) for f in frames]
+        n_max = max(num_points_list) if num_points_list else 0
+
+        points = torch.zeros((self._batch_size, n_max, 3), dtype=torch.float32)
+        valid_mask = torch.zeros((self._batch_size, n_max), dtype=torch.bool)
+        for i, f in enumerate(frames):
+            n = num_points_list[i]
+            if n == 0:
+                continue
+            # ``copy=True`` because pandas ``to_numpy`` may return a
+            # non-writable view that ``torch.from_numpy`` warns on.
+            xyz = f.points[["x", "y", "z"]].to_numpy(dtype=np.float32, copy=True)
+            points[i, :n] = torch.from_numpy(xyz)
+            valid_mask[i, :n] = True
+        self._points = points
+        self._valid_mask = valid_mask
+        self._num_points = torch.tensor(num_points_list, dtype=torch.int64)
+
+        # Optional columns that appear in *every* frame.
+        common_cols = set(frames[0].points.columns) - {"x", "y", "z"}
+        for f in frames[1:]:
+            common_cols &= set(f.points.columns) - {"x", "y", "z"}
+
+        self._extra_columns: dict[str, torch.Tensor] = {}
+        for col in sorted(common_cols):
+            first_dtype = frames[0].points[col].dtype
+            if not pd.api.types.is_numeric_dtype(
+                first_dtype
+            ) and not pd.api.types.is_bool_dtype(first_dtype):
+                continue
+            target_dtype = self._CANONICAL_DTYPE.get(
+                col, _numpy_to_torch_dtype(first_dtype)
+            )
+            stacked = torch.zeros(
+                (self._batch_size, n_max), dtype=target_dtype
+            )
+            for i, f in enumerate(frames):
+                n = num_points_list[i]
+                if n == 0:
+                    continue
+                # ``copy=True`` because pandas ``to_numpy`` may return a
+                # non-writable view that ``torch.from_numpy`` warns on.
+                vals = np.array(f.points[col].to_numpy(), copy=True)
+                stacked[i, :n] = torch.from_numpy(vals).to(target_dtype)
+            self._extra_columns[col] = stacked
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def points(self) -> torch.Tensor:
+        return self._points
+
+    @property
+    def valid_mask(self) -> torch.Tensor:
+        return self._valid_mask
+
+    @property
+    def num_points(self) -> torch.Tensor:
+        return self._num_points
+
+    @property
+    def extra_columns(self) -> dict[str, torch.Tensor]:
+        return self._extra_columns
+
+    def to(self, device: torch.device) -> "BatchedLidarData":
+        self._points = self._points.to(device=device, non_blocking=True)
+        self._valid_mask = self._valid_mask.to(device=device, non_blocking=True)
+        self._num_points = self._num_points.to(device=device, non_blocking=True)
+        for col in list(self._extra_columns.keys()):
+            self._extra_columns[col] = self._extra_columns[col].to(
+                device=device, non_blocking=True
+            )
+        return self
+
+
+def _numpy_to_torch_dtype(pandas_dtype: object) -> torch.dtype:
+    """Best-effort pandas/numpy -> torch dtype mapping for lidar extra columns.
+
+    Accepts either ``np.dtype`` or pandas' ``ExtensionDtype`` (the two
+    possible return types of ``Series.dtype``). Float64 columns are
+    downcast to float32 to match the canonical ``points`` precision;
+    integer widths map directly. Anything outside the common numeric set
+    falls back to float32.
+    """
+    if pandas_dtype == np.float64 or pandas_dtype == np.float32:
+        return torch.float32
+    if pandas_dtype == np.float16:
+        return torch.float16
+    if pandas_dtype == np.int64 or pandas_dtype == np.uint64:
+        return torch.int64
+    if pandas_dtype == np.int32 or pandas_dtype == np.uint32:
+        return torch.int32
+    if pandas_dtype == np.int16 or pandas_dtype == np.uint16:
+        return torch.int16
+    if pandas_dtype == np.int8 or pandas_dtype == np.uint8:
+        return torch.int8
+    if pandas_dtype == np.bool_:
+        return torch.bool
+    return torch.float32
 
 
 class Detection3D(BaseModel):
@@ -306,7 +465,7 @@ class FrameDetections3D(BaseModel):
 
 
 class Lane(BaseModel):
-    """One lane (per ADR 0006).
+    """One lane.
 
     Coord-frame is determined by the enclosing container (HDMapData = ego,
     RawSegmentHDMap = world).
@@ -365,8 +524,7 @@ class RoadEdge(BaseModel):
 
 class Crosswalk(BaseModel):
     """Crosswalk polygon. AV2 stitches its two parallel edges into one
-    polygon at parse time (per ADR 0006); Waymo provides one polygon
-    natively."""
+    polygon at parse time; Waymo provides one polygon natively."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -440,8 +598,7 @@ class _HDMapFields(BaseModel):
     Defining the fields once keeps the two coord-frame variants in
     lockstep without runtime branching. Each variant subclasses this
     mixin and adds nothing — the *types are still distinct* so isinstance
-    checks discriminate, which is the whole point of splitting them
-    (ADR 0006 / 0007).
+    checks discriminate, which is the whole point of splitting them.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -458,7 +615,7 @@ class _HDMapFields(BaseModel):
 
 class HDMapData(_HDMapFields):
     """Per-frame HD-map payload, **always in ego frame at the current
-    frame's timestamp** (ADR 0006).
+    frame's timestamp**.
 
     This is what the cache stores under ``Modality.HD_MAP`` and what
     consumers receive. The world-frame intermediate is the distinct type
@@ -469,8 +626,8 @@ class HDMapData(_HDMapFields):
 class RawSegmentHDMap(_HDMapFields):
     """Segment-wide HD-map payload in **world frame**.
 
-    Runtime-only Pydantic — never persisted (ADR 0007). Lives only inside
-    a per-source aggregator's ``_process_segment`` call as the input to
+    Runtime-only Pydantic — never persisted. Lives only inside a
+    per-source aggregator's ``_process_segment`` call as the input to
     ``crop_hd_map_ego_relative`` (the single function that bridges world
     -> ego).
     """

@@ -1,6 +1,7 @@
 from standard_e2e.data_structures.containers import (
     BatchedCameraData,
     BatchedFrameDetections3D,
+    BatchedLidarData,
     CameraData,
     Crosswalk,
     Detection3D,
@@ -30,6 +31,7 @@ from standard_e2e.data_structures.trajectory_data import (
 
 __all__ = [
     "BatchedCameraData",
+    "BatchedLidarData",
     "CameraData",
     "Detection3D",
     "FrameDetections3D",
