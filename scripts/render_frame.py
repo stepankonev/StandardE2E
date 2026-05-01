@@ -162,11 +162,23 @@ def _setup_bev(ax, title: str) -> None:
 
 def _render_cameras(frame: TransformedFrameData, title: str):
     cameras = frame.get_modality_data(Modality.CAMERAS)
-    if cameras is None or len(cameras) == 0:
+    if cameras is None or (
+        not isinstance(cameras, np.ndarray) and len(cameras) == 0
+    ):
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "no cameras", ha="center", va="center")
         ax.set_axis_off()
         fig.suptitle(title)
+        return fig
+
+    # PanoImageAdapter produces a single stitched ndarray; surround mode
+    # produces dict[CameraDirection, CameraData].
+    if isinstance(cameras, np.ndarray):
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.imshow(_downsample_image(cameras))
+        ax.set_axis_off()
+        fig.suptitle(title)
+        fig.tight_layout()
         return fig
 
     fig, axes = plt.subplots(3, 3, figsize=(12, 9))
@@ -220,7 +232,10 @@ def _render_intent(frame: TransformedFrameData, title: str):
 def _render_combined(frame: TransformedFrameData, title: str):
     fig, (ax_cam, ax_bev) = plt.subplots(1, 2, figsize=(14, 7))
     cameras = frame.get_modality_data(Modality.CAMERAS)
-    if cameras is not None and CameraDirection.FRONT in cameras:
+    if isinstance(cameras, np.ndarray):
+        ax_cam.imshow(_downsample_image(cameras))
+        ax_cam.set_title("pano")
+    elif cameras is not None and CameraDirection.FRONT in cameras:
         ax_cam.imshow(_downsample_image(cameras[CameraDirection.FRONT].image))
         ax_cam.set_title("FRONT")
     else:
@@ -315,15 +330,21 @@ def _render_detections_3d(frame: TransformedFrameData, title: str):
     for det in iterable:
         try:
             xy = det.trajectory.get([TC.X, TC.Y]).reshape(-1, 2)
-            wh = det.trajectory.get([TC.LENGTH, TC.WIDTH]).reshape(-1, 2)
-            heading = det.trajectory.get(TC.HEADING).reshape(-1)
         except KeyError:
             continue
         if xy.shape[0] == 0:
             continue
         cx, cy = float(xy[0, 0]), float(xy[0, 1])
-        length, width = float(wh[0, 0]), float(wh[0, 1])
-        yaw = float(heading[0])
+        # Aggregated trajectories (post FutureDetectionsAggregator) only
+        # carry X, Y, HEADING; size components are absent. Fall back to
+        # a marker at the center in that case so detections still show.
+        try:
+            wh = det.trajectory.get([TC.LENGTH, TC.WIDTH]).reshape(-1, 2)
+            yaw = float(det.trajectory.get(TC.HEADING).reshape(-1)[0])
+            length, width = float(wh[0, 0]), float(wh[0, 1])
+        except KeyError:
+            ax.plot(cx, cy, marker="x", color="tab:red", markersize=5, zorder=3)
+            continue
         corners = _box_corners_2d(cx, cy, length, width, yaw)
         ax.plot(
             corners[[0, 1, 2, 3, 0], 0],
@@ -332,6 +353,9 @@ def _render_detections_3d(frame: TransformedFrameData, title: str):
             linewidth=1.0,
             zorder=3,
         )
+        # Draw the full aggregated trajectory as a thin line for context.
+        if xy.shape[0] > 1:
+            ax.plot(xy[:, 0], xy[:, 1], color="tab:red", alpha=0.4, linewidth=0.5)
     _draw_ego(ax)
     return fig
 

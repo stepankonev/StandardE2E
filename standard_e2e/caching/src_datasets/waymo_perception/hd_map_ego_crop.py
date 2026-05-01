@@ -34,23 +34,33 @@ class WaymoHDMapEgoCropAggregator(HDMapEgoCropAggregator):
     def _resolve_tfrecord_path(self, segment_id: str) -> Path:
         """Find the tfrecord for ``segment_id`` under ``source_data_path``.
 
-        Tries a direct ``{source_data_path}/{segment_id}.tfrecord`` first
-        (matches the v1.4.x release layout), falls back to a recursive
-        glob so the aggregator works for layouts where tfrecords are
-        split across subdirectories.
+        ``segment_id`` is ``frame.context.name`` from the Waymo proto.
+        Two layouts exist on disk:
+
+        * v1.0.0 / E2E-style: filename equals ``segment_id`` exactly.
+        * v1.4.x Perception: filename is
+          ``segment-{segment_id}_with_camera_labels.tfrecord`` (the
+          proto ``context.name`` strips the ``segment-`` prefix and the
+          ``_with_camera_labels`` suffix that the filename keeps).
+
+        Resolution: try the direct ``{segment_id}.tfrecord`` first, then
+        fall back to a glob that matches both layouts.
         """
-        direct = Path(self._source_data_path) / f"{segment_id}.tfrecord"
+        root = Path(self._source_data_path)
+        direct = root / f"{segment_id}.tfrecord"
         if direct.exists():
             return direct
-        matches = list(
-            Path(self._source_data_path).glob(f"**/{segment_id}.tfrecord")
+        for pattern in (
+            f"**/{segment_id}.tfrecord",
+            f"**/segment-{segment_id}*.tfrecord",
+            f"**/*{segment_id}*.tfrecord",
+        ):
+            matches = list(root.glob(pattern))
+            if matches:
+                return matches[0]
+        raise FileNotFoundError(
+            f"No tfrecord for segment '{segment_id}' under {self._source_data_path}"
         )
-        if not matches:
-            raise FileNotFoundError(
-                f"No tfrecord for segment '{segment_id}' under "
-                f"{self._source_data_path}"
-            )
-        return matches[0]
 
     def _parse_world_segment_map(self, segment_id: str) -> RawSegmentHDMap:
         # TF is required for tfrecord IO; imported lazily so the rest
