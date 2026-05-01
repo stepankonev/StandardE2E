@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from standard_e2e.caching.adapters import (
     Detections3DIdentityAdapter,
@@ -28,6 +29,8 @@ from standard_e2e.data_structures import (
 from standard_e2e.enums import DetectionType, Modality
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
+
+pytestmark = pytest.mark.waymo
 
 
 class _FakeRaw:

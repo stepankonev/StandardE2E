@@ -22,6 +22,8 @@ from standard_e2e.caching.src_datasets.waymo_e2e.waymo_e2e_dataset_processor imp
 )
 from standard_e2e.data_structures import TransformedFrameData
 
+pytestmark = pytest.mark.waymo
+
 
 def test_waymo_e2e_defaults(tmp_path: Path):
     proc = WaymoE2EDatasetProcessor(str(tmp_path), split="training")

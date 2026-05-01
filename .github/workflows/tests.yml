@@ -49,7 +49,7 @@ jobs:
         uv run python -c "import sys, standard_e2e, standard_e2e.unified_dataset; assert 'tensorflow' not in sys.modules, 'tensorflow leaked into base install'"
 
     - name: Run base tests (skip Waymo paths)
-      run: uv run pytest tests/ -v --ignore=tests/dataset_processors/test_waymo_perception_dataset_processor.py --ignore=tests/dataset_processors/test_waymo_perception_hd_map_aggregator.py --ignore=tests/dataset_processors/test_waymo_e2e_dataset_processor.py --ignore=tests/dataset_processors/test_waymo_perception_hd_map_parser.py --ignore=tests/integration
+      run: uv run pytest tests/ -v -m 'not waymo'
 
   test-waymo:
     name: Tests waymo (Python ${{ matrix.python-version }})

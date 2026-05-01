@@ -3,7 +3,7 @@
 The parser converts a Waymo ``Frame.map_features`` collection (in
 segment frame) into a world-frame ``RawSegmentHDMap``. Lift to world is
 **translation only** by ``Frame.map_pose_offset`` (a ``Vector3d``, not
-a 4x4 transform — see ADR 0006 / step 2.5 spec).
+a 4x4 transform).
 
 Tests synthesize a Waymo ``Frame`` proto in memory; no real tfrecord on
 disk required.
@@ -12,6 +12,7 @@ disk required.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 # pylint: disable=no-name-in-module
 from standard_e2e.caching.src_datasets.waymo_perception.hd_map_parser import (
@@ -20,6 +21,8 @@ from standard_e2e.caching.src_datasets.waymo_perception.hd_map_parser import (
 from standard_e2e.data_structures import RawSegmentHDMap
 from standard_e2e.enums import LaneMarkType, LaneType, RoadEdgeType
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame
+
+pytestmark = pytest.mark.waymo
 from standard_e2e.third_party.waymo_open_dataset.protos.map_pb2 import (
     LaneCenter,
     RoadLine,

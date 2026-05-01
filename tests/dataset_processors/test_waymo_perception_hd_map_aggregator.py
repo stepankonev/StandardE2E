@@ -30,6 +30,8 @@ from standard_e2e.enums import Modality
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame
 from standard_e2e.third_party.waymo_open_dataset.protos.map_pb2 import LaneCenter
 
+pytestmark = pytest.mark.waymo
+
 
 def _add_polyline(repeated_points, pts: list[tuple[float, float, float]]):
     for x, y, z in pts:
