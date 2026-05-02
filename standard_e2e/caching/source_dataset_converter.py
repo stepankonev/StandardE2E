@@ -121,7 +121,14 @@ class SourceDatasetConverter(ABC):
                 "Using parallel processing with %d workers for dataset conversion.",
                 self._num_workers,
             )
-            with multiprocessing.Pool(self._num_workers) as pool:
+            # Spawn rather than fork: TensorFlow and OpenCV both keep global
+            # thread / mutex state that is left inconsistent by fork(),
+            # producing silent deadlocks in workers (typically before the
+            # first frame completes). Spawn pays a per-worker import cost
+            # (~5 s per worker) but is the recommended pattern for any
+            # multiprocessing.Pool that runs TF or cv2 work post-fork.
+            ctx = multiprocessing.get_context("spawn")
+            with ctx.Pool(self._num_workers) as pool:
                 results = list(
                     tqdm(
                         pool.imap(
