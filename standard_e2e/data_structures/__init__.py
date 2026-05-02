@@ -4,8 +4,10 @@ from standard_e2e.data_structures.containers import (
     CameraData,
     Detection3D,
     FrameDetections3D,
+    HDMap,
     LidarData,
     LidarPointCloud,
+    MapElement,
 )
 from standard_e2e.data_structures.frame_data import (
     FrameIndexData,
@@ -24,6 +26,8 @@ __all__ = [
     "Detection3D",
     "FrameDetections3D",
     "BatchedFrameDetections3D",
+    "HDMap",
+    "MapElement",
     "LidarData",
     "LidarPointCloud",
     "BatchedLidarPointCloud",

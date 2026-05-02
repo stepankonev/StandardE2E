@@ -77,7 +77,7 @@ pip install -e ".[dev]"
 ## 🚀 Key Features
 
 - **Unified Dataset Interface**: Work with multiple datasets through a single API
-- **Multimodal Support**: Cameras, LiDAR (point cloud + BEV histogram), HD maps ![](https://img.shields.io/badge/WiP-orange), trajectories, detections and more
+- **Multimodal Support**: Cameras, LiDAR (point cloud + BEV histogram), HD maps (BEV raster), trajectories, detections and more
 - **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation  
 - **Trajectory Management**: Advanced handling of time-series vehicle data
 - **PyTorch Integration**: Ready-to-use datasets and dataloaders

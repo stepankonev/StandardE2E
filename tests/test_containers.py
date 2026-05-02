@@ -2,8 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from standard_e2e.data_structures.containers import CameraData, LidarData
-from standard_e2e.enums import CameraDirection
+from standard_e2e.data_structures.containers import (
+    CameraData,
+    HDMap,
+    LidarData,
+    MapElement,
+)
+from standard_e2e.enums import CameraDirection, MapElementType
 
 
 def make_camera_data(**overrides) -> CameraData:
@@ -142,3 +147,67 @@ def test_lidar_data_runtime_assignment_validation():
     lidar = LidarData(points=df)
     with pytest.raises(ValueError):
         lidar.points = pd.DataFrame({"x": [0.0], "y": [1.0]})  # type: ignore
+
+
+# ---------------------- MapElement / HDMap tests ----------------------
+
+
+def test_map_element_happy_path():
+    pts = np.array([[0, 0, 0], [1, 0, 0]], dtype=np.float32)
+    elem = MapElement(id="lc1", type=MapElementType.LANE_CENTER, points=pts)
+    assert elem.id == "lc1"
+    assert elem.type is MapElementType.LANE_CENTER
+    assert elem.is_closed is False
+    assert elem.successor_ids == []
+    assert elem.predecessor_ids == []
+    assert elem.attrs == {}
+    np.testing.assert_array_equal(elem.points, pts)
+
+
+def test_map_element_dtype_coercion_from_list():
+    elem = MapElement(
+        id="x", type=MapElementType.LANE_CENTER, points=[[0, 0, 0], [1, 0, 0]]
+    )
+    assert elem.points.dtype == np.float32
+
+
+def test_map_element_single_point_allowed():
+    elem = MapElement(
+        id="ss",
+        type=MapElementType.STOP_SIGN,
+        points=np.array([[1.0, 2.0, 3.0]], dtype=np.float32),
+    )
+    assert elem.points.shape == (1, 3)
+
+
+def test_map_element_invalid_shape_raises():
+    with pytest.raises(ValueError):
+        MapElement(
+            id="x",
+            type=MapElementType.LANE_CENTER,
+            points=np.zeros((0, 3), dtype=np.float32),
+        )
+    with pytest.raises(ValueError):
+        MapElement(
+            id="x",
+            type=MapElementType.LANE_CENTER,
+            points=np.zeros((5, 2), dtype=np.float32),
+        )
+    with pytest.raises(ValueError):
+        MapElement(
+            id="x",
+            type=MapElementType.LANE_CENTER,
+            points=np.zeros((5,), dtype=np.float32),
+        )
+
+
+def test_hd_map_happy_path():
+    pts = np.array([[0, 0, 0], [1, 0, 0]], dtype=np.float32)
+    elem = MapElement(id="lc1", type=MapElementType.LANE_CENTER, points=pts)
+    hd_map = HDMap(elements=[elem])
+    assert len(hd_map.elements) == 1
+    assert hd_map.elements[0].id == "lc1"
+
+
+def test_hd_map_empty_allowed():
+    assert HDMap(elements=[]).elements == []

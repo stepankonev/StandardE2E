@@ -36,11 +36,3 @@ dataset:
         - preference_trajectory
       selector:
         name: current
-    - frame_name: future_1second
-      modalities:
-        - future_states
-      selector:
-        name: closest_timestamp
-        parameters:
-          delta_t: 1.0
-        

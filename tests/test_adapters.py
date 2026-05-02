@@ -5,6 +5,7 @@ import pytest
 from standard_e2e.caching.adapters import (
     CamerasIdentityAdapter,
     FutureStatesIdentityAdapter,
+    HDMapBEVAdapter,
     IntentIdentityAdapter,
     LidarAdapter,
     LidarBEVAdapter,
@@ -17,12 +18,19 @@ from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.constants import PREFERENCE_TRAJECTORIES_KEY
 from standard_e2e.data_structures import (
     CameraData,
+    HDMap,
     LidarData,
     LidarPointCloud,
+    MapElement,
     StandardFrameData,
     Trajectory,
 )
-from standard_e2e.enums import CameraDirection, LidarComponent, Modality
+from standard_e2e.enums import (
+    CameraDirection,
+    LidarComponent,
+    MapElementType,
+    Modality,
+)
 
 # --- Helpers -----------------------------------------------------------------
 
@@ -188,6 +196,7 @@ def test_all_concrete_adapters_subclass_abstract():
         PanoImageAdapter,
         LidarAdapter,
         LidarBEVAdapter,
+        HDMapBEVAdapter,
     ]:
         assert issubclass(cls, AbstractAdapter)
 
@@ -276,3 +285,93 @@ def test_lidar_bev_adapter_invalid_args_raise():
         LidarBEVAdapter(pixels_per_meter=0.5)
     with pytest.raises(ValueError):
         LidarBEVAdapter(count_cap=0)
+
+
+# --- HDMapBEVAdapter ---------------------------------------------------------
+
+
+def _hdmap_frame(elements: list[MapElement]) -> StandardFrameData:
+    return make_frame(hd_map=HDMap(elements=elements))
+
+
+def _elem(
+    type_: MapElementType,
+    points: list[list[float]],
+    is_closed: bool = False,
+    id_: str = "x",
+) -> MapElement:
+    return MapElement(
+        id=id_,
+        type=type_,
+        points=np.asarray(points, dtype=np.float32),
+        is_closed=is_closed,
+    )
+
+
+def test_hdmap_bev_adapter_default_shape_and_empty_map():
+    out = HDMapBEVAdapter().transform(_hdmap_frame([]))
+    bev = out[Modality.HD_MAP_BEV]
+    assert bev.dtype == np.float32
+    # Default: 11 channels (one per MapElementType), 64 m square at 4 ppm.
+    assert bev.shape == (len(MapElementType), 256, 256)
+    assert bev.max() == 0.0
+
+
+def test_hdmap_bev_adapter_renders_polyline_on_correct_channel():
+    # Horizontal line along vehicle x at y=0; LANE_CENTER channel should be hot.
+    line = _elem(MapElementType.LANE_CENTER, [[-10, 0, 0], [10, 0, 0]])
+    out = HDMapBEVAdapter(
+        include_types=[MapElementType.LANE_CENTER, MapElementType.CROSSWALK]
+    ).transform(_hdmap_frame([line]))
+    bev = out[Modality.HD_MAP_BEV]
+    assert bev.shape == (2, 256, 256)
+    assert bev[0].max() == 1.0  # LANE_CENTER drawn
+    assert bev[1].max() == 0.0  # CROSSWALK channel untouched
+
+
+def test_hdmap_bev_adapter_polygon_is_filled():
+    # 5 m square crosswalk; fill should produce far more pixels than outline.
+    poly = _elem(
+        MapElementType.CROSSWALK,
+        [[0, 0, 0], [5, 0, 0], [5, 5, 0], [0, 5, 0]],
+        is_closed=True,
+    )
+    out = HDMapBEVAdapter(include_types=[MapElementType.CROSSWALK]).transform(
+        _hdmap_frame([poly])
+    )
+    bev = out[Modality.HD_MAP_BEV]
+    # 5m * 5m at 4 ppm = 20*20 = 400 pixels filled (interior).
+    assert (bev[0] > 0).sum() > 300
+
+
+def test_hdmap_bev_adapter_point_renders_as_circle():
+    point = _elem(MapElementType.STOP_SIGN, [[0, 0, 0]])
+    out = HDMapBEVAdapter(
+        include_types=[MapElementType.STOP_SIGN], polyline_thickness=3
+    ).transform(_hdmap_frame([point]))
+    bev = out[Modality.HD_MAP_BEV]
+    # Circle of radius 3 → ~29 pixels (>0).
+    assert 1 < (bev[0] > 0).sum() < 100
+
+
+def test_hdmap_bev_adapter_excluded_type_dropped():
+    elem = _elem(MapElementType.SPEED_BUMP, [[-5, 0, 0], [5, 0, 0]])
+    out = HDMapBEVAdapter(include_types=[MapElementType.LANE_CENTER]).transform(
+        _hdmap_frame([elem])
+    )
+    bev = out[Modality.HD_MAP_BEV]
+    assert bev.shape == (1, 256, 256)
+    assert bev.max() == 0.0
+
+
+def test_hdmap_bev_adapter_missing_hd_map_returns_empty():
+    assert HDMapBEVAdapter().transform(make_frame()) == {}
+
+
+def test_hdmap_bev_adapter_invalid_args_raise():
+    with pytest.raises(ValueError):
+        HDMapBEVAdapter(min_x=10.0, max_x=10.0)
+    with pytest.raises(ValueError):
+        HDMapBEVAdapter(pixels_per_meter=0.5)
+    with pytest.raises(ValueError):
+        HDMapBEVAdapter(polyline_thickness=0)

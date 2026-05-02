@@ -19,6 +19,7 @@ dependencies = [
     "pyarrow",
     "Pillow",
     "albumentations",
+    "opencv-python-headless",
     "pyyaml",
     "tensorflow-cpu",
     "tqdm",
