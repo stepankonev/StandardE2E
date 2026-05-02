@@ -1,0 +1,33 @@
+preprocessing:
+  adapters:
+    - name: pano_adapter
+      params:
+        top_cut_frac: 0.0
+        max_size: 384
+    - name: lidar_pc_identity_adapter
+    - name: detections_3d_identity_adapter
+    - name: hd_map_identity_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - hd_map
+        - detections_3d
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    - frame_name: future_1second
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 1.0
