@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
 
-from standard_e2e.caching.adapters import LidarBEVAdapter
+from standard_e2e.caching.adapters import HDMapBEVAdapter, LidarBEVAdapter
 from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import (
+    HDMapBEVDefaults,
     IntentDefaults,
     LidarBEVDefaults,
     LidarPointCloudDefaults,
@@ -163,5 +164,40 @@ def test_lidar_bev_defaults_invalid_shape_raises():
 
 def test_lidar_bev_defaults_wrong_modality():
     handler = LidarBEVDefaults(shape=(1, 4, 4))
+    with pytest.raises(ValueError):
+        handler.normalize(None, Modality.INTENT)
+
+
+def test_hdmap_bev_defaults_returns_zeros_when_none():
+    handler = HDMapBEVDefaults(shape=(11, 4, 4))
+    val = handler.normalize(None, Modality.HD_MAP_BEV)
+    assert isinstance(val, np.ndarray)
+    assert val.shape == (11, 4, 4)
+    assert val.dtype == np.float32
+    assert (val == 0).all()
+
+
+def test_hdmap_bev_defaults_passes_through_existing():
+    handler = HDMapBEVDefaults(shape=(11, 4, 4))
+    existing = np.ones((11, 4, 4), dtype=np.float32)
+    assert handler.normalize(existing, Modality.HD_MAP_BEV) is existing
+
+
+def test_hdmap_bev_defaults_from_adapter_matches_shape():
+    handler = HDMapBEVDefaults.from_adapter(HDMapBEVAdapter())
+    val = handler.normalize(None, Modality.HD_MAP_BEV)
+    # Default HDMapBEVAdapter: 11 channels (one per MapElementType), 64m / 4 ppm.
+    assert val.shape == (11, 256, 256)
+
+
+def test_hdmap_bev_defaults_invalid_shape_raises():
+    with pytest.raises(ValueError):
+        HDMapBEVDefaults(shape=(1, 4))  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        HDMapBEVDefaults(shape=(0, 4, 4))
+
+
+def test_hdmap_bev_defaults_wrong_modality():
+    handler = HDMapBEVDefaults(shape=(1, 4, 4))
     with pytest.raises(ValueError):
         handler.normalize(None, Modality.INTENT)
