@@ -1,25 +1,37 @@
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
+    HDMapBEVAdapter,
     LidarAdapter,
     PanoImageAdapter,
 )
 from standard_e2e.caching.segment_context import (
     FutureDetectionsAggregator,
     FuturePastStatesFromMatricesAggregator,
+    SegmentContextAggregator,
 )
 from standard_e2e.data_structures import (
     Detection3D,
     FrameDetections3D,
+    HDMap,
     LidarData,
+    MapElement,
     StandardFrameData,
     Trajectory,
 )
-from standard_e2e.enums import CameraDirection, DetectionType, LidarComponent
+from standard_e2e.enums import (
+    CameraDirection,
+    DetectionType,
+    LidarComponent,
+    MapElementType,
+)
 from standard_e2e.enums import TrajectoryComponent as TC
+from standard_e2e.indexing import IndexDataGenerator
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
@@ -29,9 +41,30 @@ from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
 )
 
+# (waymo_field_name, MapElementType, polyline_attr_or_None_for_point, is_closed)
+_MAP_FEATURE_KIND: dict[str, tuple[MapElementType, Optional[str], bool]] = {
+    "lane": (MapElementType.LANE_CENTER, "polyline", False),
+    "road_edge": (MapElementType.ROAD_EDGE, "polyline", False),
+    "road_line": (MapElementType.LANE_BOUNDARY, "polyline", False),
+    "stop_sign": (MapElementType.STOP_SIGN, None, False),  # single position point
+    "crosswalk": (MapElementType.CROSSWALK, "polygon", True),
+    "speed_bump": (MapElementType.SPEED_BUMP, "polygon", True),
+    "driveway": (MapElementType.DRIVEWAY, "polygon", True),
+}
+
 
 class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
-    """Processor for the Waymo Perception dataset."""
+    """Processor for the Waymo Perception dataset.
+
+    HD-map handling note: Waymo's proto puts ``map_features`` only on the
+    first frame of each segment. This processor caches the decoded map
+    features per ``segment_id`` on first sighting and applies the
+    per-frame inverse pose on subsequent frames. The cache is per-instance
+    state, so HD-map preprocessing requires sequential processing
+    (``do_parallel_processing=False`` on the converter); under
+    multiprocessing, cache misses can occur on workers that didn't see
+    the first frame.
+    """
 
     DATASET_NAME = "waymo_perception"
     CAMERAS_ORDER = {
@@ -41,6 +74,26 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         CameraDirection.SIDE_LEFT: 4,
         CameraDirection.SIDE_RIGHT: 5,
     }
+
+    def __init__(
+        self,
+        common_output_path: str,
+        split: str,
+        index_data_generator: IndexDataGenerator | None = None,
+        adapters: list[AbstractAdapter] | None = None,
+        context_aggregators: list[SegmentContextAggregator] | None = None,
+    ):
+        super().__init__(
+            common_output_path=common_output_path,
+            split=split,
+            index_data_generator=index_data_generator,
+            adapters=adapters,
+            context_aggregators=context_aggregators,
+        )
+        # Per-segment cache: segment_id -> list of (id, type, world_points, is_closed).
+        self._segment_map_cache: dict[
+            str, list[tuple[str, MapElementType, np.ndarray, bool]]
+        ] = {}
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -55,13 +108,58 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [PanoImageAdapter(), LidarAdapter()]
+        return [PanoImageAdapter(), LidarAdapter(), HDMapBEVAdapter()]
 
     def _get_default_context_aggregators(self):
         return [
             FuturePastStatesFromMatricesAggregator(self.output_path),
             FutureDetectionsAggregator(self.output_path),
         ]
+
+    def _cache_map_features_for_segment(self, segment_id: str, map_features) -> None:
+        """Decode Waymo ``map_features`` once per segment, keep world-frame xyz."""
+        cached: list[tuple[str, MapElementType, np.ndarray, bool]] = []
+        for feature in map_features:
+            kind = feature.WhichOneof("feature_data")
+            mapping = _MAP_FEATURE_KIND.get(kind)
+            if mapping is None:
+                continue
+            element_type, polyline_attr, is_closed = mapping
+            sub = getattr(feature, kind)
+            if polyline_attr is None:  # stop_sign single position
+                p = sub.position
+                pts = np.array([[p.x, p.y, p.z]], dtype=np.float32)
+            else:
+                points_proto = getattr(sub, polyline_attr)
+                pts = np.array(
+                    [[p.x, p.y, p.z] for p in points_proto], dtype=np.float32
+                )
+            cached.append((str(feature.id), element_type, pts, is_closed))
+        self._segment_map_cache[segment_id] = cached
+
+    def _build_hd_map(
+        self, segment_id: str, pose_world_from_vehicle: np.ndarray
+    ) -> HDMap | None:
+        """Apply inverse pose to the cached features and build vehicle-frame HDMap."""
+        cached = self._segment_map_cache.get(segment_id)
+        if cached is None:
+            return None
+        T_v_w = np.linalg.inv(pose_world_from_vehicle).astype(np.float32)
+        elements: list[MapElement] = []
+        for feat_id, element_type, world_pts, is_closed in cached:
+            homog = np.concatenate(
+                [world_pts, np.ones((len(world_pts), 1), dtype=np.float32)], axis=1
+            )
+            vehicle_pts = (homog @ T_v_w.T)[:, :3]
+            elements.append(
+                MapElement(
+                    id=feat_id,
+                    type=element_type,
+                    points=vehicle_pts,
+                    is_closed=is_closed,
+                )
+            )
+        return HDMap(elements=elements)
 
     def _waymo_agent_type_to_canonical(self, agent_type):
         if agent_type == 0:
@@ -125,6 +223,12 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         current_x, current_y, current_z, current_heading = matrix_to_xyz_heading(
             np.array(frame.pose.transform).reshape(4, 4)
         )
+
+        pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
+        if len(frame.map_features) > 0 and segment_id not in self._segment_map_cache:
+            self._cache_map_features_for_segment(segment_id, frame.map_features)
+        hd_map = self._build_hd_map(segment_id, pose)
+
         range_images, camera_projections, _, range_image_top_pose = (
             frame_utils.parse_range_image_and_camera_projection(frame)
         )
@@ -152,6 +256,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             split=self._split,
             cameras=cameras_data,
             lidar=lidar,
+            hd_map=hd_map,
             frame_detections_3d=FrameDetections3D(detections=detections_3d),
             aux_data={
                 **extra_data,

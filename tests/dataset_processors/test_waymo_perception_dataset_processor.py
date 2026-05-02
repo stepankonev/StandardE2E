@@ -7,7 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from standard_e2e.caching.adapters import LidarAdapter, PanoImageAdapter
+from standard_e2e.caching.adapters import (
+    HDMapBEVAdapter,
+    LidarAdapter,
+    PanoImageAdapter,
+)
 from standard_e2e.caching.src_datasets.waymo_perception import (
     waymo_perception_dataset_processor as _wpdp,
 )
@@ -18,6 +22,7 @@ def test_waymo_perception_defaults(tmp_path: Path):
     assert proc.dataset_name == "waymo_perception"
     assert set(["training", "validation", "testing"]).issubset(set(proc.allowed_splits))
     adapters = getattr(proc, "_adapters")  # Access internal for test
-    assert len(adapters) == 2
+    assert len(adapters) == 3
     assert isinstance(adapters[0], PanoImageAdapter)
     assert isinstance(adapters[1], LidarAdapter)
+    assert isinstance(adapters[2], HDMapBEVAdapter)
