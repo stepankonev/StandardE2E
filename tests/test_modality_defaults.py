@@ -1,13 +1,17 @@
+import numpy as np
 import pytest
 
-from standard_e2e.data_structures import Trajectory
+from standard_e2e.caching.adapters import LidarBEVAdapter
+from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import (
     IntentDefaults,
+    LidarBEVDefaults,
+    LidarPointCloudDefaults,
     ModalityDefaults,
     PreferredTrajectoryDefaults,
     _check_modality_defaults_dict,
 )
-from standard_e2e.enums import Intent, Modality
+from standard_e2e.enums import Intent, LidarComponent, Modality
 
 
 class DummyDefaults(ModalityDefaults):
@@ -103,3 +107,61 @@ def test_intent_defaults_wrong_modality():
     handler = IntentDefaults()
     with pytest.raises(ValueError):
         handler.normalize(None, Modality.SPEED)
+
+
+def test_lidar_pc_defaults_returns_empty_when_none():
+    handler = LidarPointCloudDefaults()
+    val = handler.normalize(None, Modality.LIDAR_PC)
+    assert isinstance(val, LidarPointCloud)
+    assert val.num_points == 0
+    assert val.components == [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
+
+
+def test_lidar_pc_defaults_passes_through_existing():
+    handler = LidarPointCloudDefaults()
+    existing = LidarPointCloud(
+        np.zeros((5, 3), dtype=np.float32),
+        [LidarComponent.X, LidarComponent.Y, LidarComponent.Z],
+    )
+    assert handler.normalize(existing, Modality.LIDAR_PC) is existing
+
+
+def test_lidar_pc_defaults_wrong_modality():
+    handler = LidarPointCloudDefaults()
+    with pytest.raises(ValueError):
+        handler.normalize(None, Modality.INTENT)
+
+
+def test_lidar_bev_defaults_returns_zeros_when_none():
+    handler = LidarBEVDefaults(shape=(1, 4, 4))
+    val = handler.normalize(None, Modality.LIDAR_BEV)
+    assert isinstance(val, np.ndarray)
+    assert val.shape == (1, 4, 4)
+    assert val.dtype == np.float32
+    assert (val == 0).all()
+
+
+def test_lidar_bev_defaults_passes_through_existing():
+    handler = LidarBEVDefaults(shape=(1, 4, 4))
+    existing = np.ones((1, 4, 4), dtype=np.float32)
+    assert handler.normalize(existing, Modality.LIDAR_BEV) is existing
+
+
+def test_lidar_bev_defaults_from_adapter_matches_shape():
+    handler = LidarBEVDefaults.from_adapter(LidarBEVAdapter())
+    assert handler.normalize(None, Modality.LIDAR_BEV).shape == (1, 256, 256)
+    handler_gp = LidarBEVDefaults.from_adapter(LidarBEVAdapter(use_ground_plane=True))
+    assert handler_gp.normalize(None, Modality.LIDAR_BEV).shape == (2, 256, 256)
+
+
+def test_lidar_bev_defaults_invalid_shape_raises():
+    with pytest.raises(ValueError):
+        LidarBEVDefaults(shape=(1, 4))  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        LidarBEVDefaults(shape=(0, 4, 4))
+
+
+def test_lidar_bev_defaults_wrong_modality():
+    handler = LidarBEVDefaults(shape=(1, 4, 4))
+    with pytest.raises(ValueError):
+        handler.normalize(None, Modality.INTENT)

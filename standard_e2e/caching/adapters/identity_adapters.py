@@ -84,24 +84,6 @@ class PreferenceTrajectoryAdapter(AbstractAdapter):
         }
 
 
-# class LidarIdentityAdapter(IdentityAdapter):
-#     """Identity adapter for lidar data."""
-
-#     def __init__(self):
-#         super().__init__(Modality.LIDAR_PC, "lidar")
-
-#     @property
-#     def name(self) -> str:
-#         return "LidarIdentityAdapter"
-
-#     def transform(
-#         self, standard_frame_data: StandardFrameData) -> dict[Modality, any]:
-#         """
-#         Transform lidar data (stored as pd.DataFrame) to ndarray
-#         """
-#         return super().transform(standard_frame_data).values
-
-
 class FutureStatesIdentityAdapter(IdentityAdapter):
     """Identity adapter for future states data."""
 

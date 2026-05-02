@@ -7,6 +7,8 @@ from standard_e2e.enums import Modality
 
 from .modality_defaults import (
     IntentDefaults,
+    LidarBEVDefaults,
+    LidarPointCloudDefaults,
     ModalityDefaults,
     PreferredTrajectoryDefaults,
 )
@@ -42,6 +44,8 @@ def _check_modality_defaults_dict(
 
 __all__ = [
     "IntentDefaults",
+    "LidarBEVDefaults",
+    "LidarPointCloudDefaults",
     "ModalityDefaults",
     "PreferredTrajectoryDefaults",
     "_check_modality_defaults_dict",

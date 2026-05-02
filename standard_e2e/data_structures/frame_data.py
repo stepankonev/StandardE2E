@@ -19,9 +19,11 @@ from torch.utils.data._utils.collate import default_collate_fn_map
 from standard_e2e.constants import INDEX_FILE_NAME
 from standard_e2e.data_structures.containers import (
     BatchedFrameDetections3D,
+    BatchedLidarPointCloud,
     CameraData,
     FrameDetections3D,
     LidarData,
+    LidarPointCloud,
 )
 from standard_e2e.data_structures.trajectory_data import BatchedTrajectory, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import ModalityDefaults
@@ -150,6 +152,9 @@ def _to_device_recursive(x: Any, device: torch.device) -> Any:
     if isinstance(x, torch.Tensor):
         return x.to(device=device, non_blocking=True)
     if isinstance(x, BatchedTrajectory):
+        x.to(device)  # in-place; returns self
+        return x
+    if isinstance(x, BatchedLidarPointCloud):
         x.to(device)  # in-place; returns self
         return x
     if isinstance(x, dict):
@@ -360,6 +365,17 @@ def collate_frame_detections_fn(
     return BatchedFrameDetections3D(batch)
 
 
+def collate_lidar_fn(
+    batch,
+    *,
+    # pylint: disable=unused-argument
+    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
+):
+    """Collate a batch of ``LidarPointCloud`` into ``BatchedLidarPointCloud``."""
+
+    return BatchedLidarPointCloud(batch)
+
+
 def collate_modalities(
     batch: List[Any], *, device: Optional[torch.device] = None
 ) -> Any:
@@ -372,6 +388,7 @@ def collate_modalities(
     extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
         Trajectory: collate_trajectory_fn,
         FrameDetections3D: collate_frame_detections_fn,
+        LidarPointCloud: collate_lidar_fn,
     }
     # default_collate_fn_map has type compatibility, update after copy
     extended_map.update(default_collate_fn_map)
