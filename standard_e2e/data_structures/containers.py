@@ -1,12 +1,17 @@
-from typing import List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from standard_e2e.enums import CameraDirection, DetectionType, LidarComponent
+from standard_e2e.enums import (
+    CameraDirection,
+    DetectionType,
+    LidarComponent,
+    MapElementType,
+)
 from standard_e2e.enums import TrajectoryComponent as TC
 
 from .trajectory_data import BatchedTrajectory, Trajectory
@@ -159,6 +164,58 @@ class CameraData(BaseModel):
     def shape(self) -> tuple[int, int, int]:
         h, w, c = self.image.shape
         return int(h), int(w), int(c)
+
+
+class MapElement(BaseModel):
+    """A single HD map element (polyline, polygon, or point) in vehicle frame.
+
+    - ``points``: ``(N, 3)`` float32 array. ``N == 1`` for points (e.g.
+      ``STOP_SIGN``); ``N >= 2`` for polylines / polygons.
+    - ``is_closed``: True for polygons (last point connects to first); False
+      for open polylines and points.
+    - ``successor_ids`` / ``predecessor_ids``: lane-graph connectivity
+      (empty for non-lane elements). Unused by the BEV rasterizer; kept on
+      the schema for future vector-output adapters.
+    - ``attrs``: dataset-specific per-element metadata (e.g. ``speed_limit``,
+      ``mark_type``, ``lane_type``, ``is_intersection``).
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+
+    id: str
+    type: MapElementType
+    points: NDArray[np.float32]
+    is_closed: bool = False
+    successor_ids: list[str] = Field(default_factory=list)
+    predecessor_ids: list[str] = Field(default_factory=list)
+    attrs: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("points", mode="before")
+    @classmethod
+    def _coerce_points(cls, v):
+        return np.asarray(v, dtype=np.float32)
+
+    @field_validator("points")
+    @classmethod
+    def _validate_points(cls, v):
+        if v.ndim != 2 or v.shape[1] != 3:
+            raise ValueError(f"points must be (N, 3); got shape {v.shape}")
+        if v.shape[0] == 0:
+            raise ValueError("points must have at least one row")
+        return v
+
+
+class HDMap(BaseModel):
+    """HD map snapshot in the vehicle frame at a frame's timestamp.
+
+    Used as ``StandardFrameData.hd_map`` (in-memory during preprocessing
+    only — not persisted to ``.npz``). Adapters such as ``HDMapBEVAdapter``
+    consume it and emit modality-specific representations.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+
+    elements: list[MapElement]
 
 
 class LidarData(BaseModel):

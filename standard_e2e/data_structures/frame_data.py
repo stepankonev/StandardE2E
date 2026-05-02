@@ -22,6 +22,7 @@ from standard_e2e.data_structures.containers import (
     BatchedLidarPointCloud,
     CameraData,
     FrameDetections3D,
+    HDMap,
     LidarData,
     LidarPointCloud,
 )
@@ -57,7 +58,9 @@ class StandardFrameData(BaseModel):
             Future trajectory states relative to this frame.
         past_states (Optional[Trajectory]):
             Past trajectory states leading up to this frame.
-        hd_map (Any): High-definition map data associated with the frame. WIP
+        hd_map (Optional[HDMap]): HD map snapshot in vehicle frame at this
+            frame's timestamp; consumed by ``HDMapBEVAdapter`` (and future
+            vector adapters). In-memory only — not persisted to ``.npz``.
         frame_detections_3d (Optional[FrameDetections3D]):
             3D detections present in the frame.
         aux_data (Optional[Dict[str, Any]]): Additional auxiliary data.
@@ -77,7 +80,7 @@ class StandardFrameData(BaseModel):
     lidar: Optional[LidarData] = None
     future_states: Optional[Trajectory] = None
     past_states: Optional[Trajectory] = None
-    hd_map: Any = None
+    hd_map: Optional[HDMap] = None
     frame_detections_3d: Optional[FrameDetections3D] = None
     aux_data: Optional[Dict[str, Any]] = None
     extra_index_data: Optional[Dict[str, Any]] = None

@@ -1,4 +1,5 @@
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
+from standard_e2e.caching.adapters.hdmap_adapter import HDMapBEVAdapter
 from standard_e2e.caching.adapters.identity_adapters import (
     CamerasIdentityAdapter,
     Detections3DIdentityAdapter,
@@ -25,6 +26,7 @@ def get_adapters_from_config(adapter_configs: list[dict]) -> list[AbstractAdapte
         "detections_3d_identity_adapter": Detections3DIdentityAdapter,
         "lidar_adapter": LidarAdapter,
         "lidar_bev_adapter": LidarBEVAdapter,
+        "hdmap_bev_adapter": HDMapBEVAdapter,
     }
     adapters = []
     for adapter_config in adapter_configs:
@@ -50,4 +52,5 @@ __all__ = [
     "Detections3DIdentityAdapter",
     "LidarAdapter",
     "LidarBEVAdapter",
+    "HDMapBEVAdapter",
 ]

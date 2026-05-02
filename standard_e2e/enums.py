@@ -10,6 +10,7 @@ class Modality(StrEnum):
     LIDAR_BEV = "lidar_bev"
     LIDAR_PC = "lidar_pc"
     HD_MAP = "hd_map"
+    HD_MAP_BEV = "hd_map_bev"
     SPEED = "speed"
     INTENT = "intent"
     FUTURE_STATES = "future_states"
@@ -46,6 +47,28 @@ class LidarComponent(StrEnum):
     X = "x"
     Y = "y"
     Z = "z"
+
+
+class MapElementType(StrEnum):
+    """Universal taxonomy for HD map elements across datasets.
+
+    Each element is either a polyline (open), a polygon (closed; set
+    ``MapElement.is_closed=True``), or a point (single-row ``points``).
+    Dataset-specific subtypes (e.g. lane-mark style, lane vehicle/bike
+    designation) live in ``MapElement.attrs``, not in this enum.
+    """
+
+    LANE_CENTER = "lane_center"
+    LANE_BOUNDARY = "lane_boundary"
+    ROAD_EDGE = "road_edge"
+    CROSSWALK = "crosswalk"
+    INTERSECTION = "intersection"
+    DRIVABLE_AREA = "drivable_area"
+    STOP_LINE = "stop_line"
+    STOP_SIGN = "stop_sign"
+    SPEED_BUMP = "speed_bump"
+    DRIVEWAY = "driveway"
+    UNKNOWN = "unknown"
 
 
 class TrajectoryComponent(StrEnum):
