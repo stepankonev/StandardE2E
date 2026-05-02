@@ -6,6 +6,7 @@ import pandas as pd
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
+    Detections3DIdentityAdapter,
     HDMapBEVAdapter,
     LidarAdapter,
     PanoImageAdapter,
@@ -56,14 +57,12 @@ _MAP_FEATURE_KIND: dict[str, tuple[MapElementType, Optional[str], bool]] = {
 class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
     """Processor for the Waymo Perception dataset.
 
-    HD-map handling note: Waymo's proto puts ``map_features`` only on the
-    first frame of each segment. This processor caches the decoded map
-    features per ``segment_id`` on first sighting and applies the
-    per-frame inverse pose on subsequent frames. The cache is per-instance
-    state, so HD-map preprocessing requires sequential processing
-    (``do_parallel_processing=False`` on the converter); under
-    multiprocessing, cache misses can occur on workers that didn't see
-    the first frame.
+    HD-map handling: Waymo's proto puts ``map_features`` only on the
+    first frame of each segment. This processor caches the decoded
+    world-frame map features per ``segment_id`` and applies the per-frame
+    inverse pose on every frame. :class:`WaymoPerceptionDatasetConverter`
+    pre-populates the cache before parallel work begins, so both
+    sequential and parallel preprocessing produce HD maps for every frame.
     """
 
     DATASET_NAME = "waymo_perception"
@@ -108,7 +107,12 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [PanoImageAdapter(), LidarAdapter(), HDMapBEVAdapter()]
+        return [
+            PanoImageAdapter(),
+            LidarAdapter(),
+            HDMapBEVAdapter(),
+            Detections3DIdentityAdapter(),
+        ]
 
     def _get_default_context_aggregators(self):
         return [
