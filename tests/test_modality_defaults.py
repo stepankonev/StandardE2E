@@ -1,13 +1,15 @@
+import numpy as np
 import pytest
 
-from standard_e2e.data_structures import Trajectory
+from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import (
     IntentDefaults,
+    LidarPointCloudDefaults,
     ModalityDefaults,
     PreferredTrajectoryDefaults,
     _check_modality_defaults_dict,
 )
-from standard_e2e.enums import Intent, Modality
+from standard_e2e.enums import Intent, LidarComponent, Modality
 
 
 class DummyDefaults(ModalityDefaults):
@@ -103,3 +105,26 @@ def test_intent_defaults_wrong_modality():
     handler = IntentDefaults()
     with pytest.raises(ValueError):
         handler.normalize(None, Modality.SPEED)
+
+
+def test_lidar_pc_defaults_returns_empty_when_none():
+    handler = LidarPointCloudDefaults()
+    val = handler.normalize(None, Modality.LIDAR_PC)
+    assert isinstance(val, LidarPointCloud)
+    assert val.num_points == 0
+    assert val.components == [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
+
+
+def test_lidar_pc_defaults_passes_through_existing():
+    handler = LidarPointCloudDefaults()
+    existing = LidarPointCloud(
+        np.zeros((5, 3), dtype=np.float32),
+        [LidarComponent.X, LidarComponent.Y, LidarComponent.Z],
+    )
+    assert handler.normalize(existing, Modality.LIDAR_PC) is existing
+
+
+def test_lidar_pc_defaults_wrong_modality():
+    handler = LidarPointCloudDefaults()
+    with pytest.raises(ValueError):
+        handler.normalize(None, Modality.INTENT)

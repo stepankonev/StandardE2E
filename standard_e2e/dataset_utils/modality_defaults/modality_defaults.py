@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, final
 
+import numpy as np
+
+from standard_e2e.data_structures.containers import LidarPointCloud
 from standard_e2e.data_structures.trajectory_data import Trajectory
-from standard_e2e.enums import Intent, Modality
+from standard_e2e.enums import Intent, LidarComponent, Modality
 
 
 class ModalityDefaults(ABC):
@@ -75,3 +78,24 @@ class IntentDefaults(ModalityDefaults):
     @property
     def allowed_modalities(self) -> list[Modality]:
         return [Modality.INTENT]
+
+
+class LidarPointCloudDefaults(ModalityDefaults):
+    """Substitute a missing ``LIDAR_PC`` modality with an empty ``LidarPointCloud``
+    (xyz components, zero points). Lets datasets without lidar coexist with
+    lidar-bearing ones in a single ``UnifiedE2EDataset``.
+    """
+
+    _COMPONENTS = [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
+
+    def _normalize(self, raw_value: Any, modality: Modality) -> Any:
+        if modality is Modality.LIDAR_PC and raw_value is None:
+            return LidarPointCloud(
+                points=np.zeros((0, 3), dtype=np.float32),
+                components=self._COMPONENTS,
+            )
+        return raw_value
+
+    @property
+    def allowed_modalities(self) -> list[Modality]:
+        return [Modality.LIDAR_PC]
