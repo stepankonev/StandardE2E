@@ -40,6 +40,14 @@ class Intent(IntEnum):
     GO_RIGHT = 3
 
 
+class LidarComponent(StrEnum):
+    """Enumeration of LiDAR point-cloud per-point components."""
+
+    X = "x"
+    Y = "y"
+    Z = "z"
+
+
 class TrajectoryComponent(StrEnum):
     """Enumeration of trajectory components."""
 

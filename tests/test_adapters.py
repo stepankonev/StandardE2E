@@ -1,10 +1,12 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from standard_e2e.caching.adapters import (
     CamerasIdentityAdapter,
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
+    LidarAdapter,
     PanoImageAdapter,
     PastStatesIdentityAdapter,
     PreferenceTrajectoryAdapter,
@@ -12,8 +14,14 @@ from standard_e2e.caching.adapters import (
 )
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.constants import PREFERENCE_TRAJECTORIES_KEY
-from standard_e2e.data_structures import CameraData, StandardFrameData, Trajectory
-from standard_e2e.enums import CameraDirection, Modality
+from standard_e2e.data_structures import (
+    CameraData,
+    LidarData,
+    LidarPointCloud,
+    StandardFrameData,
+    Trajectory,
+)
+from standard_e2e.enums import CameraDirection, LidarComponent, Modality
 
 # --- Helpers -----------------------------------------------------------------
 
@@ -177,5 +185,50 @@ def test_all_concrete_adapters_subclass_abstract():
         PastStatesIdentityAdapter,
         PreferenceTrajectoryAdapter,
         PanoImageAdapter,
+        LidarAdapter,
     ]:
         assert issubclass(cls, AbstractAdapter)
+
+
+# --- LidarAdapter ------------------------------------------------------------
+
+
+def _lidar_frame(n: int) -> StandardFrameData:
+    df = pd.DataFrame(
+        np.arange(n * 3, dtype=np.float32).reshape(n, 3),
+        columns=[c.value for c in LidarComponent],
+    )
+    return make_frame(lidar=LidarData(points=df))
+
+
+def test_lidar_adapter_passthrough():
+    out = LidarAdapter().transform(_lidar_frame(5))
+    assert set(out.keys()) == {Modality.LIDAR_PC}
+    pc = out[Modality.LIDAR_PC]
+    assert isinstance(pc, LidarPointCloud)
+    assert pc.num_points == 5
+    assert pc.components == [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
+
+
+def test_lidar_adapter_stride_subsample_is_deterministic():
+    # 10 points, max_points=3 -> step = 10 // 3 = 3 -> rows [0, 3, 6].
+    pc = LidarAdapter(max_points=3).transform(_lidar_frame(10))[Modality.LIDAR_PC]
+    assert pc.num_points == 3
+    expected = np.array([[0, 1, 2], [9, 10, 11], [18, 19, 20]], dtype=np.float32)
+    assert np.array_equal(pc.points, expected)
+
+
+def test_lidar_adapter_no_subsample_when_below_cap():
+    pc = LidarAdapter(max_points=100).transform(_lidar_frame(7))[Modality.LIDAR_PC]
+    assert pc.num_points == 7
+
+
+def test_lidar_adapter_missing_lidar_returns_empty():
+    assert LidarAdapter().transform(make_frame()) == {}
+
+
+def test_lidar_adapter_invalid_max_points_raises():
+    with pytest.raises(ValueError):
+        LidarAdapter(max_points=0)
+    with pytest.raises(ValueError):
+        LidarAdapter(max_points=-1)

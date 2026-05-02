@@ -1,7 +1,12 @@
 import numpy as np
+import pandas as pd
 
 from standard_e2e.caching import SourceDatasetProcessor
-from standard_e2e.caching.adapters import AbstractAdapter, PanoImageAdapter
+from standard_e2e.caching.adapters import (
+    AbstractAdapter,
+    LidarAdapter,
+    PanoImageAdapter,
+)
 from standard_e2e.caching.segment_context import (
     FutureDetectionsAggregator,
     FuturePastStatesFromMatricesAggregator,
@@ -9,14 +14,16 @@ from standard_e2e.caching.segment_context import (
 from standard_e2e.data_structures import (
     Detection3D,
     FrameDetections3D,
+    LidarData,
     StandardFrameData,
     Trajectory,
 )
-from standard_e2e.enums import CameraDirection, DetectionType
+from standard_e2e.enums import CameraDirection, DetectionType, LidarComponent
 from standard_e2e.enums import TrajectoryComponent as TC
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
+from standard_e2e.third_party.waymo_open_dataset.utils import frame_utils
 from standard_e2e.utils import matrix_to_xyz_heading
 from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
@@ -48,7 +55,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         """Get the adapters for the Waymo Perception dataset."""
-        return [PanoImageAdapter()]
+        return [PanoImageAdapter(), LidarAdapter()]
 
     def _get_default_context_aggregators(self):
         return [
@@ -118,6 +125,16 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         current_x, current_y, current_z, current_heading = matrix_to_xyz_heading(
             np.array(frame.pose.transform).reshape(4, 4)
         )
+        range_images, camera_projections, _, range_image_top_pose = (
+            frame_utils.parse_range_image_and_camera_projection(frame)
+        )
+        points_per_laser, _ = frame_utils.convert_range_image_to_point_cloud(
+            frame, range_images, camera_projections, range_image_top_pose
+        )
+        lidar_xyz = np.concatenate(points_per_laser, axis=0).astype(np.float32)
+        lidar = LidarData(
+            points=pd.DataFrame(lidar_xyz, columns=[c.value for c in LidarComponent])
+        )
         frame_data = StandardFrameData(
             dataset_name=self.dataset_name,
             segment_id=segment_id,
@@ -134,6 +151,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             ),
             split=self._split,
             cameras=cameras_data,
+            lidar=lidar,
             frame_detections_3d=FrameDetections3D(detections=detections_3d),
             aux_data={
                 **extra_data,
