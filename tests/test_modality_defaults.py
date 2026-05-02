@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.caching.adapters import LidarBEVAdapter
+from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import (
     IntentDefaults,
     LidarBEVDefaults,
