@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Any, final
+from typing import TYPE_CHECKING, Any, final
 
 import numpy as np
 
 from standard_e2e.data_structures.containers import LidarPointCloud
 from standard_e2e.data_structures.trajectory_data import Trajectory
 from standard_e2e.enums import Intent, LidarComponent, Modality
+
+if TYPE_CHECKING:
+    from standard_e2e.caching.adapters.lidar_adapter import LidarBEVAdapter
 
 
 class ModalityDefaults(ABC):
@@ -99,3 +102,29 @@ class LidarPointCloudDefaults(ModalityDefaults):
     @property
     def allowed_modalities(self) -> list[Modality]:
         return [Modality.LIDAR_PC]
+
+
+class LidarBEVDefaults(ModalityDefaults):
+    """Substitute a missing ``LIDAR_BEV`` modality with a zero tensor of the
+    given ``(C, H, W)`` shape. Use :meth:`from_adapter` so the empty shape
+    stays in sync with the BEV adapter's output.
+    """
+
+    def __init__(self, shape: tuple[int, int, int]) -> None:
+        if len(shape) != 3 or any(d <= 0 for d in shape):
+            raise ValueError(f"shape must be (C, H, W) of positive ints; got {shape}")
+        self._shape = shape
+
+    def _normalize(self, raw_value: Any, modality: Modality) -> Any:
+        if modality is Modality.LIDAR_BEV and raw_value is None:
+            return np.zeros(self._shape, dtype=np.float32)
+        return raw_value
+
+    @property
+    def allowed_modalities(self) -> list[Modality]:
+        return [Modality.LIDAR_BEV]
+
+    @classmethod
+    def from_adapter(cls, adapter: "LidarBEVAdapter") -> "LidarBEVDefaults":
+        """Build defaults whose empty shape matches ``adapter.output_shape``."""
+        return cls(shape=adapter.output_shape)

@@ -7,6 +7,7 @@ from standard_e2e.caching.adapters import (
     FutureStatesIdentityAdapter,
     IntentIdentityAdapter,
     LidarAdapter,
+    LidarBEVAdapter,
     PanoImageAdapter,
     PastStatesIdentityAdapter,
     PreferenceTrajectoryAdapter,
@@ -186,6 +187,7 @@ def test_all_concrete_adapters_subclass_abstract():
         PreferenceTrajectoryAdapter,
         PanoImageAdapter,
         LidarAdapter,
+        LidarBEVAdapter,
     ]:
         assert issubclass(cls, AbstractAdapter)
 
@@ -232,3 +234,45 @@ def test_lidar_adapter_invalid_max_points_raises():
         LidarAdapter(max_points=0)
     with pytest.raises(ValueError):
         LidarAdapter(max_points=-1)
+
+
+# --- LidarBEVAdapter ---------------------------------------------------------
+
+
+def test_lidar_bev_adapter_default_shape_and_dtype():
+    out = LidarBEVAdapter().transform(_lidar_frame(50))
+    assert set(out.keys()) == {Modality.LIDAR_BEV}
+    bev = out[Modality.LIDAR_BEV]
+    assert bev.dtype == np.float32
+    assert bev.shape == (1, 256, 256)
+
+
+def test_lidar_bev_adapter_use_ground_plane_adds_channel():
+    bev = LidarBEVAdapter(use_ground_plane=True).transform(_lidar_frame(50))[
+        Modality.LIDAR_BEV
+    ]
+    assert bev.shape == (2, 256, 256)
+
+
+def test_lidar_bev_adapter_count_cap_saturates():
+    pts = np.zeros((20, 3), dtype=np.float32)
+    pts[:, 2] = 1.0  # above default split_height
+    df = pd.DataFrame(pts, columns=[c.value for c in LidarComponent])
+    bev = LidarBEVAdapter(count_cap=5).transform(
+        make_frame(lidar=LidarData(points=df))
+    )[Modality.LIDAR_BEV]
+    # 20 points clipped at 5, divided by 5 -> max == 1.0
+    assert bev.max() == 1.0
+
+
+def test_lidar_bev_adapter_missing_lidar_returns_empty():
+    assert LidarBEVAdapter().transform(make_frame()) == {}
+
+
+def test_lidar_bev_adapter_invalid_args_raise():
+    with pytest.raises(ValueError):
+        LidarBEVAdapter(min_x=10.0, max_x=10.0)
+    with pytest.raises(ValueError):
+        LidarBEVAdapter(pixels_per_meter=0.5)
+    with pytest.raises(ValueError):
+        LidarBEVAdapter(count_cap=0)
