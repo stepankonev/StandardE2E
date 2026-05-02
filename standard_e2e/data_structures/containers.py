@@ -470,8 +470,14 @@ class BatchedFrameDetections3D:
             self._batched_trajectories.append(
                 BatchedTrajectory(frame_detections_trajectories)
             )
+        # ``strict=False``: detection trajectories from segment-context
+        # aggregators (e.g. ``FutureDetectionsAggregator``) only carry
+        # X/Y/HEADING; missing components are filled with zeros so collation
+        # works for both per-frame snapshots (8 components) and aggregated
+        # future-trajectory detections (3 components).
         self._batched_trajectories_tensors = [
-            td.get(self._trajectory_components) for td in self._batched_trajectories
+            td.get(self._trajectory_components, strict=False)
+            for td in self._batched_trajectories
         ]
         self._detection_types = []
         self._unique_agent_ids = []

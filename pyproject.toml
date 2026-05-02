@@ -24,6 +24,7 @@ dependencies = [
     "tensorflow-cpu",
     "tqdm",
     "pydantic>=2.6,<3",
+    "av2>=0.3.6",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -168,4 +169,12 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "albumentations.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "av2.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
 ignore_missing_imports = true

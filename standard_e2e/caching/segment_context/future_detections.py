@@ -6,6 +6,7 @@ import pandas as pd
 from standard_e2e.data_structures import (
     Array1DNP,
     Detection3D,
+    FrameDetections3D,
     Trajectory,
     TransformedFrameData,
 )
@@ -78,7 +79,11 @@ class FutureDetectionsAggregator(SegmentContextAggregator):
                     detection_type=detection.detection_type,
                 )
             )
+        # Wrap in FrameDetections3D so the registered collate handler picks
+        # it up; a bare list bypasses the override and falls through to
+        # torch's default collate, which raises on variable-length batches.
         transformed_frame.set_modality_data(
-            Modality.DETECTIONS_3D, processed_frame_detections
+            Modality.DETECTIONS_3D,
+            FrameDetections3D(detections=processed_frame_detections),
         )
         return transformed_frame
