@@ -62,10 +62,10 @@ pip install -e ".[dev]"
 
 | Dataset | Cameras | Lidar | HD Map | Detections | Driving Command | Preference Trajectories |
 |---------|---------|-------|--------|------------|-----------------|-------------------------|
-| [Waymo End-to-end](https://waymo.com/open/data/e2e/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ❌ | ❌ | ✅ | ✅ |
+| [Waymo End-to-end](https://waymo.com/open/data/e2e/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ❌ | ❌ | ❌ | ✅ | ✅ |
 | [Waymo Perception](https://waymo.com/open/data/perception/) ![](https://img.shields.io/badge/WIP-orange) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Navsim](https://github.com/autonomousvision/navsim/blob/main/docs/splits.md) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/semicircle-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Argoverse 2 Lidar](https://www.argoverse.org/av2.html#lidar-link) ![](https://img.shields.io/badge/TBD-gray) | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Map Change](https://www.argoverse.org/av2.html#mapchange-link) ![](https://img.shields.io/badge/TBD-gray) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -77,7 +77,7 @@ pip install -e ".[dev]"
 ## 🚀 Key Features
 
 - **Unified Dataset Interface**: Work with multiple datasets through a single API
-- **Multimodal Support**: Cameras, LiDAR ![](https://img.shields.io/badge/WiP-orange), HD maps ![](https://img.shields.io/badge/WiP-orange), trajectories, detections and more
+- **Multimodal Support**: Cameras, LiDAR (point cloud + BEV histogram), HD maps ![](https://img.shields.io/badge/WiP-orange), trajectories, detections and more
 - **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation  
 - **Trajectory Management**: Advanced handling of time-series vehicle data
 - **PyTorch Integration**: Ready-to-use datasets and dataloaders
