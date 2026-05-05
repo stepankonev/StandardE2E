@@ -68,3 +68,7 @@ docs/reference/enums.html
 # OS
 .DS_Store
 Thumbs.db
+
+# Local scratch
+tmp/
+tests/local/
