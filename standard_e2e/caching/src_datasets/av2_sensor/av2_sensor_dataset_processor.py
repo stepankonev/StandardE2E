@@ -8,6 +8,10 @@ from typing import Any, Optional, cast
 
 import numpy as np
 import pandas as pd
+from av2.geometry.interpolate import (
+    NUM_CENTERLINE_INTERP_PTS,
+    compute_midpoint_line,
+)
 from av2.map.map_api import ArgoverseStaticMap
 from av2.structures.sweep import Sweep
 from av2.utils.io import read_img
@@ -91,6 +95,37 @@ _AV2_CATEGORY_TO_DETECTION_TYPE: dict[str, DetectionType] = {
     "BOLLARD": DetectionType.UNKNOWN,
     "MOBILE_PEDESTRIAN_CROSSING_SIGN": DetectionType.UNKNOWN,
     "TRAFFIC_LIGHT_TRAILER": DetectionType.UNKNOWN,
+}
+
+# AV2 LaneType.{VEHICLE, BIKE, BUS} -> our normalised lane_type string.
+# `str(LaneType.VEHICLE) == "LaneType.VEHICLE"` so we key on the full string.
+_AV2_LANE_TYPE_TO_NORMALISED: dict[str, str] = {
+    "LaneType.VEHICLE": "vehicle",
+    "LaneType.BIKE": "bike",
+    "LaneType.BUS": "bus",
+}
+
+# AV2 LaneMarkType -> (paint_color, paint_pattern).
+# NONE and UNKNOWN map to (None, None) -> no LANE_BOUNDARY element emitted.
+# Side-of-solid for SOLID_DASH_* / DASH_SOLID_* is preserved only via
+# `attrs.paint_subtype_raw`; the 2-tuple is the normalised form. See
+# docs/lane_paint_comparison.md.
+_AV2_MARK_TYPE_TO_PAINT: dict[str, tuple[Optional[str], Optional[str]]] = {
+    "LaneMarkType.DASHED_WHITE": ("white", "dashed"),
+    "LaneMarkType.SOLID_WHITE": ("white", "solid"),
+    "LaneMarkType.DOUBLE_SOLID_WHITE": ("white", "double_solid"),
+    "LaneMarkType.DOUBLE_DASH_WHITE": ("white", "double_dashed"),
+    "LaneMarkType.SOLID_DASH_WHITE": ("white", "solid_dashed"),
+    "LaneMarkType.DASH_SOLID_WHITE": ("white", "solid_dashed"),
+    "LaneMarkType.DASHED_YELLOW": ("yellow", "dashed"),
+    "LaneMarkType.SOLID_YELLOW": ("yellow", "solid"),
+    "LaneMarkType.DOUBLE_SOLID_YELLOW": ("yellow", "double_solid"),
+    "LaneMarkType.DOUBLE_DASH_YELLOW": ("yellow", "double_dashed"),
+    "LaneMarkType.SOLID_DASH_YELLOW": ("yellow", "solid_dashed"),
+    "LaneMarkType.DASH_SOLID_YELLOW": ("yellow", "solid_dashed"),
+    "LaneMarkType.SOLID_BLUE": ("blue", "solid"),
+    "LaneMarkType.NONE": (None, None),
+    "LaneMarkType.UNKNOWN": (None, None),
 }
 
 
@@ -297,63 +332,124 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
     def _build_hd_map(self, T_city_from_ego: np.ndarray) -> Optional[HDMap]:
         if self._map is None:
             return None
+        # See docs/map_element_translation.md §5.2 for the per-source rules.
+        # 2D city->ego affine: AV2's vector Z is sometimes NaN outside the
+        # 5 m drivable-area ROI; slicing to XY first sidesteps the NaN
+        # entirely and matches AV2's own rasterizer convention
+        # (DrivableAreaMapLayer.from_vector_data at map_api.py:251).
         T_ego_from_city = np.linalg.inv(T_city_from_ego).astype(np.float32)
+        R_xy = T_ego_from_city[:2, :2]
+        t_xy = T_ego_from_city[:2, 3]
 
-        def _to_ego(points_xyz_city: np.ndarray) -> np.ndarray:
-            pts = np.asarray(points_xyz_city, dtype=np.float32)
-            homog = np.concatenate(
-                [pts, np.ones((len(pts), 1), dtype=np.float32)], axis=1
-            )
-            return (homog @ T_ego_from_city.T)[:, :3]
+        def _to_ego_xy(points_xyz_city: np.ndarray) -> np.ndarray:
+            xy_city = np.asarray(points_xyz_city, dtype=np.float32)[:, :2]
+            return xy_city @ R_xy.T + t_xy
 
         elements: list[MapElement] = []
+
+        # ---- LANE_CENTER + LANE_BOUNDARY (paint only) per lane segment ----
         for ls in self._map.vector_lane_segments.values():
-            attrs = {
-                "lane_type": str(ls.lane_type),
+            lane_type = _AV2_LANE_TYPE_TO_NORMALISED.get(str(ls.lane_type))
+            common_lane_attrs: dict[str, Any] = {
                 "is_intersection": bool(ls.is_intersection),
             }
+            if lane_type is not None:
+                common_lane_attrs["lane_type"] = lane_type
+
+            # Centerline derived via the same algorithm `get_lane_segment_centerline`
+            # uses (compute_midpoint_line: arc-length-resample both boundaries
+            # to NUM_CENTERLINE_INTERP_PTS, take midpoints) BUT with XY-only
+            # inputs. Calling the public API on the raw (N, 3) boundaries
+            # would propagate NaN Z values into the centerline XY.
+            left_xy = np.asarray(ls.left_lane_boundary.xyz, dtype=np.float64)[:, :2]
+            right_xy = np.asarray(ls.right_lane_boundary.xyz, dtype=np.float64)[:, :2]
+            centerline_xy, _ = compute_midpoint_line(
+                left_xy, right_xy, num_interp_pts=NUM_CENTERLINE_INTERP_PTS
+            )
+            # centerline is already in city XY; transform to ego frame
+            centerline_xy_ego = centerline_xy.astype(np.float32) @ R_xy.T + t_xy
             elements.append(
                 MapElement(
-                    id=f"lane_left_{ls.id}",
-                    type=MapElementType.LANE_BOUNDARY,
-                    points=_to_ego(ls.left_lane_boundary.xyz),
+                    id=f"lane_center_{ls.id}",
+                    type=MapElementType.LANE_CENTER,
+                    points=centerline_xy_ego,
                     is_closed=False,
-                    attrs=attrs,
+                    successor_ids=[str(s) for s in ls.successors],
+                    predecessor_ids=[str(p) for p in ls.predecessors],
+                    left_neighbor_id=(
+                        str(ls.left_neighbor_id)
+                        if ls.left_neighbor_id is not None
+                        else None
+                    ),
+                    right_neighbor_id=(
+                        str(ls.right_neighbor_id)
+                        if ls.right_neighbor_id is not None
+                        else None
+                    ),
+                    attrs=common_lane_attrs,
                 )
             )
-            elements.append(
-                MapElement(
-                    id=f"lane_right_{ls.id}",
-                    type=MapElementType.LANE_BOUNDARY,
-                    points=_to_ego(ls.right_lane_boundary.xyz),
-                    is_closed=False,
-                    attrs=attrs,
+
+            # Paint elements only when mark_type != NONE
+            for side, boundary, mark_type in (
+                ("left", ls.left_lane_boundary, ls.left_mark_type),
+                ("right", ls.right_lane_boundary, ls.right_mark_type),
+            ):
+                paint_color, paint_pattern = _AV2_MARK_TYPE_TO_PAINT.get(
+                    str(mark_type), (None, None)
                 )
-            )
+                if paint_color is None and paint_pattern is None:
+                    # NONE / UNKNOWN -> don't emit a LANE_BOUNDARY element
+                    continue
+                paint_attrs: dict[str, Any] = {
+                    "paint_color": paint_color,
+                    "paint_pattern": paint_pattern,
+                    "paint_subtype_raw": str(mark_type).split(".")[-1],
+                }
+                elements.append(
+                    MapElement(
+                        id=f"lane_paint_{ls.id}_{side}",
+                        type=MapElementType.LANE_BOUNDARY,
+                        points=_to_ego_xy(boundary.xyz),
+                        is_closed=False,
+                        attrs=paint_attrs,
+                    )
+                )
+
+            # INTERSECTION polygon for is_intersection=True lane segments
+            if ls.is_intersection:
+                elements.append(
+                    MapElement(
+                        id=f"intersection_{ls.id}",
+                        type=MapElementType.INTERSECTION,
+                        points=_to_ego_xy(ls.polygon_boundary),
+                        is_closed=True,
+                        attrs={"source_lane_id": str(ls.id)},
+                    )
+                )
+
+        # ---- DRIVABLE_AREA ----
         for da in self._map.vector_drivable_areas.values():
             elements.append(
                 MapElement(
                     id=f"drivable_{da.id}",
                     type=MapElementType.DRIVABLE_AREA,
-                    points=_to_ego(da.xyz),
+                    points=_to_ego_xy(da.xyz),
                     is_closed=True,
                 )
             )
+
+        # ---- CROSSWALK ----
         for pc in self._map.vector_pedestrian_crossings.values():
-            polygon = np.vstack(
-                [
-                    pc.edge1.xyz,
-                    pc.edge2.xyz[::-1],  # close the polygon
-                ]
-            )
             elements.append(
                 MapElement(
                     id=f"crosswalk_{pc.id}",
                     type=MapElementType.CROSSWALK,
-                    points=_to_ego(polygon),
+                    points=_to_ego_xy(pc.polygon),
                     is_closed=True,
                 )
             )
+
         return HDMap(elements=elements)
 
     # --- main entry point ----------------------------------------------------
