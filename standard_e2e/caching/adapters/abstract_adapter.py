@@ -13,6 +13,18 @@ class AbstractAdapter(ABC):
     def name(self) -> str:
         """Name of the adapter. Must be implemented by subclasses."""
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Per-frame metadata this adapter contributes to ``aux_data``.
+
+        Override in subclasses to surface adapter-side configuration that a
+        downstream consumer needs to interpret the modality output (e.g. the
+        ordered channel list of a BEV rasterizer). The default is an empty
+        dict; the source dataset processor merges these into each frame's
+        ``aux_data`` so the .npz remains self-describing.
+        """
+        return {}
+
     @final
     def transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         """Validate input frame and dispatch to subclass implementation."""

@@ -142,6 +142,45 @@ def test_process_frame_wrong_return_type(output_dir: Path):
         p.process_frame(None)
 
 
+class DummyAdapterWithMetadata(AbstractAdapter):
+    @property
+    def name(self) -> str:  # pragma: no cover - trivial
+        return "DummyAdapterWithMetadata"
+
+    @property
+    def metadata(self) -> dict:
+        return {"some_key": ["a", "b", "c"]}
+
+    def _transform(self, standard_frame_data: StandardFrameData):  # pragma: no cover
+        return {Modality.SPEED: 0.0}
+
+
+def test_process_frame_merges_adapter_metadata_into_aux_data(output_dir: Path):
+    """Adapter-side per-frame metadata must surface in ``aux_data`` so the
+    .npz remains self-describing for downstream consumers."""
+    p = SampleProcessor(
+        str(output_dir),
+        "train",
+        adapters=[DummyAdapterWithMetadata()],
+    )
+    transformed, _ = p.process_frame(raw_frame_data=None)
+    assert transformed.aux_data is not None
+    assert transformed.aux_data.get("some_key") == ["a", "b", "c"]
+
+
+def test_process_frame_no_adapter_metadata_keeps_aux_data_unchanged(output_dir: Path):
+    """An adapter that exposes no metadata must not introduce an empty dict."""
+    p = SampleProcessor(
+        str(output_dir),
+        "train",
+        adapters=[DummyAdapterSpeed()],
+    )
+    transformed, _ = p.process_frame(raw_frame_data=None)
+    # SampleProcessor doesn't seed aux_data; if no adapter contributes, it
+    # must remain None (not become an empty dict).
+    assert transformed.aux_data is None
+
+
 # --- process_frame_and_save_data tests ---
 
 

@@ -328,7 +328,7 @@ def test_hdmap_bev_adapter_renders_polyline_on_correct_channel():
     # Horizontal line along vehicle x at y=0; LANE_CENTER channel should be hot.
     line = _elem(MapElementType.LANE_CENTER, [[-10, 0, 0], [10, 0, 0]])
     out = HDMapBEVAdapter(
-        include_types=[MapElementType.LANE_CENTER, MapElementType.CROSSWALK]
+        channels=[MapElementType.LANE_CENTER, MapElementType.CROSSWALK]
     ).transform(_hdmap_frame([line]))
     bev = out[Modality.HD_MAP_BEV]
     assert bev.shape == (2, 256, 256)
@@ -343,7 +343,7 @@ def test_hdmap_bev_adapter_polygon_is_filled():
         [[0, 0, 0], [5, 0, 0], [5, 5, 0], [0, 5, 0]],
         is_closed=True,
     )
-    out = HDMapBEVAdapter(include_types=[MapElementType.CROSSWALK]).transform(
+    out = HDMapBEVAdapter(channels=[MapElementType.CROSSWALK]).transform(
         _hdmap_frame([poly])
     )
     bev = out[Modality.HD_MAP_BEV]
@@ -354,7 +354,7 @@ def test_hdmap_bev_adapter_polygon_is_filled():
 def test_hdmap_bev_adapter_point_renders_as_circle():
     point = _elem(MapElementType.STOP_SIGN, [[0, 0, 0]])
     out = HDMapBEVAdapter(
-        include_types=[MapElementType.STOP_SIGN], polyline_thickness=3
+        channels=[MapElementType.STOP_SIGN], polyline_thickness=3
     ).transform(_hdmap_frame([point]))
     bev = out[Modality.HD_MAP_BEV]
     # Circle of radius 3 → ~29 pixels (>0).
@@ -363,7 +363,7 @@ def test_hdmap_bev_adapter_point_renders_as_circle():
 
 def test_hdmap_bev_adapter_excluded_type_dropped():
     elem = _elem(MapElementType.SPEED_BUMP, [[-5, 0, 0], [5, 0, 0]])
-    out = HDMapBEVAdapter(include_types=[MapElementType.LANE_CENTER]).transform(
+    out = HDMapBEVAdapter(channels=[MapElementType.LANE_CENTER]).transform(
         _hdmap_frame([elem])
     )
     bev = out[Modality.HD_MAP_BEV]
@@ -373,6 +373,50 @@ def test_hdmap_bev_adapter_excluded_type_dropped():
 
 def test_hdmap_bev_adapter_missing_hd_map_returns_empty():
     assert HDMapBEVAdapter().transform(make_frame()) == {}
+
+
+def test_hdmap_bev_adapter_accepts_string_channels_for_yaml_configs():
+    # YAML loaders pass strings, not enum members; they should be coerced and
+    # produce the same channel order as the enum form.
+    by_str = HDMapBEVAdapter(channels=["lane_center", "crosswalk"])
+    by_enum = HDMapBEVAdapter(
+        channels=[MapElementType.LANE_CENTER, MapElementType.CROSSWALK]
+    )
+    assert by_str.channels == by_enum.channels
+    assert by_str.output_shape == by_enum.output_shape
+
+
+def test_hdmap_bev_adapter_unknown_channel_string_raises():
+    with pytest.raises(ValueError, match="not_a_real_type"):
+        HDMapBEVAdapter(channels=["lane_center", "not_a_real_type"])
+
+
+def test_hdmap_bev_adapter_metadata_lists_channels_in_order():
+    adapter = HDMapBEVAdapter(channels=["drivable_area", "lane_center"])
+    assert adapter.metadata == {"hd_map_bev_channels": ["drivable_area", "lane_center"]}
+    # Default adapter exposes all enum members in declaration order.
+    assert HDMapBEVAdapter().metadata == {
+        "hd_map_bev_channels": [t.value for t in MapElementType]
+    }
+
+
+def test_hdmap_bev_adapter_channels_subset_changes_output_shape():
+    a3 = HDMapBEVAdapter(
+        channels=[
+            MapElementType.LANE_CENTER,
+            MapElementType.LANE_BOUNDARY,
+            MapElementType.DRIVABLE_AREA,
+        ]
+    )
+    assert a3.output_shape[0] == 3
+    out = a3.transform(
+        _hdmap_frame([_elem(MapElementType.LANE_CENTER, [[-2, 0, 0], [2, 0, 0]])])
+    )
+    bev = out[Modality.HD_MAP_BEV]
+    assert bev.shape[0] == 3
+    assert bev[0].max() == 1.0  # LANE_CENTER is channel 0 in this config
+    assert bev[1].max() == 0.0
+    assert bev[2].max() == 0.0
 
 
 def test_hdmap_bev_adapter_invalid_args_raise():
