@@ -20,7 +20,7 @@ the corresponding default value via
      - Driving command
      - Preference trajectory
    * - `Waymo Open E2E <https://waymo.com/open/data/e2e/>`__
-     - ✓ (8 ring cameras, panoramic adapter)
+     - ✓ (8 ring cameras)
      - —
      - —
      - —
