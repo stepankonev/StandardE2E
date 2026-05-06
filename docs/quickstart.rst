@@ -58,6 +58,26 @@ For Argoverse 2 Sensor the equivalent invocation is:
 A ready-made wrapper for AV2 Sensor lives at
 `scripts/prepare_dataset_av2_sensor.sh <https://github.com/stepankonev/StandardE2E/blob/main/scripts/prepare_dataset_av2_sensor.sh>`_.
 
+For Argoverse 2 Lidar (same on-disk format as Sensor minus cameras and
+``annotations.feather``; ~20× more logs but no 3D box labels) the
+invocation is the same with ``av2_lidar`` and an input path pointing at
+the lidar split:
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.caching.process_source_dataset av2_lidar \
+       --input_path=path/to/argoverse2/lidar \
+       --output_path=path/to/output \
+       --split=train \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+The processor inherits from :class:`~standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetProcessor`
+and short-circuits the camera + detection helpers so the missing
+modalities surface as defaults at training time via
+:class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`.
+
 .. tip::
    For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
    truncate segment continuity in this mode, so use only for smoke-testing.

@@ -20,7 +20,7 @@ the corresponding default value via
      - Driving command
      - Preference trajectory
    * - `Waymo Open E2E <https://waymo.com/open/data/e2e/>`__
-     - ✓ (8 ring cameras, panoramic adapter)
+     - ✓ (8 ring cameras)
      - —
      - —
      - —
@@ -38,6 +38,13 @@ the corresponding default value via
      - ✓ (merged sweep, ego frame)
      - ✓
      - ✓
+     - —
+     - —
+   * - `Argoverse 2 Lidar <https://www.argoverse.org/av2.html#lidar-link>`__
+     - —
+     - ✓ (merged sweep, ego frame)
+     - ✓
+     - —
      - —
      - —
 

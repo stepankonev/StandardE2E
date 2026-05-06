@@ -33,3 +33,13 @@ Argoverse 2 Sensor
 
    standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetProcessor
    standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetConverter
+
+Argoverse 2 Lidar
+-----------------
+
+.. autosummary::
+   :toctree: generated/caching
+   :nosignatures:
+
+   standard_e2e.caching.src_datasets.av2_lidar.Av2LidarDatasetProcessor
+   standard_e2e.caching.src_datasets.av2_lidar.Av2LidarDatasetConverter
