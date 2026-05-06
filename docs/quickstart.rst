@@ -43,6 +43,21 @@ See the in-repo examples for the exact flow:
 - Script: `examples/dataset_preprocessing.py <https://github.com/stepankonev/StandardE2E/blob/main/examples/dataset_preprocessing.py>`_
 - Notebook walkthrough: `notebooks/intro_tutorial.ipynb <https://github.com/stepankonev/StandardE2E/blob/main/notebooks/intro_tutorial.ipynb>`_
 
+For Argoverse 2 Sensor the equivalent invocation is:
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.caching.process_source_dataset av2_sensor \
+       --input_path=path/to/argoverse2/sensor \
+       --output_path=path/to/output \
+       --split=train \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+A ready-made wrapper for AV2 Sensor lives at
+`scripts/prepare_dataset_av2_sensor.sh <https://github.com/stepankonev/StandardE2E/blob/main/scripts/prepare_dataset_av2_sensor.sh>`_.
+
 .. tip::
    For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
    truncate segment continuity in this mode, so use only for smoke-testing.

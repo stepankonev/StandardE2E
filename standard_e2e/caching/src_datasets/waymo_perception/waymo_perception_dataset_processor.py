@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -53,6 +53,46 @@ _MAP_FEATURE_KIND: dict[str, tuple[MapElementType, Optional[str], bool]] = {
     "driveway": (MapElementType.DRIVEWAY, "polygon", True),
 }
 
+# Waymo LaneType enum -> our normalised lane_type string.
+# Source: waymo_open_dataset/protos/map.proto LaneCenter.LaneType.
+# 0 (UNDEFINED) maps to absent.
+_WAYMO_LANE_TYPE_TO_NORMALISED: dict[int, str] = {
+    1: "freeway",
+    2: "surface_street",
+    3: "bike",
+}
+
+# Waymo RoadLineType -> (paint_color, paint_pattern) and raw enum name.
+# See docs/lane_paint_comparison.md for the full vocabulary mapping.
+_WAYMO_ROAD_LINE_TYPE_TO_PAINT: dict[int, tuple[str, str]] = {
+    1: ("white", "dashed"),  # TYPE_BROKEN_SINGLE_WHITE
+    2: ("white", "solid"),  # TYPE_SOLID_SINGLE_WHITE
+    3: ("white", "double_solid"),  # TYPE_SOLID_DOUBLE_WHITE
+    4: ("yellow", "dashed"),  # TYPE_BROKEN_SINGLE_YELLOW
+    5: ("yellow", "double_dashed"),  # TYPE_BROKEN_DOUBLE_YELLOW
+    6: ("yellow", "solid"),  # TYPE_SOLID_SINGLE_YELLOW
+    7: ("yellow", "double_solid"),  # TYPE_SOLID_DOUBLE_YELLOW
+    8: ("yellow", "solid_dashed"),  # TYPE_PASSING_DOUBLE_YELLOW
+}
+_WAYMO_ROAD_LINE_TYPE_NAMES: dict[int, str] = {
+    0: "TYPE_UNKNOWN",
+    1: "BROKEN_SINGLE_WHITE",
+    2: "SOLID_SINGLE_WHITE",
+    3: "SOLID_DOUBLE_WHITE",
+    4: "BROKEN_SINGLE_YELLOW",
+    5: "BROKEN_DOUBLE_YELLOW",
+    6: "SOLID_SINGLE_YELLOW",
+    7: "SOLID_DOUBLE_YELLOW",
+    8: "PASSING_DOUBLE_YELLOW",
+}
+
+# Waymo RoadEdgeType -> normalised road_edge_subtype.
+# 0 (UNKNOWN) maps to absent.
+_WAYMO_ROAD_EDGE_TYPE_TO_SUBTYPE: dict[int, str] = {
+    1: "boundary",  # ROAD_EDGE_BOUNDARY (curb)
+    2: "median",  # ROAD_EDGE_MEDIAN
+}
+
 
 class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
     """Processor for the Waymo Perception dataset.
@@ -89,10 +129,12 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             adapters=adapters,
             context_aggregators=context_aggregators,
         )
-        # Per-segment cache: segment_id -> list of (id, type, world_points, is_closed).
-        self._segment_map_cache: dict[
-            str, list[tuple[str, MapElementType, np.ndarray, bool]]
-        ] = {}
+        # Per-segment cache: segment_id -> list of dicts carrying the
+        # decoded world-frame points + per-feature attrs and lane-graph
+        # links. Keys: id, type, points_world, is_closed,
+        # successor_ids, predecessor_ids, left_neighbor_id,
+        # right_neighbor_id, attrs.
+        self._segment_map_cache: dict[str, list[dict[str, Any]]] = {}
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -121,8 +163,15 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         ]
 
     def _cache_map_features_for_segment(self, segment_id: str, map_features) -> None:
-        """Decode Waymo ``map_features`` once per segment, keep world-frame xyz."""
-        cached: list[tuple[str, MapElementType, np.ndarray, bool]] = []
+        """Decode Waymo ``map_features`` once per segment, keep world-frame xyz.
+
+        See docs/map_element_translation.md §5.1 for the per-feature
+        translation rules. Per-feature attrs (lane_type, paint_color,
+        paint_pattern, paint_subtype_raw, road_edge_subtype,
+        speed_limit_mph, is_intersection, controlled_lane_id) are
+        rebucketed at cache time from the source proto enums.
+        """
+        cached: list[dict[str, Any]] = []
         for feature in map_features:
             kind = feature.WhichOneof("feature_data")
             mapping = _MAP_FEATURE_KIND.get(kind)
@@ -138,7 +187,56 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                 pts = np.array(
                     [[p.x, p.y, p.z] for p in points_proto], dtype=np.float32
                 )
-            cached.append((str(feature.id), element_type, pts, is_closed))
+
+            attrs: dict[str, Any] = {}
+            successor_ids: list[str] = []
+            predecessor_ids: list[str] = []
+            left_neighbor_id: Optional[str] = None
+            right_neighbor_id: Optional[str] = None
+
+            if kind == "lane":
+                lane_type_norm = _WAYMO_LANE_TYPE_TO_NORMALISED.get(int(sub.type))
+                if lane_type_norm is not None:
+                    attrs["lane_type"] = lane_type_norm
+                attrs["is_intersection"] = bool(sub.interpolating)
+                # Waymo's proto stores 0.0 for missing speed limits — only
+                # surface a value when explicitly populated.
+                if sub.speed_limit_mph > 0:
+                    attrs["speed_limit_mph"] = float(sub.speed_limit_mph)
+                successor_ids = [str(i) for i in sub.exit_lanes]
+                predecessor_ids = [str(i) for i in sub.entry_lanes]
+                if len(sub.left_neighbors) > 0:
+                    left_neighbor_id = str(sub.left_neighbors[0].feature_id)
+                if len(sub.right_neighbors) > 0:
+                    right_neighbor_id = str(sub.right_neighbors[0].feature_id)
+            elif kind == "road_line":
+                paint = _WAYMO_ROAD_LINE_TYPE_TO_PAINT.get(int(sub.type))
+                if paint is not None:
+                    attrs["paint_color"], attrs["paint_pattern"] = paint
+                attrs["paint_subtype_raw"] = _WAYMO_ROAD_LINE_TYPE_NAMES.get(
+                    int(sub.type), str(int(sub.type))
+                )
+            elif kind == "road_edge":
+                subtype = _WAYMO_ROAD_EDGE_TYPE_TO_SUBTYPE.get(int(sub.type))
+                if subtype is not None:
+                    attrs["road_edge_subtype"] = subtype
+            elif kind == "stop_sign":
+                if len(sub.lane) > 0:
+                    attrs["controlled_lane_id"] = str(sub.lane[0])
+
+            cached.append(
+                {
+                    "id": str(feature.id),
+                    "type": element_type,
+                    "points_world": pts,
+                    "is_closed": is_closed,
+                    "successor_ids": successor_ids,
+                    "predecessor_ids": predecessor_ids,
+                    "left_neighbor_id": left_neighbor_id,
+                    "right_neighbor_id": right_neighbor_id,
+                    "attrs": attrs,
+                }
+            )
         self._segment_map_cache[segment_id] = cached
 
     def _build_hd_map(
@@ -150,17 +248,23 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             return None
         T_v_w = np.linalg.inv(pose_world_from_vehicle).astype(np.float32)
         elements: list[MapElement] = []
-        for feat_id, element_type, world_pts, is_closed in cached:
+        for entry in cached:
+            world_pts = entry["points_world"]
             homog = np.concatenate(
                 [world_pts, np.ones((len(world_pts), 1), dtype=np.float32)], axis=1
             )
             vehicle_pts = (homog @ T_v_w.T)[:, :3]
             elements.append(
                 MapElement(
-                    id=feat_id,
-                    type=element_type,
+                    id=entry["id"],
+                    type=entry["type"],
                     points=vehicle_pts,
-                    is_closed=is_closed,
+                    is_closed=entry["is_closed"],
+                    successor_ids=entry["successor_ids"],
+                    predecessor_ids=entry["predecessor_ids"],
+                    left_neighbor_id=entry["left_neighbor_id"],
+                    right_neighbor_id=entry["right_neighbor_id"],
+                    attrs=entry["attrs"],
                 )
             )
         return HDMap(elements=elements)

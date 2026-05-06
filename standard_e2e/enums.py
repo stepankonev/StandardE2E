@@ -68,6 +68,8 @@ class MapElementType(StrEnum):
     STOP_SIGN = "stop_sign"
     SPEED_BUMP = "speed_bump"
     DRIVEWAY = "driveway"
+    WALKWAY = "walkway"
+    TRAFFIC_LIGHT = "traffic_light"
     UNKNOWN = "unknown"
 
 

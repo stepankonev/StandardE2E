@@ -3,7 +3,7 @@
   
   <p><em>A framework for unified end-to-end autonomous driving datasets processing</em></p>
 
-  ![Python versions](https://img.shields.io/badge/Python-3.12%20%7C%203.13-informational?logo=python&logoColor=white)
+  ![Python versions](https://img.shields.io/badge/Python-3.12-informational?logo=python&logoColor=white)
   ![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)
   ![License](https://img.shields.io/badge/license-MIT-green.svg)
   [![Tests](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml)
@@ -66,7 +66,7 @@ pip install -e ".[dev]"
 | [Waymo Perception](https://waymo.com/open/data/perception/) ![](https://img.shields.io/badge/WIP-orange) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Navsim](https://github.com/autonomousvision/navsim/blob/main/docs/splits.md) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/semicircle-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
-| [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Argoverse 2 Lidar](https://www.argoverse.org/av2.html#lidar-link) ![](https://img.shields.io/badge/TBD-gray) | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Map Change](https://www.argoverse.org/av2.html#mapchange-link) ![](https://img.shields.io/badge/TBD-gray) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [KITTI](https://www.cvlibs.net/datasets/kitti/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) | ✅ | ❓ | ❓ | ❓ | ❓ |

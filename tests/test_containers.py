@@ -181,24 +181,43 @@ def test_map_element_single_point_allowed():
 
 
 def test_map_element_invalid_shape_raises():
+    # empty
     with pytest.raises(ValueError):
         MapElement(
             id="x",
             type=MapElementType.LANE_CENTER,
             points=np.zeros((0, 3), dtype=np.float32),
         )
+    # last dim must be 2 or 3
     with pytest.raises(ValueError):
         MapElement(
             id="x",
             type=MapElementType.LANE_CENTER,
-            points=np.zeros((5, 2), dtype=np.float32),
+            points=np.zeros((5, 4), dtype=np.float32),
         )
+    # 1D not allowed
     with pytest.raises(ValueError):
         MapElement(
             id="x",
             type=MapElementType.LANE_CENTER,
             points=np.zeros((5,), dtype=np.float32),
         )
+    # NaN / inf rejected (e.g. AV2 ships some advisory NaN Z; processors
+    # are expected to either drop those rows or slice to XY before
+    # constructing the MapElement).
+    with pytest.raises(ValueError):
+        MapElement(
+            id="x",
+            type=MapElementType.LANE_CENTER,
+            points=np.array([[0.0, 0.0, 0.0], [1.0, 1.0, np.nan]], dtype=np.float32),
+        )
+
+
+def test_map_element_2d_points_accepted():
+    """Datasets with advisory Z (e.g. AV2) emit (N, 2) MapElements."""
+    pts = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], dtype=np.float32)
+    elem = MapElement(id="x", type=MapElementType.LANE_CENTER, points=pts)
+    assert elem.points.shape == (3, 2)
 
 
 def test_hd_map_happy_path():

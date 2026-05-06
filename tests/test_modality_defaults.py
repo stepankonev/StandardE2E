@@ -184,10 +184,12 @@ def test_hdmap_bev_defaults_passes_through_existing():
 
 
 def test_hdmap_bev_defaults_from_adapter_matches_shape():
+    from standard_e2e.enums import MapElementType
+
     handler = HDMapBEVDefaults.from_adapter(HDMapBEVAdapter())
     val = handler.normalize(None, Modality.HD_MAP_BEV)
-    # Default HDMapBEVAdapter: 11 channels (one per MapElementType), 64m / 4 ppm.
-    assert val.shape == (11, 256, 256)
+    # Default HDMapBEVAdapter: one channel per MapElementType, 64m / 4 ppm.
+    assert val.shape == (len(MapElementType), 256, 256)
 
 
 def test_hdmap_bev_defaults_invalid_shape_raises():

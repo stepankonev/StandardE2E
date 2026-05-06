@@ -3,6 +3,10 @@ import logging
 from typing import Protocol, Type, cast
 
 from standard_e2e.caching.adapters import get_adapters_from_config
+from standard_e2e.caching.src_datasets.av2_sensor import (
+    Av2SensorDatasetConverter,
+    Av2SensorDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.waymo_e2e import (
     WaymoE2EDatasetConverter,
     WaymoE2EDatasetProcessor,
@@ -33,12 +37,14 @@ def main(argv=None):
     dataset_converter_cls = {
         "waymo_e2e": WaymoE2EDatasetConverter,
         "waymo_perception": WaymoPerceptionDatasetConverter,
+        "av2_sensor": Av2SensorDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
     dataset_processor_cls = {
         "waymo_e2e": WaymoE2EDatasetProcessor,
         "waymo_perception": WaymoPerceptionDatasetProcessor,
+        "av2_sensor": Av2SensorDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -48,7 +54,7 @@ def main(argv=None):
     arguments = converter_cls_typed.get_arg_parser().parse_args(rest)
     config = load_yaml_config(arguments.config_file)
     adapters = get_adapters_from_config(config["preprocessing"]["adapters"])
-    dataset_processor = dataset_processor_cls(
+    dataset_processor = dataset_processor_cls(  # type: ignore[abstract]
         common_output_path=arguments.output_path,
         split=arguments.split,
         adapters=adapters,

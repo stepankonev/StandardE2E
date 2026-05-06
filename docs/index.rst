@@ -53,6 +53,7 @@ Documentation
 
    quickstart
    overview
+   datasets
 
 .. toctree::
    :maxdepth: 2

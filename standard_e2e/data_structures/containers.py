@@ -169,15 +169,25 @@ class CameraData(BaseModel):
 class MapElement(BaseModel):
     """A single HD map element (polyline, polygon, or point) in vehicle frame.
 
-    - ``points``: ``(N, 3)`` float32 array. ``N == 1`` for points (e.g.
-      ``STOP_SIGN``); ``N >= 2`` for polylines / polygons.
+    - ``points``: ``(N, 2)`` or ``(N, 3)`` float32 array. ``N == 1`` is
+      allowed for point-like elements (e.g. ``STOP_SIGN``); ``N >= 2`` for
+      polylines / polygons. Datasets that ship only XY (e.g. AV2, where
+      vector Z is advisory and may be NaN outside the ground-height ROI)
+      emit ``(N, 2)``; datasets with reliable 3D maps (Waymo) emit
+      ``(N, 3)``. The BEV rasterizer slices ``[:, :2]`` and works for both.
     - ``is_closed``: True for polygons (last point connects to first); False
       for open polylines and points.
     - ``successor_ids`` / ``predecessor_ids``: lane-graph connectivity
       (empty for non-lane elements). Unused by the BEV rasterizer; kept on
       the schema for future vector-output adapters.
-    - ``attrs``: dataset-specific per-element metadata (e.g. ``speed_limit``,
-      ``mark_type``, ``lane_type``, ``is_intersection``).
+    - ``left_neighbor_id`` / ``right_neighbor_id``: lateral lane neighbours
+      (None for non-lane elements). Single ID per side; if a source dataset
+      ships a list, take the first.
+    - ``attrs``: dataset-specific per-element metadata. Standardised keys
+      documented in ``docs/map_element_translation.md`` (e.g.
+      ``lane_type``, ``is_intersection``, ``speed_limit_mph``,
+      ``paint_color``, ``paint_pattern``, ``paint_subtype_raw``,
+      ``road_edge_subtype``, ``tl_state_per_ts``, ``controlled_lane_id``).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
@@ -188,6 +198,8 @@ class MapElement(BaseModel):
     is_closed: bool = False
     successor_ids: list[str] = Field(default_factory=list)
     predecessor_ids: list[str] = Field(default_factory=list)
+    left_neighbor_id: Optional[str] = None
+    right_neighbor_id: Optional[str] = None
     attrs: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("points", mode="before")
@@ -198,10 +210,12 @@ class MapElement(BaseModel):
     @field_validator("points")
     @classmethod
     def _validate_points(cls, v):
-        if v.ndim != 2 or v.shape[1] != 3:
-            raise ValueError(f"points must be (N, 3); got shape {v.shape}")
+        if v.ndim != 2 or v.shape[1] not in (2, 3):
+            raise ValueError(f"points must be (N, 2) or (N, 3); got shape {v.shape}")
         if v.shape[0] == 0:
             raise ValueError("points must have at least one row")
+        if not np.isfinite(v).all():
+            raise ValueError("points must be finite (no NaN/inf)")
         return v
 
 
@@ -470,8 +484,14 @@ class BatchedFrameDetections3D:
             self._batched_trajectories.append(
                 BatchedTrajectory(frame_detections_trajectories)
             )
+        # ``strict=False``: detection trajectories from segment-context
+        # aggregators (e.g. ``FutureDetectionsAggregator``) only carry
+        # X/Y/HEADING; missing components are filled with zeros so collation
+        # works for both per-frame snapshots (8 components) and aggregated
+        # future-trajectory detections (3 components).
         self._batched_trajectories_tensors = [
-            td.get(self._trajectory_components) for td in self._batched_trajectories
+            td.get(self._trajectory_components, strict=False)
+            for td in self._batched_trajectories
         ]
         self._detection_types = []
         self._unique_agent_ids = []

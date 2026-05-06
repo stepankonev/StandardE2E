@@ -11,7 +11,7 @@ authors = [
 description = "A unified framework for autonomous driving dataset management for end-to-end model development"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "torch",
     "torchvision",
@@ -24,6 +24,7 @@ dependencies = [
     "tensorflow-cpu",
     "tqdm",
     "pydantic>=2.6,<3",
+    "av2>=0.3.6",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -32,7 +33,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -168,4 +168,12 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "albumentations.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "av2.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
 ignore_missing_imports = true
