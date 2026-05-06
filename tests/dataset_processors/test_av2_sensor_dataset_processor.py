@@ -210,7 +210,8 @@ def test_element_counts_per_type(proc_fixture, pose_fixture, request):
 
 
 def test_lane_center_carries_graph_and_attrs(good_log_processor, good_log_pose):
-    """LANE_CENTER elements carry lane_type, is_intersection, predecessors, successors."""
+    """LANE_CENTER elements carry lane_type, is_intersection, predecessors,
+    successors."""
     hd_map = good_log_processor._build_hd_map(good_log_pose)
     centers = [e for e in hd_map.elements if e.type == MapElementType.LANE_CENTER]
     assert len(centers) > 0
