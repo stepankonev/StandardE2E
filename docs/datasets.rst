@@ -47,6 +47,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `NAVSIM <https://github.com/autonomousvision/navsim>`__ (OpenScene-v1.1)
+     - ✓ (8 cameras: front/left×3/right×3/rear)
+     - ✓ (merged sweep, ego frame)
+     - — (HD-map extraction deferred)
+     - ✓
+     - ✓ (4-class one-hot → :class:`~standard_e2e.enums.Intent`)
+     - —
 
 How datasets are added
 ----------------------

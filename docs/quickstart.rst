@@ -78,6 +78,30 @@ and short-circuits the camera + detection helpers so the missing
 modalities surface as defaults at training time via
 :class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`.
 
+For NAVSIM (OpenScene-v1.1) the input path points at the OpenScene
+root containing ``navsim_logs/``, ``sensor_blobs/`` and ``maps/``
+subdirectories. Only the ``trainval`` split is published; users sample
+train/val/test subsets from it via ``SceneFilter`` (NAVSIM upstream) or
+custom filters on top of the produced index.parquet.
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.caching.process_source_dataset navsim \
+       --input_path=path/to/openscene-v1.1 \
+       --output_path=path/to/output \
+       --split=trainval \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+Phase 1 of the NAVSIM processor surfaces 5/6 modalities (cameras,
+lidar, 3D detections, driving command via :class:`~standard_e2e.enums.Intent`,
+past/future ego trajectory). HD-map extraction is deferred — it
+requires loading nuPlan ``map.gpkg`` files via ``nuplan.common.maps``
+and translating them through the unified
+:class:`~standard_e2e.enums.MapElementType` taxonomy, which is its own
+design exercise and will land in a follow-up.
+
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**
    pipeline stages: the per-frame conversion (one frame per worker) and
