@@ -3,6 +3,10 @@ import logging
 from typing import Protocol, Type, cast
 
 from standard_e2e.caching.adapters import get_adapters_from_config
+from standard_e2e.caching.src_datasets.av2_lidar import (
+    Av2LidarDatasetConverter,
+    Av2LidarDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.av2_sensor import (
     Av2SensorDatasetConverter,
     Av2SensorDatasetProcessor,
@@ -38,6 +42,7 @@ def main(argv=None):
         "waymo_e2e": WaymoE2EDatasetConverter,
         "waymo_perception": WaymoPerceptionDatasetConverter,
         "av2_sensor": Av2SensorDatasetConverter,
+        "av2_lidar": Av2LidarDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -45,6 +50,7 @@ def main(argv=None):
         "waymo_e2e": WaymoE2EDatasetProcessor,
         "waymo_perception": WaymoPerceptionDatasetProcessor,
         "av2_sensor": Av2SensorDatasetProcessor,
+        "av2_lidar": Av2LidarDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

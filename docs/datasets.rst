@@ -40,6 +40,13 @@ the corresponding default value via
      - ✓
      - —
      - —
+   * - `Argoverse 2 Lidar <https://www.argoverse.org/av2.html#lidar-link>`__
+     - —
+     - ✓ (merged sweep, ego frame)
+     - ✓
+     - —
+     - —
+     - —
 
 How datasets are added
 ----------------------
