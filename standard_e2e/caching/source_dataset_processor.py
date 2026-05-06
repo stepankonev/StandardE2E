@@ -102,6 +102,21 @@ class SourceDatasetProcessor(ABC):
         transformed_modalities = {}
         for adapter in self._adapters:
             transformed_modalities.update(adapter.transform(standard_frame_data))
+        # Merge each adapter's per-frame metadata into aux_data so the .npz
+        # carries adapter-side configuration (e.g. the HD-map BEV channel list)
+        # that downstream consumers need to interpret modality outputs.
+        merged_aux_data: dict | None
+        if standard_frame_data.aux_data is None:
+            merged_aux_data = None
+        else:
+            merged_aux_data = dict(standard_frame_data.aux_data)
+        for adapter in self._adapters:
+            adapter_meta = adapter.metadata
+            if not adapter_meta:
+                continue
+            if merged_aux_data is None:
+                merged_aux_data = {}
+            merged_aux_data.update(adapter_meta)
         transformed_frame_data = TransformedFrameData(
             dataset_name=standard_frame_data.dataset_name,
             segment_id=standard_frame_data.segment_id,
@@ -109,7 +124,7 @@ class SourceDatasetProcessor(ABC):
             timestamp=standard_frame_data.timestamp,
             split=standard_frame_data.split,
             global_position=standard_frame_data.global_position,
-            aux_data=standard_frame_data.aux_data,
+            aux_data=merged_aux_data,
             extra_index_data=standard_frame_data.extra_index_data,
             _modality_data=transformed_modalities,
         )
