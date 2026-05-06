@@ -40,6 +40,11 @@ class PanoImageAdapter(AbstractAdapter):
 
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         """Transform cameras data to a single panoramic image."""
+        # Datasets without a camera rig (e.g. AV2 lidar) ship an empty
+        # ``cameras`` dict; skip silently so the same multi-dataset config can
+        # drive both camera-bearing and camera-less sources.
+        if not standard_frame_data.cameras:
+            return {}
         image_list = [
             standard_frame_data.cameras[camera_direction].image
             for camera_direction in self._cameras_order

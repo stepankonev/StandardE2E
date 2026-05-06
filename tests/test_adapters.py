@@ -130,6 +130,13 @@ def test_preference_trajectory_adapter_with_key():
 # --- PanoImageAdapter ---------------------------------------------------------
 
 
+def test_pano_image_adapter_returns_empty_when_no_cameras():
+    """Camera-less datasets (e.g. AV2 lidar) must not crash the pano adapter."""
+    frame = make_frame()  # cameras defaults to {}
+    out = PanoImageAdapter().transform(frame)
+    assert out == {}
+
+
 def test_pano_image_adapter_concatenates_order_and_crops():
     # Create 3 cameras with different width to verify ordering
     h1, w1 = 20, 11
