@@ -23,3 +23,13 @@ Waymo Perception
 
    standard_e2e.caching.src_datasets.waymo_perception.WaymoPerceptionDatasetProcessor
    standard_e2e.caching.src_datasets.waymo_perception.WaymoPerceptionDatasetConverter
+
+Argoverse 2 Sensor
+------------------
+
+.. autosummary::
+   :toctree: generated/caching
+   :nosignatures:
+
+   standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetProcessor
+   standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetConverter

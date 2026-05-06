@@ -32,9 +32,5 @@ Selectors
 Modality defaults
 -----------------
 
-.. autosummary::
-   :toctree: generated/dataset_utils
-   :nosignatures:
-
-   standard_e2e.dataset_utils.modality_defaults.ModalityDefaults
-   standard_e2e.dataset_utils.modality_defaults._check_modality_defaults_dict
+See :doc:`modality_defaults` for the full list of per-modality default
+classes.

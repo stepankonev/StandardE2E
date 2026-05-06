@@ -26,8 +26,8 @@ Trajectories
    Trajectory
    BatchedTrajectory
 
-Modality Containers
-----------
+Modality containers
+-------------------
 
 .. autosummary::
    :toctree: generated/data_structures
@@ -35,7 +35,18 @@ Modality Containers
 
    CameraData
    LidarData
+   LidarPointCloud
+   BatchedLidarPointCloud
    Detection3D
    FrameDetections3D
    BatchedFrameDetections3D
-   
+
+HD map
+------
+
+.. autosummary::
+   :toctree: generated/data_structures
+   :nosignatures:
+
+   HDMap
+   MapElement
