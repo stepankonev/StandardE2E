@@ -3,7 +3,7 @@
   
   <p><em>A framework for unified end-to-end autonomous driving datasets processing</em></p>
 
-  ![Python versions](https://img.shields.io/badge/Python-3.12%20%7C%203.13-informational?logo=python&logoColor=white)
+  ![Python versions](https://img.shields.io/badge/Python-3.12-informational?logo=python&logoColor=white)
   ![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)
   ![License](https://img.shields.io/badge/license-MIT-green.svg)
   [![Tests](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml)
