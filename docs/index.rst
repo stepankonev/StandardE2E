@@ -17,7 +17,7 @@ Key Features
 
 ✨ **Unified Data Format and API** - Single representation and consistent interface for all datasets
 
-🔄 **Multimodal Support** - Camera, trajectories, detections, WIP LiDAR, maps, etc
+🔄 **Multimodal Support** - Camera, LiDAR, HD maps, trajectories, detections, driving command, etc
 
 ⚙️ **Parametrizable Pipelines** - Configure programmatically or via YAML files
 

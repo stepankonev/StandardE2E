@@ -110,8 +110,10 @@ are translated through the unified
    nuPlan's ``GPKGMapsDB`` writes a ``.maplocks/`` directory next to
    the maps root. If the dataset itself lives on a read-only mount,
    create a writable mirror once with the JSON manifest copied and the
-   city directories symlinked, then point ``NUPLAN_MAPS_ROOT`` (or
-   ``--maps_root_path=``) at the mirror.
+   city directories symlinked, then point ``NUPLAN_MAPS_ROOT`` (or the
+   ``maps_root_path`` constructor arg on
+   :class:`~standard_e2e.caching.src_datasets.navsim.NavsimDatasetProcessor`)
+   at the mirror.
 
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**

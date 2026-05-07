@@ -63,7 +63,7 @@ pip install -e ".[dev]"
 | Dataset | Cameras | Lidar | HD Map | Detections | Driving Command | Preference Trajectories |
 |---------|---------|-------|--------|------------|-----------------|-------------------------|
 | [Waymo End-to-end](https://waymo.com/open/data/e2e/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ❌ | ❌ | ❌ | ✅ | ✅ |
-| [Waymo Perception](https://waymo.com/open/data/perception/) ![](https://img.shields.io/badge/WIP-orange) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| [Waymo Perception](https://waymo.com/open/data/perception/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Navsim](https://github.com/autonomousvision/navsim/blob/main/docs/splits.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/semicircle-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
@@ -127,7 +127,7 @@ If you find this project useful, you can support it by giving it a ⭐, or by co
 @software{standarde2e,
   title={StandardE2E: A Unified Framework for Autonomous Driving Dataset Management},
   author={stepankonev},
-  year={2025},
+  year={2025--2026},
   url={https://github.com/stepankonev/StandardE2E}
 }
 ```
