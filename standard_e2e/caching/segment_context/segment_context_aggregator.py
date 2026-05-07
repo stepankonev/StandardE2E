@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 from abc import ABC, abstractmethod
 from typing import Any
@@ -108,10 +109,52 @@ class SegmentContextAggregator(ABC):
                 os.path.join(self._data_path, segment_index_data.iloc[idx]["filename"])
             )
 
-    def process(self, index_df: pd.DataFrame):
-        """Run the aggregator for each segment described in ``index_df``."""
+    def process(
+        self,
+        index_df: pd.DataFrame,
+        num_workers: int = 0,
+        do_parallel: bool = True,
+        start_method: str = "spawn",
+    ) -> None:
+        """Run the aggregator for each segment described in ``index_df``.
+
+        Each segment is independent — disjoint npz files and no shared
+        aggregator state — so the per-segment loop fans out across a
+        process pool when ``do_parallel`` is enabled.
+
+        Args:
+            index_df: full per-frame index DataFrame.
+            num_workers: 0 → ``multiprocessing.cpu_count()``. Pool size is
+                capped at the number of segments so we never spawn idle
+                workers.
+            do_parallel: master toggle; ``False`` (or ``num_workers <= 1``,
+                or a single segment) forces a sequential loop.
+            start_method: ``"spawn"`` matches the frame-stage rationale —
+                the parent process imports TensorFlow / OpenCV at module
+                load and ``fork`` would duplicate that state into workers.
+                Use ``"fork"`` only when callers can guarantee no global
+                TF/cv2 state in the parent (e.g. unit tests).
+        """
         if not isinstance(index_df, pd.DataFrame):
             raise TypeError("Expected a pandas DataFrame")
-        pbar = tqdm(index_df.groupby("segment_id"), desc="Processing segments")
-        for _, segment_data in pbar:
-            self._process_segment(segment_data)
+        if num_workers == 0:
+            num_workers = multiprocessing.cpu_count()
+
+        groups = [seg_df for _, seg_df in index_df.groupby("segment_id")]
+        n_segments = len(groups)
+
+        if not do_parallel or num_workers <= 1 or n_segments <= 1:
+            for segment_data in tqdm(groups, desc="Processing segments"):
+                self._process_segment(segment_data)
+            return
+
+        effective_workers = min(num_workers, n_segments)
+        ctx = multiprocessing.get_context(start_method)
+        with ctx.Pool(effective_workers) as pool:
+            list(
+                tqdm(
+                    pool.imap_unordered(self._process_segment, groups),
+                    total=n_segments,
+                    desc="Processing segments",
+                )
+            )

@@ -79,6 +79,13 @@ modalities surface as defaults at training time via
 :class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`.
 
 .. tip::
+   ``--num_workers`` and ``--do_parallel_processing`` cover **both**
+   pipeline stages: the per-frame conversion (one frame per worker) and
+   the per-segment context aggregation (one segment per worker). The
+   aggregator stage runs after frame conversion completes; the same
+   pool size is reused.
+
+.. tip::
    For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
    truncate segment continuity in this mode, so use only for smoke-testing.
 

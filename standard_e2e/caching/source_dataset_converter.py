@@ -108,7 +108,11 @@ class SourceDatasetConverter(ABC):
                     "context_aggregator must be an instance of SegmentContextAggregator"
                     f", got {type(context_aggregator)}"
                 )
-            context_aggregator.process(index_df)
+            context_aggregator.process(
+                index_df,
+                num_workers=self._num_workers,
+                do_parallel=self._do_parallel_processing,
+            )
 
     @final
     def _convert_frames(self) -> pd.DataFrame:
