@@ -2,23 +2,23 @@
 
 NAVSIM ships scenes as per-log pickle files (lists of frame dicts) plus
 a parallel ``sensor_blobs`` tree with the actual camera JPEGs and merged
-lidar PCDs. We read the dicts directly and produce
-:class:`StandardFrameData`, sidestepping the heavy ``nuplan-devkit``
-chain — none of NAVSIM's API surface is required for the data path we
-need.
+lidar PCDs, and an HD-map archive at ``maps/<city>/<version>/map.gpkg``.
+We read the dicts and PCDs directly (sidestepping NAVSIM's own data
+classes), and call into ``nuplan-devkit``'s map factory for the HD map
+— the maps subtree of nuplan-devkit imports cleanly without torch /
+hydra / pytorch-lightning, so adding the dep is safe.
 
-**Phase 1 modality coverage** (this commit): cameras (8), lidar
-(merged sweep), 3D detections, driving command (Intent), past/future
-ego trajectory via segment-context aggregator. **HD map is deferred**
-to a follow-up: it requires loading nuPlan ``map.gpkg`` files via
-``nuplan.common.maps`` and translating them through the unified
-:class:`MapElementType` taxonomy, which is a non-trivial design
-exercise on its own.
+Modality coverage: cameras (8), lidar (merged sweep), HD map (vector
+lanes, drivable area, intersections, stop lines, crosswalks, walkways
+— see ``_navsim_map.py`` for the full translation table), 3D
+detections, driving command (Intent), past/future ego trajectory via
+segment-context aggregators.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import pickle
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -33,6 +33,7 @@ from standard_e2e.caching.adapters import (
     AbstractAdapter,
     CamerasIdentityAdapter,
     Detections3DIdentityAdapter,
+    HDMapBEVAdapter,
     IntentIdentityAdapter,
     LidarAdapter,
 )
@@ -41,11 +42,13 @@ from standard_e2e.caching.segment_context import (
     FuturePastStatesFromMatricesAggregator,
     SegmentContextAggregator,
 )
+from standard_e2e.caching.src_datasets.navsim._navsim_map import build_navsim_hd_map
 from standard_e2e.caching.src_datasets.navsim._pcd import read_navsim_pcd_xyz
 from standard_e2e.data_structures import (
     CameraData,
     Detection3D,
     FrameDetections3D,
+    HDMap,
     LidarData,
     StandardFrameData,
     Trajectory,
@@ -59,6 +62,14 @@ from standard_e2e.enums import (
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
 from standard_e2e.utils import matrix_to_xyz_heading
+
+# nuPlan ships maps under a fixed map-version folder name. NAVSIM's official
+# install docs hardcode this version (see navsim/docs/install.md).
+_NUPLAN_MAP_VERSION = "nuplan-maps-v1.0"
+# ROI radius around ego for HD-map queries. Slightly larger than the default
+# HDMapBEVAdapter extent (±32 m diagonal ≈ 45 m) so polygons that straddle the
+# BEV boundary still rasterise correctly.
+_NAVSIM_MAP_QUERY_RADIUS_M = 64.0
 
 # NAVSIM ships 8 cameras: front-centre, three on each side (front-of-side,
 # side, rear-of-side), plus rear-centre. Mapping into our 8-direction
@@ -135,8 +146,19 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
     that log; the cache key is the pickle path, so workers that hop
     between logs only reload at log boundaries.
 
-    See ``Phase 1`` notes in the module docstring — HD map is not yet
-    surfaced.
+    HD-map handling: nuPlan ``map.gpkg`` files for the 4 OpenScene cities
+    are loaded lazily via ``get_maps_api`` and cached per ``map_location``
+    string (so each worker holds at most 4 ``NuPlanMap`` instances). The
+    maps root is resolved with the same precedence NAVSIM users expect:
+
+    1. explicit ``maps_root_path`` constructor arg;
+    2. ``NUPLAN_MAPS_ROOT`` environment variable (NAVSIM's own convention,
+       documented at navsim/docs/install.md);
+    3. ``<input_path>/maps`` derived from the converter's ``input_path``
+       at frame-prep time (matches OpenScene-v1.1's on-disk layout).
+
+    If none of the three resolves to an existing directory, HD-map
+    extraction is skipped and a warning is logged once.
     """
 
     DATASET_NAME = "navsim"
@@ -148,6 +170,7 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         index_data_generator: IndexDataGenerator | None = None,
         adapters: list[AbstractAdapter] | None = None,
         context_aggregators: list[SegmentContextAggregator] | None = None,
+        maps_root_path: Optional[str] = None,
     ):
         super().__init__(
             common_output_path=common_output_path,
@@ -158,6 +181,13 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         )
         self._cached_log_path: Optional[Path] = None
         self._frames: list[dict[str, Any]] = []
+        # ``maps_root_path`` is resolved lazily on the first frame we
+        # process — only then do we know the converter's ``input_path``,
+        # which is the third level of the resolution chain.
+        self._explicit_maps_root: Optional[str] = maps_root_path
+        self._resolved_maps_root: Optional[Path] = None
+        self._maps_root_resolved: bool = False
+        self._map_cache: dict[str, Any] = {}
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -177,6 +207,7 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
             LidarAdapter(),
             IntentIdentityAdapter(),
             Detections3DIdentityAdapter(),
+            HDMapBEVAdapter(),
         ]
 
     def _get_default_context_aggregators(self):
@@ -194,6 +225,81 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         with open(log_path, "rb") as fp:
             self._frames = pickle.load(fp)
         self._cached_log_path = log_path
+
+    # --- HD-map root resolution + cache --------------------------------------
+
+    def _resolve_maps_root(self, log_path: Path) -> Optional[Path]:
+        """Layered resolution: explicit arg > NUPLAN_MAPS_ROOT env > <input>/maps."""
+        if self._maps_root_resolved:
+            return self._resolved_maps_root
+        candidates: list[Optional[str]] = [
+            self._explicit_maps_root,
+            os.environ.get("NUPLAN_MAPS_ROOT"),
+            # log_path is <input_path>/navsim_logs/<split>/<log>.pkl;
+            # ascend three levels to <input_path>, then sibling 'maps'.
+            str(log_path.parent.parent.parent / "maps"),
+        ]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            p = Path(candidate)
+            if p.is_dir() and (p / f"{_NUPLAN_MAP_VERSION}.json").exists():
+                self._resolved_maps_root = p
+                self._maps_root_resolved = True
+                logging.info("NAVSIM HD-map root resolved to %s", p)
+                return p
+        logging.warning(
+            "No NAVSIM maps root found (tried: %s). "
+            "HD map will be skipped on every frame; set NUPLAN_MAPS_ROOT "
+            "or pass maps_root_path= to enable.",
+            [c for c in candidates if c],
+        )
+        self._maps_root_resolved = True
+        return None
+
+    def _get_nuplan_map(self, log_path: Path, map_location: str) -> Any:
+        """Return a cached ``NuPlanMap`` for ``map_location``; load on first hit."""
+        if map_location in self._map_cache:
+            return self._map_cache[map_location]
+        maps_root = self._resolve_maps_root(log_path)
+        if maps_root is None:
+            self._map_cache[map_location] = None
+            return None
+        # Imported here to keep module import cheap when nuplan-devkit isn't
+        # installed (e.g., docs build).
+        from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
+
+        nuplan_map = get_maps_api(str(maps_root), _NUPLAN_MAP_VERSION, map_location)
+        self._map_cache[map_location] = nuplan_map
+        return nuplan_map
+
+    def _build_hd_map(
+        self,
+        log_path: Path,
+        frame: dict[str, Any],
+        T_global_from_ego: np.ndarray,
+    ) -> Optional[HDMap]:
+        """Translate the nuPlan vector map within ROI of the ego into an
+        :class:`HDMap` in ego coordinates. Returns ``None`` if the maps root
+        is not configured."""
+        map_location = frame.get("map_location")
+        if not map_location:
+            return None
+        nuplan_map = self._get_nuplan_map(log_path, str(map_location))
+        if nuplan_map is None:
+            return None
+        T_ego_from_global = np.linalg.inv(T_global_from_ego.astype(np.float64))
+        ego_x_city = float(T_global_from_ego[0, 3])
+        ego_y_city = float(T_global_from_ego[1, 3])
+        ego_z_city = float(T_global_from_ego[2, 3])
+        return build_navsim_hd_map(
+            nuplan_map,
+            T_ego_from_global,
+            ego_x_city,
+            ego_y_city,
+            ego_z_city=ego_z_city,
+            radius_m=_NAVSIM_MAP_QUERY_RADIUS_M,
+        )
 
     # --- per-frame helpers ---------------------------------------------------
 
@@ -315,6 +421,7 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
             ego_rotation, ego_translation
         )
         x, y, z, heading = matrix_to_xyz_heading(T_global_from_ego)
+        hd_map = self._build_hd_map(log_path, frame, T_global_from_ego)
 
         return StandardFrameData(
             dataset_name=self.dataset_name,
@@ -335,6 +442,7 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
             ),
             cameras=cameras,
             lidar=lidar,
+            hd_map=hd_map,
             intent=intent,
             frame_detections_3d=FrameDetections3D(detections=detections),
             aux_data={"pose_matrix": T_global_from_ego},
