@@ -4,6 +4,7 @@ import pytest
 
 from standard_e2e.caching.adapters import (
     CamerasIdentityAdapter,
+    Detections3DBEVAdapter,
     FutureStatesIdentityAdapter,
     HDMapBEVAdapter,
     IntentIdentityAdapter,
@@ -18,6 +19,8 @@ from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.constants import PREFERENCE_TRAJECTORIES_KEY
 from standard_e2e.data_structures import (
     CameraData,
+    Detection3D,
+    FrameDetections3D,
     HDMap,
     LidarData,
     LidarPointCloud,
@@ -27,10 +30,12 @@ from standard_e2e.data_structures import (
 )
 from standard_e2e.enums import (
     CameraDirection,
+    DetectionType,
     LidarComponent,
     MapElementType,
     Modality,
 )
+from standard_e2e.enums import TrajectoryComponent as TC
 
 # --- Helpers -----------------------------------------------------------------
 
@@ -426,3 +431,151 @@ def test_hdmap_bev_adapter_invalid_args_raise():
         HDMapBEVAdapter(pixels_per_meter=0.5)
     with pytest.raises(ValueError):
         HDMapBEVAdapter(polyline_thickness=0)
+
+
+# --- Detections3DBEVAdapter --------------------------------------------------
+
+
+def _det(
+    detection_type: DetectionType,
+    x: float,
+    y: float,
+    heading: float = 0.0,
+    length: float = 4.0,
+    width: float = 2.0,
+    agent_id: str = "a0",
+) -> Detection3D:
+    return Detection3D(
+        unique_agent_id=agent_id,
+        detection_type=detection_type,
+        trajectory=Trajectory(
+            {
+                TC.TIMESTAMP: [0.0],
+                TC.X: [x],
+                TC.Y: [y],
+                TC.Z: [0.0],
+                TC.HEADING: [heading],
+                TC.LENGTH: [length],
+                TC.WIDTH: [width],
+                TC.HEIGHT: [1.5],
+            }
+        ),
+    )
+
+
+def _detections_frame(detections: list[Detection3D]) -> StandardFrameData:
+    return make_frame(frame_detections_3d=FrameDetections3D(detections=detections))
+
+
+def test_detections_bev_adapter_default_shape_and_empty():
+    out = Detections3DBEVAdapter().transform(_detections_frame([]))
+    bev = out[Modality.DETECTIONS_3D_BEV]
+    assert bev.dtype == np.float32
+    assert bev.shape == (len(DetectionType), 256, 256)
+    assert bev.max() == 0.0
+
+
+def test_detections_bev_adapter_renders_box_on_correct_class_channel():
+    # 4 m x 2 m vehicle at origin, heading 0; VEHICLE channel should be hot.
+    out = Detections3DBEVAdapter(
+        classes=[DetectionType.VEHICLE, DetectionType.PEDESTRIAN]
+    ).transform(_detections_frame([_det(DetectionType.VEHICLE, 0.0, 0.0)]))
+    bev = out[Modality.DETECTIONS_3D_BEV]
+    assert bev.shape == (2, 256, 256)
+    assert bev[0].max() == 1.0
+    assert bev[1].max() == 0.0
+
+
+def test_detections_bev_adapter_filled_box_pixel_count():
+    # 4 m x 2 m box at origin, heading 0, at 4 ppm: 16x8 = 128 pixels filled.
+    out = Detections3DBEVAdapter(classes=[DetectionType.VEHICLE]).transform(
+        _detections_frame([_det(DetectionType.VEHICLE, 0.0, 0.0)])
+    )
+    bev = out[Modality.DETECTIONS_3D_BEV]
+    n_hot = int((bev[0] > 0).sum())
+    # cv2.fillPoly may include / exclude boundary pixels; allow a small band.
+    assert 100 < n_hot < 160
+
+
+def test_detections_bev_adapter_rotation_changes_footprint():
+    # Same box rotated 90 deg should occupy the same total area but have its
+    # length / width axes swapped in the BEV.
+    box_axis = Detections3DBEVAdapter(classes=[DetectionType.VEHICLE]).transform(
+        _detections_frame([_det(DetectionType.VEHICLE, 0.0, 0.0, heading=0.0)])
+    )[Modality.DETECTIONS_3D_BEV][0]
+    box_rot = Detections3DBEVAdapter(classes=[DetectionType.VEHICLE]).transform(
+        _detections_frame([_det(DetectionType.VEHICLE, 0.0, 0.0, heading=np.pi / 2)])
+    )[Modality.DETECTIONS_3D_BEV][0]
+    # Areas comparable.
+    assert abs(int((box_axis > 0).sum()) - int((box_rot > 0).sum())) < 20
+    # Bounding-box aspect should swap. A heading-0 box has its length (4 m)
+    # along vehicle x (rows) and width (2 m) along vehicle y (cols); rotating
+    # 90 deg swaps those, so the rotated footprint occupies fewer rows but
+    # more columns.
+    rows_axis = np.where(box_axis.any(axis=1))[0]
+    rows_rot = np.where(box_rot.any(axis=1))[0]
+    cols_axis = np.where(box_axis.any(axis=0))[0]
+    cols_rot = np.where(box_rot.any(axis=0))[0]
+    assert (rows_axis.max() - rows_axis.min()) > (rows_rot.max() - rows_rot.min())
+    assert (cols_axis.max() - cols_axis.min()) < (cols_rot.max() - cols_rot.min())
+
+
+def test_detections_bev_adapter_excluded_class_dropped():
+    out = Detections3DBEVAdapter(classes=[DetectionType.PEDESTRIAN]).transform(
+        _detections_frame([_det(DetectionType.VEHICLE, 0.0, 0.0)])
+    )
+    bev = out[Modality.DETECTIONS_3D_BEV]
+    assert bev.shape == (1, 256, 256)
+    assert bev.max() == 0.0
+
+
+def test_detections_bev_adapter_out_of_extent_box_skipped():
+    # Detection 1000 m forward is outside the default 32 m extent; cv2.fillPoly
+    # silently clips, so the canvas should remain empty.
+    out = Detections3DBEVAdapter(classes=[DetectionType.VEHICLE]).transform(
+        _detections_frame([_det(DetectionType.VEHICLE, 1000.0, 0.0)])
+    )
+    bev = out[Modality.DETECTIONS_3D_BEV]
+    assert bev.max() == 0.0
+
+
+def test_detections_bev_adapter_zero_dimension_box_skipped():
+    out = Detections3DBEVAdapter(classes=[DetectionType.VEHICLE]).transform(
+        _detections_frame(
+            [_det(DetectionType.VEHICLE, 0.0, 0.0, length=0.0, width=0.0)]
+        )
+    )
+    assert out[Modality.DETECTIONS_3D_BEV].max() == 0.0
+
+
+def test_detections_bev_adapter_missing_detections_returns_empty():
+    assert Detections3DBEVAdapter().transform(make_frame()) == {}
+
+
+def test_detections_bev_adapter_accepts_string_classes_for_yaml_configs():
+    by_str = Detections3DBEVAdapter(classes=["vehicle", "pedestrian"])
+    by_enum = Detections3DBEVAdapter(
+        classes=[DetectionType.VEHICLE, DetectionType.PEDESTRIAN]
+    )
+    assert by_str.classes == by_enum.classes
+    assert by_str.output_shape == by_enum.output_shape
+
+
+def test_detections_bev_adapter_unknown_class_raises():
+    with pytest.raises(ValueError, match="not_a_real_class"):
+        Detections3DBEVAdapter(classes=["vehicle", "not_a_real_class"])
+
+
+def test_detections_bev_adapter_metadata_lists_channels_in_order():
+    adapter = Detections3DBEVAdapter(classes=["pedestrian", "vehicle"])
+    assert adapter.metadata == {"detections_3d_bev_channels": ["pedestrian", "vehicle"]}
+    assert Detections3DBEVAdapter().metadata == {
+        "detections_3d_bev_channels": [t.value for t in DetectionType]
+    }
+
+
+def test_detections_bev_adapter_invalid_args_raise():
+    with pytest.raises(ValueError):
+        Detections3DBEVAdapter(min_x=10.0, max_x=10.0)
+    with pytest.raises(ValueError):
+        Detections3DBEVAdapter(pixels_per_meter=0.5)
