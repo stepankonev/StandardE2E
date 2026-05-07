@@ -43,3 +43,13 @@ Argoverse 2 Lidar
 
    standard_e2e.caching.src_datasets.av2_lidar.Av2LidarDatasetProcessor
    standard_e2e.caching.src_datasets.av2_lidar.Av2LidarDatasetConverter
+
+NAVSIM
+------
+
+.. autosummary::
+   :toctree: generated/caching
+   :nosignatures:
+
+   standard_e2e.caching.src_datasets.navsim.NavsimDatasetProcessor
+   standard_e2e.caching.src_datasets.navsim.NavsimDatasetConverter

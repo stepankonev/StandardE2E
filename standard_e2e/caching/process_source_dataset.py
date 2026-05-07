@@ -11,6 +11,10 @@ from standard_e2e.caching.src_datasets.av2_sensor import (
     Av2SensorDatasetConverter,
     Av2SensorDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.navsim import (
+    NavsimDatasetConverter,
+    NavsimDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.waymo_e2e import (
     WaymoE2EDatasetConverter,
     WaymoE2EDatasetProcessor,
@@ -43,6 +47,7 @@ def main(argv=None):
         "waymo_perception": WaymoPerceptionDatasetConverter,
         "av2_sensor": Av2SensorDatasetConverter,
         "av2_lidar": Av2LidarDatasetConverter,
+        "navsim": NavsimDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -51,6 +56,7 @@ def main(argv=None):
         "waymo_perception": WaymoPerceptionDatasetProcessor,
         "av2_sensor": Av2SensorDatasetProcessor,
         "av2_lidar": Av2LidarDatasetProcessor,
+        "navsim": NavsimDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -60,7 +66,7 @@ def main(argv=None):
     arguments = converter_cls_typed.get_arg_parser().parse_args(rest)
     config = load_yaml_config(arguments.config_file)
     adapters = get_adapters_from_config(config["preprocessing"]["adapters"])
-    dataset_processor = dataset_processor_cls(  # type: ignore[abstract]
+    dataset_processor = dataset_processor_cls(
         common_output_path=arguments.output_path,
         split=arguments.split,
         adapters=adapters,

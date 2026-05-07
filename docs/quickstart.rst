@@ -78,6 +78,41 @@ and short-circuits the camera + detection helpers so the missing
 modalities surface as defaults at training time via
 :class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`.
 
+For NAVSIM (OpenScene-v1.1) the input path points at the OpenScene
+root containing ``navsim_logs/``, ``sensor_blobs/`` and ``maps/``
+subdirectories. Only the ``trainval`` split is published; users sample
+train/val/test subsets from it via ``SceneFilter`` (NAVSIM upstream) or
+custom filters on top of the produced index.parquet.
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.caching.process_source_dataset navsim \
+       --input_path=path/to/openscene-v1.1 \
+       --output_path=path/to/output \
+       --split=trainval \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+The NAVSIM processor surfaces all 6 modalities (cameras, lidar, HD
+map, 3D detections, driving command via :class:`~standard_e2e.enums.Intent`,
+past/future ego trajectory). HD-map extraction goes through nuPlan's
+:class:`AbstractMap` API loaded from ``maps/<city>/<version>/map.gpkg``;
+the maps root is resolved with the precedence ``maps_root_path``
+constructor arg → ``NUPLAN_MAPS_ROOT`` env var (NAVSIM convention) →
+``<input_path>/maps`` (OpenScene-v1.1 layout). nuPlan's vector layers
+are translated through the unified
+:class:`~standard_e2e.enums.MapElementType` taxonomy — see the
+``_navsim_map.py`` translation table for the per-layer rules.
+
+.. note::
+
+   nuPlan's ``GPKGMapsDB`` writes a ``.maplocks/`` directory next to
+   the maps root. If the dataset itself lives on a read-only mount,
+   create a writable mirror once with the JSON manifest copied and the
+   city directories symlinked, then point ``NUPLAN_MAPS_ROOT`` (or
+   ``--maps_root_path=``) at the mirror.
+
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**
    pipeline stages: the per-frame conversion (one frame per worker) and
