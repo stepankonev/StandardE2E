@@ -94,13 +94,24 @@ custom filters on top of the produced index.parquet.
        --config_file=path/to/config.yaml \
        --do_parallel_processing
 
-Phase 1 of the NAVSIM processor surfaces 5/6 modalities (cameras,
-lidar, 3D detections, driving command via :class:`~standard_e2e.enums.Intent`,
-past/future ego trajectory). HD-map extraction is deferred — it
-requires loading nuPlan ``map.gpkg`` files via ``nuplan.common.maps``
-and translating them through the unified
-:class:`~standard_e2e.enums.MapElementType` taxonomy, which is its own
-design exercise and will land in a follow-up.
+The NAVSIM processor surfaces all 6 modalities (cameras, lidar, HD
+map, 3D detections, driving command via :class:`~standard_e2e.enums.Intent`,
+past/future ego trajectory). HD-map extraction goes through nuPlan's
+:class:`AbstractMap` API loaded from ``maps/<city>/<version>/map.gpkg``;
+the maps root is resolved with the precedence ``maps_root_path``
+constructor arg → ``NUPLAN_MAPS_ROOT`` env var (NAVSIM convention) →
+``<input_path>/maps`` (OpenScene-v1.1 layout). nuPlan's vector layers
+are translated through the unified
+:class:`~standard_e2e.enums.MapElementType` taxonomy — see the
+``_navsim_map.py`` translation table for the per-layer rules.
+
+.. note::
+
+   nuPlan's ``GPKGMapsDB`` writes a ``.maplocks/`` directory next to
+   the maps root. If the dataset itself lives on a read-only mount,
+   create a writable mirror once with the JSON manifest copied and the
+   city directories symlinked, then point ``NUPLAN_MAPS_ROOT`` (or
+   ``--maps_root_path=``) at the mirror.
 
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**
