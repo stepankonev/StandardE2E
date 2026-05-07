@@ -128,3 +128,49 @@ def test_process_raises_on_timestamp_mismatch(tmp_path: Path):
     aggr = _TestAggregator(str(tmp_path))
     with pytest.raises(ValueError):
         aggr.process(bad_index)
+
+
+def test_process_parallel_matches_sequential(tmp_path: Path):
+    """Per-segment fan-out across a process pool must match the sequential path
+    npz-for-npz; segments are independent so order is irrelevant."""
+    seg_specs = [
+        ("segP1", [0.0, 0.5, 1.0]),
+        ("segP2", [0.0, 1.0, 2.0]),
+        ("segP3", [0.0, 0.4, 0.8, 1.2]),
+    ]
+    seq_root = tmp_path / "seq"
+    par_root = tmp_path / "par"
+    all_frames = []
+    for sid, ts in seg_specs:
+        all_frames.extend(_write_frames(seq_root, sid, ts))
+        _write_frames(par_root, sid, ts)
+    index_df = _index_from_frames(all_frames)
+
+    _TestAggregator(str(seq_root)).process(index_df, do_parallel=False)
+    # ``fork`` for the test: the helper ``_TestAggregator`` lives in this test
+    # module which has no ``__init__.py`` package path, so a ``spawn`` worker
+    # would not be able to re-import it for unpickling. Production code runs
+    # ``spawn`` (the default) where the aggregator class lives in an installed
+    # package — see the ``start_method`` docstring on ``process``.
+    _TestAggregator(str(par_root)).process(
+        index_df, num_workers=2, do_parallel=True, start_method="fork"
+    )
+
+    for f in all_frames:
+        seq_reload = TransformedFrameData.from_npz(os.path.join(seq_root, f.filename))
+        par_reload = TransformedFrameData.from_npz(os.path.join(par_root, f.filename))
+        assert seq_reload.aux_data == par_reload.aux_data
+
+
+def test_process_single_segment_skips_pool(tmp_path: Path):
+    """Single-segment indices fall through to the sequential branch even when
+    ``do_parallel`` is requested — guards against spawning a 1-worker pool."""
+    frames = _write_frames(tmp_path, "segOnlyOne", [0.0, 1.0, 2.0])
+    aggr = _TestAggregator(str(tmp_path))
+    aggr.process(_index_from_frames(frames), num_workers=8, do_parallel=True)
+    for i, f in enumerate(frames):
+        reloaded = TransformedFrameData.from_npz(os.path.join(tmp_path, f.filename))
+        aux = reloaded.aux_data
+        assert aux is not None
+        assert aux["history_count"] == i + 1
+        assert aux["future_count"] == len(frames) - (i + 1)
