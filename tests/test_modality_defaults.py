@@ -1,9 +1,14 @@
 import numpy as np
 import pytest
 
-from standard_e2e.caching.adapters import HDMapBEVAdapter, LidarBEVAdapter
+from standard_e2e.caching.adapters import (
+    Detections3DBEVAdapter,
+    HDMapBEVAdapter,
+    LidarBEVAdapter,
+)
 from standard_e2e.data_structures import LidarPointCloud, Trajectory
 from standard_e2e.dataset_utils.modality_defaults import (
+    Detections3DBEVDefaults,
     HDMapBEVDefaults,
     IntentDefaults,
     LidarBEVDefaults,
@@ -12,7 +17,7 @@ from standard_e2e.dataset_utils.modality_defaults import (
     PreferredTrajectoryDefaults,
     _check_modality_defaults_dict,
 )
-from standard_e2e.enums import Intent, LidarComponent, Modality
+from standard_e2e.enums import DetectionType, Intent, LidarComponent, Modality
 
 
 class DummyDefaults(ModalityDefaults):
@@ -201,5 +206,40 @@ def test_hdmap_bev_defaults_invalid_shape_raises():
 
 def test_hdmap_bev_defaults_wrong_modality():
     handler = HDMapBEVDefaults(shape=(1, 4, 4))
+    with pytest.raises(ValueError):
+        handler.normalize(None, Modality.INTENT)
+
+
+def test_detections_3d_bev_defaults_returns_zeros_when_none():
+    handler = Detections3DBEVDefaults(shape=(5, 4, 4))
+    val = handler.normalize(None, Modality.DETECTIONS_3D_BEV)
+    assert isinstance(val, np.ndarray)
+    assert val.shape == (5, 4, 4)
+    assert val.dtype == np.float32
+    assert (val == 0).all()
+
+
+def test_detections_3d_bev_defaults_passes_through_existing():
+    handler = Detections3DBEVDefaults(shape=(5, 4, 4))
+    existing = np.ones((5, 4, 4), dtype=np.float32)
+    assert handler.normalize(existing, Modality.DETECTIONS_3D_BEV) is existing
+
+
+def test_detections_3d_bev_defaults_from_adapter_matches_shape():
+    handler = Detections3DBEVDefaults.from_adapter(Detections3DBEVAdapter())
+    val = handler.normalize(None, Modality.DETECTIONS_3D_BEV)
+    # Default Detections3DBEVAdapter: one channel per DetectionType, 64m/4ppm.
+    assert val.shape == (len(DetectionType), 256, 256)
+
+
+def test_detections_3d_bev_defaults_invalid_shape_raises():
+    with pytest.raises(ValueError):
+        Detections3DBEVDefaults(shape=(1, 4))  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        Detections3DBEVDefaults(shape=(0, 4, 4))
+
+
+def test_detections_3d_bev_defaults_wrong_modality():
+    handler = Detections3DBEVDefaults(shape=(1, 4, 4))
     with pytest.raises(ValueError):
         handler.normalize(None, Modality.INTENT)

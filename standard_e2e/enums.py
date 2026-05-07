@@ -17,6 +17,7 @@ class Modality(StrEnum):
     PAST_STATES = "past_states"
     PREFERENCE_TRAJECTORY = "preference_trajectory"
     DETECTIONS_3D = "detections_3d"
+    DETECTIONS_3D_BEV = "detections_3d_bev"
 
 
 class CameraDirection(StrEnum):
