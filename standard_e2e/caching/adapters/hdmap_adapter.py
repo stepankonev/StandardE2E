@@ -104,6 +104,10 @@ class HDMapBEVAdapter(AbstractAdapter):
         return "HDMapBEVAdapter"
 
     @property
+    def consumes_attrs(self) -> set[str]:
+        return {"hd_map"}
+
+    @property
     def channels(self) -> list[MapElementType]:
         """Resolved ordered channel list (read-only view)."""
         return list(self._channels)

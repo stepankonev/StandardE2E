@@ -410,10 +410,26 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         # ascend three levels to <input_path>, then descend into sensor_blobs.
         sensor_blobs_root = log_path.parent.parent.parent / "sensor_blobs" / self._split
 
-        cameras = self._build_camera_dict(sensor_blobs_root, frame)
-        lidar = self._build_lidar(sensor_blobs_root, frame)
-        detections = self._build_detections(frame, timestamp_s)
-        intent = _driving_command_to_intent(frame["driving_command"])
+        cameras = (
+            self._build_camera_dict(sensor_blobs_root, frame)
+            if self.needs_attr("cameras")
+            else {}
+        )
+        lidar = (
+            self._build_lidar(sensor_blobs_root, frame)
+            if self.needs_attr("lidar")
+            else None
+        )
+        detections = (
+            self._build_detections(frame, timestamp_s)
+            if self.needs_attr("frame_detections_3d")
+            else []
+        )
+        intent = (
+            _driving_command_to_intent(frame["driving_command"])
+            if self.needs_attr("intent")
+            else None
+        )
 
         ego_translation = np.asarray(frame["ego2global_translation"], dtype=np.float32)
         ego_rotation = _quat_to_rotmat_wxyz(*frame["ego2global_rotation"])
@@ -421,7 +437,11 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
             ego_rotation, ego_translation
         )
         x, y, z, heading = matrix_to_xyz_heading(T_global_from_ego)
-        hd_map = self._build_hd_map(log_path, frame, T_global_from_ego)
+        hd_map = (
+            self._build_hd_map(log_path, frame, T_global_from_ego)
+            if self.needs_attr("hd_map")
+            else None
+        )
 
         return StandardFrameData(
             dataset_name=self.dataset_name,

@@ -99,6 +99,10 @@ class Detections3DBEVAdapter(AbstractAdapter):
         return "Detections3DBEVAdapter"
 
     @property
+    def consumes_attrs(self) -> set[str]:
+        return {"frame_detections_3d"}
+
+    @property
     def classes(self) -> list[DetectionType]:
         """Resolved ordered class list (read-only view)."""
         return list(self._classes)

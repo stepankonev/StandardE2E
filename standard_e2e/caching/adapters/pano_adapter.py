@@ -38,6 +38,10 @@ class PanoImageAdapter(AbstractAdapter):
     def name(self) -> str:
         return "pano_image_adapter"
 
+    @property
+    def consumes_attrs(self) -> set[str]:
+        return {"cameras"}
+
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         """Transform cameras data to a single panoramic image."""
         # Datasets without a camera rig (e.g. AV2 lidar) ship an empty
