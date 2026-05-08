@@ -24,6 +24,13 @@ class Av2LidarDatasetConverter(SourceDatasetConverter):
     With ``STANDARD_E2E_DEBUG=true`` only the first log is processed.
     """
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        # AV2 LiDAR's worker hot path is pyarrow + numpy only; no TF or cv2
+        # ops fire inside the worker, so ``fork`` is safe and avoids the
+        # ~5 s/worker import tax incurred by ``spawn``.
+        return "fork"
+
     def _get_source_dataset_iterator(self) -> Iterator[tuple[Path, int]]:
         split_root = Path(self._input_path) / self._split
         if not split_root.is_dir():

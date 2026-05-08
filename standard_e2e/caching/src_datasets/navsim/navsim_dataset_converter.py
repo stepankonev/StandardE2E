@@ -28,6 +28,13 @@ class NavsimDatasetConverter(SourceDatasetConverter):
     With ``STANDARD_E2E_DEBUG=true`` only the first log is processed.
     """
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        # NAVSIM's worker hot path uses pickle + nuplan map API + numpy /
+        # PIL only; no TF ops fire inside the worker, so ``fork`` is safe
+        # and avoids the ~5 s/worker import tax incurred by ``spawn``.
+        return "fork"
+
     def _get_source_dataset_iterator(self) -> Iterator[tuple[Path, int]]:
         log_root = Path(self._input_path) / "navsim_logs" / self._split
         if not log_root.is_dir():

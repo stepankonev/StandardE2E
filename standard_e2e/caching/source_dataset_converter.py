@@ -95,6 +95,25 @@ class SourceDatasetConverter(ABC):
         """Return an iterator over the source dataset."""
         raise NotImplementedError("Subclasses must implement this method.")
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        """Start method for the worker pool.
+
+        Default ``"spawn"`` is the conservative choice: TensorFlow and
+        OpenCV both keep global thread / mutex state that ``fork()``
+        inherits in a deadlock-prone way (typically before the first
+        frame completes). Spawn pays a per-worker import cost (~5 s per
+        worker, dominated by TensorFlow) but is the safe pattern for any
+        worker that may run TF or cv2 work post-fork.
+
+        Subclasses whose worker hot path is fully TF-free (no
+        ``tf.io.decode_image``, no ``frame_utils.*`` calls, etc.) may
+        override to ``"fork"`` to avoid the spawn import tax. This is a
+        very large speedup on small / DEBUG runs and a meaningful one on
+        full splits.
+        """
+        return "spawn"
+
     @final
     def _run_context_aggregators(self, index_df: pd.DataFrame) -> None:
         logging.info("Running context aggregators...")
@@ -125,13 +144,11 @@ class SourceDatasetConverter(ABC):
                 "Using parallel processing with %d workers for dataset conversion.",
                 self._num_workers,
             )
-            # Spawn rather than fork: TensorFlow and OpenCV both keep global
-            # thread / mutex state that is left inconsistent by fork(),
-            # producing silent deadlocks in workers (typically before the
-            # first frame completes). Spawn pays a per-worker import cost
-            # (~5 s per worker) but is the recommended pattern for any
-            # multiprocessing.Pool that runs TF or cv2 work post-fork.
-            ctx = multiprocessing.get_context("spawn")
+            # Start method comes from the converter subclass — see
+            # ``SourceDatasetConverter.multiprocessing_start_method`` for the
+            # default ``"spawn"`` rationale and the ``"fork"`` opt-out.
+            ctx = multiprocessing.get_context(self.multiprocessing_start_method)
+            logging.info("Pool start method: %s", self.multiprocessing_start_method)
             with ctx.Pool(self._num_workers) as pool:
                 results = list(
                     tqdm(

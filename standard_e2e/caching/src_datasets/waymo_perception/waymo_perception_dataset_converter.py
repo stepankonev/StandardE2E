@@ -24,6 +24,18 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
     the training split (~800 segments) is ~8 s.
     """
 
+    # ``forkserver``: a single helper process imports the heavy ML stack
+    # (TF, numpy, av2, etc.) once, and each worker is forked from that
+    # helper before any TF op fires inside it. That sidesteps the
+    # ``fork`` deadlock (parent's already-active TF threads being inherited
+    # by workers) while only paying the import cost once instead of once
+    # per worker, as ``spawn`` does. Empirically validated on a Waymo
+    # Perception 1-tfrecord smoke run: ``fork`` hangs at 0 frames after
+    # 180 s; ``forkserver`` completes in 43 s.
+    @property
+    def multiprocessing_start_method(self) -> str:
+        return "forkserver"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._prescan_maps()

@@ -7,6 +7,15 @@ from standard_e2e.caching import TFRecSourceDatasetConverter
 class WaymoE2EDatasetConverter(TFRecSourceDatasetConverter):
     """Converter for the Waymo E2E dataset."""
 
+    # Match ``WaymoPerceptionDatasetConverter``: workers do call TF
+    # (tf.io.decode_image per camera), and the parent iterates a tf.data
+    # dataset, so ``fork`` would inherit corrupt TF threadpool state.
+    # ``forkserver`` pays the heavy import cost once in a helper process
+    # and forks workers from that helper before TF state is touched.
+    @property
+    def multiprocessing_start_method(self) -> str:
+        return "forkserver"
+
     def __init__(
         self,
         source_processor,
