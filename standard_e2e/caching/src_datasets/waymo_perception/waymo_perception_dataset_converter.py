@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 import tensorflow as tf
 from tqdm import tqdm
@@ -35,6 +36,17 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
     @property
     def multiprocessing_start_method(self) -> str:
         return "forkserver"
+
+    # Pool throughput peaks around 8 workers on this dataset and regresses
+    # past that. The prescanned HD-map cache (~200 MB pickled) is shipped
+    # to each worker via ``Pool.initializer`` once at startup; beyond that
+    # initialisation cost, ``Pool``'s per-task dispatch latency grows with
+    # the worker count and starves workers. Measured on a 2-tfrecord slice
+    # (full chain): par-1=2.0, par-8=5.4 (peak), par-16=3.7, par-32=2.0
+    # frames/s. Cap accordingly.
+    @property
+    def max_workers(self) -> Optional[int]:
+        return 8
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
