@@ -38,8 +38,11 @@ from standard_e2e.indexing import IndexDataGenerator
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
-from standard_e2e.third_party.waymo_open_dataset.utils import frame_utils
 from standard_e2e.utils import matrix_to_xyz_heading
+from standard_e2e.utils.waymo_lidar_numpy import (
+    numpy_convert_range_image_to_point_cloud,
+    numpy_parse_range_image_and_camera_projection,
+)
 from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
 )
@@ -378,11 +381,14 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         )
 
         if self.needs_attr("lidar"):
-            range_images, camera_projections, _, range_image_top_pose = (
-                frame_utils.parse_range_image_and_camera_projection(frame)
+            # Pure-numpy decode (see ``standard_e2e/utils/waymo_lidar_numpy.py``)
+            # — avoids TF runtime overhead in the worker hot path, which
+            # at par-32 dominated per-frame wall time.
+            range_images, _, _, range_image_top_pose = (
+                numpy_parse_range_image_and_camera_projection(frame)
             )
-            points_per_laser, _ = frame_utils.convert_range_image_to_point_cloud(
-                frame, range_images, camera_projections, range_image_top_pose
+            points_per_laser = numpy_convert_range_image_to_point_cloud(
+                frame, range_images, range_image_top_pose
             )
             lidar_xyz = np.concatenate(points_per_laser, axis=0).astype(np.float32)
             lidar: Optional[LidarData] = LidarData(
