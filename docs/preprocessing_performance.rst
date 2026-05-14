@@ -41,19 +41,43 @@ Measured full-split run (Waymo Perception training)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Validated with an end-to-end run of the production CLI on the full
-training split (798 tfrecords, ~158 k frames), par-32, full-modality
-chain, cold page cache:
+training split (798 tfrecords, 158 081 frames), par-32, full-modality
+chain, cold page cache. Wall: **89 min 37 s** end-to-end.
 
-- HD-map prescan (parallel, 8 threads, 798 files): **~16 s**
-  (vs ~40 min sequential in the original code path).
-- Pool startup (forkserver, 32 workers + initializer): ~5 s.
-- Frame stage steady-state: ~46–54 fr/s sustained; ~32 fr/s in the
-  tail as the last large logs flush.
-- Wall-clock total: **~60–65 min** for the full split.
+==========================================  ============  ===============
+phase                                        seconds       fraction
+==========================================  ============  ===============
+HD-map prescan (parallel, 8 threads)         ~16           0.3%
+Pool startup (forkserver + initializer)      ~5            0.1%
+**Frame stage** (158 081 frames @ ~41 fr/s)  **~3 860**    **71.8%**
+``FuturePastStatesFromMatricesAggregator``   ~90           1.7%
+``FutureDetectionsAggregator``               ~1 400        26.0%
+Index + teardown                             ~6            0.1%
+**Total wall**                               **5 377 s**   **100%**
+==========================================  ============  ===============
 
-The progress is mostly linear (no warmup tail, since per-worker
-initializer happens once and the disk-spilled HD-map cache amortizes
-across all 32 workers).
+Frame-stage steady-state ran at ~46–54 fr/s through the bulk of the
+run (only the very last few large logs slow it down as workers
+finish). The disk-spilled HD-map cache and the numpy lidar decode are
+the reason this stage stays >40 fr/s sustained at par-32; on the
+original ``main`` code path the same chain ran at ~0.57 fr/s,
+projecting to ~76 h for these 158 081 frames — so the new code path is
+**~50× faster** at the frame stage on this split.
+
+The ``FutureDetectionsAggregator`` is now the single biggest single
+cost in the pipeline — ~23 min on its own, vs ~64 min for the frame
+stage. It rasterises per-frame future-detection trajectories from
+segment-level sequences; that's a separate stage and would be an
+obvious next target for optimisation.
+
+Output footprint for the full split:
+
+- ``.npz`` frame files: **19 GB** total (~120 KB/frame after the
+  aggregators add per-frame future/past state arrays; ~44 KB/frame
+  before they run).
+- ``_map_cache/`` (intermediate prescan scratch, safe to delete after
+  preprocessing): 186 MB.
+- ``index.parquet``: 4.2 MB.
 
 What makes it fast
 ------------------
