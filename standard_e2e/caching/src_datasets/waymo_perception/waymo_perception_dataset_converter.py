@@ -1,5 +1,6 @@
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import tensorflow as tf
@@ -75,9 +76,29 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
         if os.environ.get("STANDARD_E2E_DEBUG", "false").lower() == "true":
             files = files[:1]
         logging.info("Pre-scanning %d tfrecord(s) for HD-map features", len(files))
-        for f in tqdm(files, desc="Pre-scanning HD maps"):
+
+        # Read frame 0 of each tfrecord in a small thread pool. The work is
+        # mostly HDD I/O (open + read first record); the kernel's NCQ can
+        # serve several reads concurrently, and Python releases the GIL for
+        # the blocking syscall. ``ParseFromString`` is CPU-bound and holds
+        # the GIL, but the per-file proto is small enough that the I/O
+        # parallelism still dominates. The result-writing step
+        # (``cache_method``) is serialized below to avoid a race on the
+        # processor's ``_segment_map_cache`` dict.
+        n_threads = int(os.environ.get("WP_PRESCAN_THREADS", "8"))
+
+        def _read_first(f):
             for raw in tf.data.TFRecordDataset([f]).take(1):
                 frame = WaymoFrame()
                 frame.ParseFromString(raw.numpy())
-                if frame.map_features:
-                    cache_method(frame.context.name, frame.map_features)
+                return frame.context.name, list(frame.map_features)
+            return None, []
+
+        with ThreadPoolExecutor(max_workers=n_threads) as pool:
+            for seg_name, map_features in tqdm(
+                pool.map(_read_first, files),
+                total=len(files),
+                desc="Pre-scanning HD maps",
+            ):
+                if seg_name is not None and map_features:
+                    cache_method(seg_name, map_features)
