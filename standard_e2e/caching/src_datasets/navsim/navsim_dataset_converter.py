@@ -54,12 +54,16 @@ class NavsimDatasetConverter(SourceDatasetConverter):
             "Found %d NAVSIM log(s) for split '%s'.", len(log_files), self._split
         )
 
-        def _iter() -> Iterator[tuple[Path, int]]:
-            for log_path in log_files:
-                # Length-only peek; the processor caches the full payload itself.
-                with open(log_path, "rb") as fp:
-                    n_frames = len(pickle.load(fp))
-                for frame_idx in range(n_frames):
-                    yield (log_path, frame_idx)
-
-        return _iter()
+        # Pre-list all (log_path, frame_idx) tuples up front. The per-log
+        # length peek (``pickle.load``) is sequential here rather than
+        # interleaved with worker reads during processing; on HDD this
+        # also reduces seek contention between parent's per-log reads
+        # and workers' per-frame reads.
+        items: list[tuple[Path, int]] = []
+        for log_path in log_files:
+            with open(log_path, "rb") as fp:
+                n_frames = len(pickle.load(fp))
+            for frame_idx in range(n_frames):
+                items.append((log_path, frame_idx))
+        logging.info("Pre-listed %d NAVSIM frames.", len(items))
+        return iter(items)
