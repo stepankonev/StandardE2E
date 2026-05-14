@@ -38,16 +38,14 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
     def multiprocessing_start_method(self) -> str:
         return "forkserver"
 
-    # Pool throughput peaks around 8 workers on this dataset and regresses
-    # past that. The prescanned HD-map cache (~200 MB pickled) is shipped
-    # to each worker via ``Pool.initializer`` once at startup; beyond that
-    # initialisation cost, ``Pool``'s per-task dispatch latency grows with
-    # the worker count and starves workers. Measured on a 2-tfrecord slice
-    # (full chain): par-1=2.0, par-8=5.4 (peak), par-16=3.7, par-32=2.0
-    # frames/s. Cap accordingly.
+    # The prescan cache is now disk-spilled (see ``_prescan_maps``); each
+    # worker lazy-loads only the segments it touches rather than
+    # receiving the full ~200 MB through ``Pool.initializer``. With the
+    # per-worker initial-pickle cost removed, par-32 no longer regresses
+    # below par-8 on this dataset, so the previous cap is unnecessary.
     @property
     def max_workers(self) -> Optional[int]:
-        return 8
+        return None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,6 +57,17 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
         # adapter consumes ``hd_map`` — cameras-only / lidar-only chains
         # save the full prescan cost.
         if self._source_processor.needs_attr("hd_map"):
+            # Tell the processor to spill prescan results to disk so the
+            # in-memory cache stays empty and ``Pool.initializer`` doesn't
+            # ship hundreds of MB to every worker. Workers lazy-load per
+            # segment from these files on first hit.
+            cache_dir = os.path.join(
+                self._source_processor.specific_output_path,
+                "_map_cache",
+            )
+            # Concrete subclass attribute; not exposed on the abstract
+            # base.
+            setattr(self._source_processor, "_segment_cache_dir", cache_dir)
             self._prescan_maps()
 
     def _get_processing_files(self):

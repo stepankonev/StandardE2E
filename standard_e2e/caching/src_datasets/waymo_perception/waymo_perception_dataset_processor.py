@@ -1,3 +1,5 @@
+import os
+import pickle
 from typing import Any, Optional
 
 import numpy as np
@@ -135,6 +137,13 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         # successor_ids, predecessor_ids, left_neighbor_id,
         # right_neighbor_id, attrs.
         self._segment_map_cache: dict[str, list[dict[str, Any]]] = {}
+        # When set, prescanned segment data is spilled to disk as
+        # ``<dir>/<segment_id>.pkl``. The in-memory dict is then kept
+        # tiny (each worker lazily loads only the segments it touches).
+        # This is the path that lets the Pool initializer avoid shipping
+        # the entire ~200 MB cache to every worker — workers receive the
+        # processor with an empty in-memory dict + a path string instead.
+        self._segment_cache_dir: Optional[str] = None
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -237,13 +246,33 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                     "attrs": attrs,
                 }
             )
-        self._segment_map_cache[segment_id] = cached
+        if self._segment_cache_dir is not None:
+            # Disk-spill mode: write the per-segment cache to a file and
+            # drop the in-memory copy. Workers will lazy-load via
+            # ``_build_hd_map`` on first hit for the segment.
+            os.makedirs(self._segment_cache_dir, exist_ok=True)
+            tmp = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl.tmp")
+            final = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl")
+            with open(tmp, "wb") as fp:
+                pickle.dump(cached, fp, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, final)
+        else:
+            self._segment_map_cache[segment_id] = cached
 
     def _build_hd_map(
         self, segment_id: str, pose_world_from_vehicle: np.ndarray
     ) -> HDMap | None:
         """Apply inverse pose to the cached features and build vehicle-frame HDMap."""
         cached = self._segment_map_cache.get(segment_id)
+        if cached is None and self._segment_cache_dir is not None:
+            # Disk-spill mode: lazy-load this segment's cache from disk
+            # on first hit, then keep it in memory for subsequent frames
+            # of the same segment.
+            path = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl")
+            if os.path.exists(path):
+                with open(path, "rb") as fp:
+                    cached = pickle.load(fp)
+                self._segment_map_cache[segment_id] = cached
         if cached is None:
             return None
         T_v_w = np.linalg.inv(pose_world_from_vehicle).astype(np.float32)
