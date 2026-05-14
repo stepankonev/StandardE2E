@@ -50,7 +50,15 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._prescan_maps()
+        # The HD-map prescan reads frame 0 of every tfrecord (~3 s/file
+        # on HDD; ~40 min on the full training split) to populate the
+        # processor's ``_segment_map_cache``. The cache is only ever
+        # read inside ``_build_hd_map``, which is itself gated on
+        # ``needs_attr("hd_map")``. Skip the prescan entirely when no
+        # adapter consumes ``hd_map`` — cameras-only / lidar-only chains
+        # save the full prescan cost.
+        if self._source_processor.needs_attr("hd_map"):
+            self._prescan_maps()
 
     def _get_processing_files(self):
         """Return a list of files to process."""
