@@ -1,6 +1,9 @@
 import logging
 import os
+import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Optional
 
 import tensorflow as tf
@@ -49,6 +52,11 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Path of the transient HD-map prescan cache directory. ``None``
+        # when no adapter consumes ``hd_map`` (no prescan needed).
+        # Removed in ``_cleanup_after_convert`` once both the frame stage
+        # and the aggregator stage finish.
+        self._owned_cache_dir: Optional[str] = None
         # The HD-map prescan reads frame 0 of every tfrecord (~3 s/file
         # on HDD; ~40 min on the full training split) to populate the
         # processor's ``_segment_map_cache``. The cache is only ever
@@ -61,14 +69,80 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
             # in-memory cache stays empty and ``Pool.initializer`` doesn't
             # ship hundreds of MB to every worker. Workers lazy-load per
             # segment from these files on first hit.
-            cache_dir = os.path.join(
-                self._source_processor.specific_output_path,
-                "_map_cache",
-            )
+            cache_dir = self._pick_map_cache_dir()
+            self._owned_cache_dir = cache_dir
             # Concrete subclass attribute; not exposed on the abstract
             # base.
             setattr(self._source_processor, "_segment_cache_dir", cache_dir)
+            logging.info("HD-map prescan cache dir: %s", cache_dir)
             self._prescan_maps()
+
+    def _pick_map_cache_dir(self) -> str:
+        """Pick a fast random-access location for the prescan scratch cache.
+
+        Order of preference:
+
+        1. ``/dev/shm`` — Linux ``tmpfs``, RAM-backed, fastest random
+           access. Usually half of system RAM (plenty for the typical
+           ~200 MB cache); we skip it if free space looks too tight.
+        2. ``<output_path>`` — same volume as the produced ``.npz`` files,
+           which is assumed to be a fast SSD/NVMe (the same volume that
+           workers will be writing to anyway).
+        3. ``tempfile.gettempdir()`` — last resort. Often ``/tmp``,
+           which may sit on a slow rotational disk; the disk-spill
+           pattern relies on fast random-access reads so this is the
+           least-preferred choice.
+
+        Returns an exclusive directory created via ``tempfile.mkdtemp``;
+        :meth:`_cleanup_after_convert` removes it once ``convert()``
+        finishes.
+        """
+        estimated_bytes = (
+            500 * 1024 * 1024
+        )  # generous upper bound, full split is ~186 MB
+        candidates: list[Path] = [
+            Path("/dev/shm"),
+            Path(self._source_processor.specific_output_path),
+        ]
+        for cand in candidates:
+            if not cand.is_dir():
+                continue
+            try:
+                free = shutil.disk_usage(cand).free
+            except OSError:
+                continue
+            if free < estimated_bytes:
+                logging.info(
+                    "Skipping %s for HD-map cache: only %.0f MB free",
+                    cand,
+                    free / 1e6,
+                )
+                continue
+            return tempfile.mkdtemp(prefix="se2e_wp_map_cache_", dir=str(cand))
+        # Last resort — system default tempdir (often /tmp).
+        logging.warning(
+            "Falling back to system tempdir for HD-map cache; if /tmp is "
+            "on a slow disk this will hurt par-32 throughput."
+        )
+        return tempfile.mkdtemp(prefix="se2e_wp_map_cache_")
+
+    def _cleanup_after_convert(self) -> None:
+        """Remove the transient HD-map prescan cache directory, if any."""
+        if not self._owned_cache_dir:
+            return
+        if os.path.isdir(self._owned_cache_dir):
+            try:
+                shutil.rmtree(self._owned_cache_dir)
+                logging.info(
+                    "Removed transient HD-map cache dir %s", self._owned_cache_dir
+                )
+            except OSError as e:
+                logging.warning(
+                    "Failed to remove HD-map cache dir %s: %s",
+                    self._owned_cache_dir,
+                    e,
+                )
+        self._owned_cache_dir = None
 
     def _get_processing_files(self):
         """Return a list of files to process."""

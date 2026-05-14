@@ -236,8 +236,21 @@ class SourceDatasetConverter(ABC):
     @final
     def convert(self) -> None:
         """Convert all frames then run any configured context aggregators."""
-        index_df = self._convert_frames()
-        self._run_context_aggregators(index_df)
+        try:
+            index_df = self._convert_frames()
+            self._run_context_aggregators(index_df)
+        finally:
+            self._cleanup_after_convert()
+
+    def _cleanup_after_convert(self) -> None:
+        """Hook for subclasses to remove transient artifacts created at init
+        time (e.g. an HD-map prescan scratch dir).
+
+        Called from ``convert()``'s ``finally`` block so it runs whether
+        conversion succeeded or raised.
+        """
+        # Default no-op; subclasses override when they have something to
+        # clean up.
 
 
 class TFRecSourceDatasetConverter(SourceDatasetConverter, ABC):

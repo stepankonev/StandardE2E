@@ -75,9 +75,10 @@ Output footprint for the full split:
 - ``.npz`` frame files: **19 GB** total (~120 KB/frame after the
   aggregators add per-frame future/past state arrays; ~44 KB/frame
   before they run).
-- ``_map_cache/`` (intermediate prescan scratch, safe to delete after
-  preprocessing): 186 MB.
 - ``index.parquet``: 4.2 MB.
+- Transient HD-map prescan cache: ~186 MB during the run, placed in
+  ``/dev/shm`` (RAM) when available; removed automatically by the
+  converter once ``convert()`` finishes (success or failure).
 
 What makes it fast
 ------------------
@@ -118,9 +119,28 @@ for per-task dispatch.
 prescan reads frame 0 of every tfrecord to build a per-segment cache of
 ``map_features``. Rather than holding the ~200 MB cache in the parent
 (and pickling it to every worker), the prescan writes per-segment
-``.pkl`` files under ``<output_path>/_map_cache/``. Each worker
-lazy-loads only the segments it actually touches (~6 MB per worker
-vs ~200 MB).
+``.pkl`` files to a transient directory chosen for fast random access:
+
+1. ``/dev/shm/se2e_wp_map_cache_*`` — Linux ``tmpfs``, RAM-backed,
+   when present and with enough free space. This is the fast path.
+2. ``<output_path>/se2e_wp_map_cache_*`` — fallback when ``/dev/shm``
+   is missing or too small; same volume as the output ``.npz`` files,
+   which is usually fast SSD/NVMe.
+3. ``tempfile.gettempdir()`` — last resort. Logged as a warning
+   because ``/tmp`` is sometimes on a slow rotational disk and the
+   disk-spill pattern relies on fast random-access reads.
+
+The directory is created by ``tempfile.mkdtemp`` (unique name, no
+clash between concurrent runs) and removed in
+``_cleanup_after_convert`` regardless of whether ``convert()``
+succeeded or raised. Each worker lazy-loads only the segments it
+actually touches (~6 MB per worker vs ~200 MB).
+
+Empirically, with the in-memory alternative (let ``Pool.initializer``
+ship the 200 MB cache to every worker) par-32 throughput collapses
+from ~44 fr/s to ~7 fr/s on the smoke — workers hold a 200 MB
+resident set each, with the obvious memory-bandwidth and cache-thrash
+consequences. The disk-spill path is essential, not optional.
 
 **5. Pure-numpy Waymo lidar decode.** Upstream
 ``frame_utils.convert_range_image_to_point_cloud`` and
