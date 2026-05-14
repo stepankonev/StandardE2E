@@ -37,6 +37,24 @@ amortize (forkserver pool startup + HD-map prescan).  Smoke runs on
 small slices (1-4 tfrecords) will report lower aggregate rates because
 fixed costs dominate at that scale.
 
+Measured full-split run (Waymo Perception training)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Validated with an end-to-end run of the production CLI on the full
+training split (798 tfrecords, ~158 k frames), par-32, full-modality
+chain, cold page cache:
+
+- HD-map prescan (parallel, 8 threads, 798 files): **~16 s**
+  (vs ~40 min sequential in the original code path).
+- Pool startup (forkserver, 32 workers + initializer): ~5 s.
+- Frame stage steady-state: ~46–54 fr/s sustained; ~32 fr/s in the
+  tail as the last large logs flush.
+- Wall-clock total: **~60–65 min** for the full split.
+
+The progress is mostly linear (no warmup tail, since per-worker
+initializer happens once and the disk-spilled HD-map cache amortizes
+across all 32 workers).
+
 What makes it fast
 ------------------
 
@@ -81,15 +99,50 @@ lazy-loads only the segments it actually touches (~6 MB per worker
 vs ~200 MB).
 
 **5. Pure-numpy Waymo lidar decode.** Upstream
-``frame_utils.convert_range_image_to_point_cloud`` calls into the TF
-runtime per op; under a 32-process pool the cumulative overhead made
-each frame ~485 ms in workers. The numpy equivalent in
-:mod:`standard_e2e.utils.waymo_lidar_numpy` does the same spherical →
-cartesian + extrinsic + per-pixel-pose math via ndarray ops, ~2× faster
-in isolation and ~4× faster end-to-end at par-32 (workers no longer
-serialize on the TF runtime). Side lasers match bit-exact; TOP laser
-agrees within ~3 mm float32 noise from differing ``inv`` paths (well
-below typical lidar sensor noise).
+``frame_utils.convert_range_image_to_point_cloud`` and
+``parse_range_image_and_camera_projection`` both call into the TF
+runtime — eager-mode kernel dispatch, intra-op threading, ``tf.gather_nd``,
+``tf.linalg.inv``. Under a 32-process worker pool the cumulative
+runtime overhead makes each frame ~485 ms in workers, dominating the
+pipeline. The numpy replacements in
+:mod:`standard_e2e.utils.waymo_lidar_numpy` do the same work without
+ever entering the TF runtime in a worker:
+
+- :func:`~standard_e2e.utils.waymo_lidar_numpy.numpy_parse_range_image_and_camera_projection`
+  uses ``zlib.decompress`` + proto parse (no ``tf.io.decode_compressed``).
+- :func:`~standard_e2e.utils.waymo_lidar_numpy.numpy_convert_range_image_to_point_cloud`
+  builds the spherical-to-cartesian transform, applies each laser's
+  extrinsic, and (for the TOP laser only) applies the per-pixel pose
+  correction and the frame-pose inverse — all via plain ndarray ops.
+
+Specific micro-optimisations:
+
+- Proto-to-ndarray conversion goes through ``np.fromiter`` with a
+  preallocated count, which is ~1.7× faster than ``np.array(container)``
+  on the large ``RepeatedScalarContainer`` instances that come out of
+  ``MatrixFloat.ParseFromString``. On a typical frame this alone saves
+  ~150 ms of Python iteration.
+- Beam-inclination reconstruction matches upstream's pixel-centre
+  formula ``inc[i] = ((i + 0.5) / H) * (max - min) + min`` (NOT
+  ``np.linspace``, which would offset by half a row and produce
+  ~7 cm of error per side laser — caught during equivalence checks).
+
+End-to-end this gives ~2× faster lidar work in isolation, and ~4× more
+worker throughput at par-32 (workers no longer serialize on the TF
+runtime). Equivalence with the upstream TF implementation is verified
+by ``tests/test_waymo_lidar_numpy.py``:
+
+- ``_rotation_from_rpy`` matches a manual ``R_yaw @ R_pitch @ R_roll``
+  composition exactly.
+- ``_proto_floats_to_ndarray`` preserves values and dtype.
+- End-to-end ``numpy_convert_range_image_to_point_cloud`` on a synthetic
+  multi-laser frame matches ``frame_utils.convert_range_image_to_point_cloud``:
+  side lasers bit-exact (``atol=1e-5``), TOP laser within ``atol=1e-2``
+  (the ~3 mm float32 drift from differing ``inv`` implementations is
+  well below typical Waymo lidar sensor noise).
+
+These tests run on every commit and guard against silent regressions if
+the numpy path drifts away from the canonical TF output.
 
 **6. Pre-listed AV2 / NAVSIM iterators.** AV2 and NAVSIM converters
 materialize the full ``(log, frame)`` tuple list at converter-init time

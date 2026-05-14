@@ -39,12 +39,12 @@ from standard_e2e.indexing import IndexDataGenerator
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
 from standard_e2e.utils import matrix_to_xyz_heading
+from standard_e2e.utils.image_utils import (
+    waymo_fetch_images_from_frame,
+)
 from standard_e2e.utils.waymo_lidar_numpy import (
     numpy_convert_range_image_to_point_cloud,
     numpy_parse_range_image_and_camera_projection,
-)
-from standard_e2e.utils.image_utils import (
-    waymo_fetch_images_from_frame,
 )
 
 # (waymo_field_name, MapElementType, polyline_attr_or_None_for_point, is_closed)
