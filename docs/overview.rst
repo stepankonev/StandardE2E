@@ -67,6 +67,11 @@ Preprocessing uses a two-stage data transformation:
    storing extra metadata.
 - As the final stage :class:`~standard_e2e.caching.segment_context.SegmentContextAggregator` may be applied to aggregate
    segment-level context into frame-level data (e.g., current position into trajectory).
+- The per-dataset frame stage runs at ~50–190 frames/s on a 32-core box
+   with the production adapter chain. See :doc:`preprocessing_performance`
+   for what makes it fast (per-dataset start method, lazy modality
+   loading, disk-spilled HD-map cache, pure-numpy Waymo lidar decode)
+   and the available tuning knobs.
 
 Training
 --------

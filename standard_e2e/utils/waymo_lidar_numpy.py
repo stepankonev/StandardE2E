@@ -130,9 +130,7 @@ def _proto_floats_to_ndarray(scalar_container: Any) -> np.ndarray:
     typical 678 k-float range image. ``np.fromiter`` with a preallocated
     output is ~1.7× faster (~22 ms) on the same data.
     """
-    return np.fromiter(
-        scalar_container, dtype=np.float32, count=len(scalar_container)
-    )
+    return np.fromiter(scalar_container, dtype=np.float32, count=len(scalar_container))
 
 
 def numpy_convert_range_image_to_point_cloud(
@@ -176,9 +174,7 @@ def numpy_convert_range_image_to_point_cloud(
 
     for c in calibrations:
         range_image = range_images[c.name][ri_index]
-        ri = _proto_floats_to_ndarray(range_image.data).reshape(
-            range_image.shape.dims
-        )
+        ri = _proto_floats_to_ndarray(range_image.data).reshape(range_image.shape.dims)
         H, W = ri.shape[:2]
 
         # Beam inclinations: per-row angle (rad). When the proto doesn't

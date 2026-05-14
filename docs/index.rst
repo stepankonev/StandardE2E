@@ -54,6 +54,7 @@ Documentation
    quickstart
    overview
    datasets
+   preprocessing_performance
 
 .. toctree::
    :maxdepth: 2

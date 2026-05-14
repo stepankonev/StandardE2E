@@ -78,9 +78,28 @@ pip install -e ".[dev]"
 
 - **Unified Dataset Interface**: Work with multiple datasets through a single API
 - **Multimodal Support**: Cameras, LiDAR (point cloud + BEV histogram), HD maps (BEV raster), trajectories, detections and more
-- **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation  
+- **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation
+- **Lazy modality loading**: Configured adapters declare what they consume; no decoding work is done for modalities no adapter reads
 - **Trajectory Management**: Advanced handling of time-series vehicle data
 - **PyTorch Integration**: Ready-to-use datasets and dataloaders
+
+## ⚡ Preprocessing Performance
+
+Frame-stage throughput on a 32-core box (HDD input, NVMe output),
+production full-modality chain, par-32:
+
+| dataset            | rate (fr/s) | full split est. |
+|--------------------|------------:|----------------:|
+| `waymo_e2e`        |        ~175 |          ~1.1 h |
+| `waymo_perception` |  ~50 steady |          ~1.1 h |
+| `av2_sensor`       |         ~55 |          ~37 min |
+| `av2_lidar`        |        ~190 |           ~6 h |
+| `navsim`           |         ~50 |           ~3 h |
+
+The pipeline uses a per-dataset multiprocessing start method (fork /
+forkserver, never plain spawn), lazy modality loading, a disk-spilled
+HD-map prescan cache on Waymo Perception, and a pure-numpy Waymo lidar
+decode that bypasses the TF runtime in workers. See [`docs/preprocessing_performance.rst`](docs/preprocessing_performance.rst) for the full breakdown and tuning knobs.
 
 
 ## 📝 Quick Start & Examples
