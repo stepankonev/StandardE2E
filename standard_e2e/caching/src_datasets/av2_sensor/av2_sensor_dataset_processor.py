@@ -461,21 +461,34 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
         self._refresh_log_cache(log_dir)
         timestamp_s = sweep_ts_ns / 1e9
 
-        sweep_path = log_dir / "sensors" / "lidar" / f"{sweep_ts_ns}.feather"
-        sweep = Sweep.from_feather(sweep_path)
-        lidar = LidarData(
-            points=pd.DataFrame(
-                np.asarray(sweep.xyz, dtype=np.float32),
-                columns=[c.value for c in LidarComponent],
+        if self.needs_attr("lidar"):
+            sweep_path = log_dir / "sensors" / "lidar" / f"{sweep_ts_ns}.feather"
+            sweep = Sweep.from_feather(sweep_path)
+            lidar: Optional[LidarData] = LidarData(
+                points=pd.DataFrame(
+                    np.asarray(sweep.xyz, dtype=np.float32),
+                    columns=[c.value for c in LidarComponent],
+                )
             )
-        )
+        else:
+            lidar = None
 
         T_city_from_ego = self._ego_pose_by_ts[sweep_ts_ns]
         x, y, z, heading = matrix_to_xyz_heading(T_city_from_ego)
 
-        cameras = self._build_camera_dict(log_dir, sweep_ts_ns)
-        detections = self._build_detections(sweep_ts_ns, timestamp_s)
-        hd_map = self._build_hd_map(T_city_from_ego)
+        cameras = (
+            self._build_camera_dict(log_dir, sweep_ts_ns)
+            if self.needs_attr("cameras")
+            else {}
+        )
+        detections = (
+            self._build_detections(sweep_ts_ns, timestamp_s)
+            if self.needs_attr("frame_detections_3d")
+            else []
+        )
+        hd_map = (
+            self._build_hd_map(T_city_from_ego) if self.needs_attr("hd_map") else None
+        )
 
         return StandardFrameData(
             dataset_name=self.dataset_name,

@@ -25,6 +25,23 @@ class AbstractAdapter(ABC):
         """
         return {}
 
+    @property
+    def consumes_attrs(self) -> set[str]:
+        """``StandardFrameData`` attribute names this adapter reads.
+
+        Used by source-dataset processors to skip building modalities that
+        no adapter consumes (lazy-load). For example, an
+        :class:`HDMapBEVAdapter` returns ``{"hd_map"}``; a processor whose
+        adapter chain does not register any HD-map adapter can then skip
+        the (often expensive) ``_build_hd_map`` step entirely.
+
+        Returning an empty set means "this adapter does not gate any
+        modality build" — appropriate for adapters that read optional
+        ``aux_data`` keys (e.g. preference trajectories) which the
+        processor populates unconditionally and cheaply.
+        """
+        return set()
+
     @final
     def transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         """Validate input frame and dispatch to subclass implementation."""

@@ -33,6 +33,10 @@ class IdentityAdapter(AbstractAdapter):
                 f"No default mapping for modality {modality}, must provide attr"
             )
 
+    @property
+    def consumes_attrs(self) -> set[str]:
+        return {self._attr} if self._attr else set()
+
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         if (
             not hasattr(standard_frame_data, self._attr)

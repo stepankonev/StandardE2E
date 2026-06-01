@@ -24,6 +24,13 @@ class Av2SensorDatasetConverter(SourceDatasetConverter):
     matching the convention used by the Waymo converters.
     """
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        # AV2 Sensor's worker hot path uses ``cv2`` and pyarrow / numpy only;
+        # no TensorFlow ops fire inside the worker, so ``fork`` is safe and
+        # avoids the ~5 s/worker import tax incurred by ``spawn``.
+        return "fork"
+
     def _get_source_dataset_iterator(self) -> Iterator[tuple[Path, int]]:
         split_root = Path(self._input_path) / self._split
         if not split_root.is_dir():
@@ -38,14 +45,17 @@ class Av2SensorDatasetConverter(SourceDatasetConverter):
             log_dirs = log_dirs[:1]
         logging.info("Found %d AV2 log(s) for split '%s'.", len(log_dirs), self._split)
 
-        def _iter() -> Iterator[tuple[Path, int]]:
-            for log_dir in log_dirs:
-                lidar_dir = log_dir / "sensors" / "lidar"
-                if not lidar_dir.is_dir():
-                    logging.warning("No lidar dir for %s; skipping log", log_dir.name)
-                    continue
-                sweep_ts = sorted(int(p.stem) for p in lidar_dir.glob("*.feather"))
-                for ts in sweep_ts:
-                    yield (log_dir, ts)
-
-        return _iter()
+        # Pre-list all (log_dir, ts) tuples up front rather than globbing
+        # each log's lidar dir lazily during iteration. Consolidates HDD
+        # directory scans into a bulk pass at converter-init time so they
+        # don't interleave with worker reads during processing.
+        items: list[tuple[Path, int]] = []
+        for log_dir in log_dirs:
+            lidar_dir = log_dir / "sensors" / "lidar"
+            if not lidar_dir.is_dir():
+                logging.warning("No lidar dir for %s; skipping log", log_dir.name)
+                continue
+            for ts in sorted(int(p.stem) for p in lidar_dir.glob("*.feather")):
+                items.append((log_dir, ts))
+        logging.info("Pre-listed %d AV2 sensor sweeps.", len(items))
+        return iter(items)

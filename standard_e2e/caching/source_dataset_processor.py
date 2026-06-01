@@ -44,6 +44,13 @@ class SourceDatasetProcessor(ABC):
             if context_aggregators is None
             else context_aggregators
         )
+        # Union of ``StandardFrameData`` attributes the registered adapter
+        # chain reads. Per-dataset ``_prepare_standardized_frame_data``
+        # implementations consult ``self.needs_attr(...)`` to skip
+        # building modalities no adapter consumes (lazy load).
+        self._consumed_attrs: set[str] = set()
+        for _adapter in self._adapters:
+            self._consumed_attrs |= _adapter.consumes_attrs
         self._index_data_generator = (
             index_data_generator if index_data_generator else IndexDataGenerator()
         )
@@ -53,7 +60,31 @@ class SourceDatasetProcessor(ABC):
             )
         logging.info("Initialized %s processor", self.dataset_name)
         logging.info("Using adapters: %s", [a.name for a in self._adapters])
+        logging.info("Consumed SFD attrs: %s", sorted(self._consumed_attrs))
         logging.info("Specific output path: %s", self._specific_output_path)
+
+    def needs_attr(self, attr: str) -> bool:
+        """Whether at least one registered adapter reads this
+        ``StandardFrameData`` attribute. Used by per-dataset processors to
+        skip expensive modality builds (cameras, lidar, hd_map, detections,
+        …) when no adapter would consume them. ``True`` when ``attr`` is in
+        the consumed-attrs union, plus a hard-coded special case: the
+        identifier-only fields (``dataset_name``, ``split``, ``segment_id``,
+        ``frame_id``, ``timestamp``, ``global_position``) are always
+        treated as needed since they are required for the cache + index
+        regardless of adapter chain.
+        """
+        always = {
+            "dataset_name",
+            "split",
+            "segment_id",
+            "frame_id",
+            "timestamp",
+            "global_position",
+        }
+        if attr in always:
+            return True
+        return attr in self._consumed_attrs
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:
         raise NotImplementedError("Subclasses must implement this method.")

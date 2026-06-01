@@ -8,7 +8,7 @@ import logging
 import multiprocessing
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, Union, cast, final
+from typing import Any, Optional, Union, cast, final
 
 import pandas as pd
 import tensorflow as tf
@@ -17,6 +17,25 @@ from tqdm import tqdm
 from standard_e2e.caching.segment_context import SegmentContextAggregator
 from standard_e2e.caching.source_dataset_processor import SourceDatasetProcessor
 from standard_e2e.data_structures import FrameIndexData
+
+# Worker-local state for the parallel pool. Each worker process gets its own
+# copy via ``_init_worker`` (see ``_convert_frames``); this module-level slot
+# is what the per-task ``_process_frame_in_worker`` function reads. Sending
+# the processor through Pool.initializer pickles it once per worker rather
+# than once per task — the latter ships hundreds of MB on every dispatch
+# when the processor carries any non-trivial state (e.g. Waymo Perception's
+# prescanned HD-map cache).
+_WORKER_PROCESSOR: Optional[SourceDatasetProcessor] = None
+
+
+def _init_worker(processor: SourceDatasetProcessor) -> None:
+    global _WORKER_PROCESSOR
+    _WORKER_PROCESSOR = processor
+
+
+def _process_frame_in_worker(raw_frame_data: Any) -> FrameIndexData:
+    assert _WORKER_PROCESSOR is not None, "worker processor not initialized"
+    return _WORKER_PROCESSOR.process_frame_and_save_data(raw_frame_data)
 
 
 class SourceDatasetConverter(ABC):
@@ -95,6 +114,37 @@ class SourceDatasetConverter(ABC):
         """Return an iterator over the source dataset."""
         raise NotImplementedError("Subclasses must implement this method.")
 
+    @property
+    def max_workers(self) -> Optional[int]:
+        """Optional cap on parallel-pool size; ``None`` means no cap.
+
+        Used by datasets where pool throughput plateaus or regresses past
+        a certain worker count -- typically because the processor carries
+        large state (e.g. a prescanned HD-map cache) and ``Pool``'s
+        per-task dispatch overhead grows with worker count. Subclasses
+        whose processors are small can leave this at ``None``.
+        """
+        return None
+
+    @property
+    def multiprocessing_start_method(self) -> str:
+        """Start method for the worker pool.
+
+        Default ``"spawn"`` is the conservative choice: TensorFlow and
+        OpenCV both keep global thread / mutex state that ``fork()``
+        inherits in a deadlock-prone way (typically before the first
+        frame completes). Spawn pays a per-worker import cost (~5 s per
+        worker, dominated by TensorFlow) but is the safe pattern for any
+        worker that may run TF or cv2 work post-fork.
+
+        Subclasses whose worker hot path is fully TF-free (no
+        ``tf.io.decode_image``, no ``frame_utils.*`` calls, etc.) may
+        override to ``"fork"`` to avoid the spawn import tax. This is a
+        very large speedup on small / DEBUG runs and a meaningful one on
+        full splits.
+        """
+        return "spawn"
+
     @final
     def _run_context_aggregators(self, index_df: pd.DataFrame) -> None:
         logging.info("Running context aggregators...")
@@ -121,22 +171,39 @@ class SourceDatasetConverter(ABC):
         logging.info("Output path: %s", self._source_processor.output_path)
         logging.info("Processing split: %s", self._split)
         if self._do_parallel_processing:
+            effective_workers = self._num_workers
+            if self.max_workers is not None and effective_workers > self.max_workers:
+                logging.info(
+                    "Capping pool size from %d to %d for %s (see %s.max_workers)",
+                    effective_workers,
+                    self.max_workers,
+                    self._source_processor.dataset_name,
+                    type(self).__name__,
+                )
+                effective_workers = self.max_workers
             logging.info(
                 "Using parallel processing with %d workers for dataset conversion.",
-                self._num_workers,
+                effective_workers,
             )
-            # Spawn rather than fork: TensorFlow and OpenCV both keep global
-            # thread / mutex state that is left inconsistent by fork(),
-            # producing silent deadlocks in workers (typically before the
-            # first frame completes). Spawn pays a per-worker import cost
-            # (~5 s per worker) but is the recommended pattern for any
-            # multiprocessing.Pool that runs TF or cv2 work post-fork.
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(self._num_workers) as pool:
+            # Start method comes from the converter subclass — see
+            # ``SourceDatasetConverter.multiprocessing_start_method`` for the
+            # default ``"spawn"`` rationale and the ``"fork"`` opt-out.
+            ctx = multiprocessing.get_context(self.multiprocessing_start_method)
+            logging.info("Pool start method: %s", self.multiprocessing_start_method)
+            # Ship the processor to each worker exactly once via
+            # ``initializer`` instead of letting ``pool.imap`` pickle a bound
+            # method on every dispatch. The bound-method form was a
+            # hundreds-of-MB-per-task tax for processors carrying prescanned
+            # state and capped throughput at ~1 fr/s on Waymo Perception.
+            with ctx.Pool(
+                effective_workers,
+                initializer=_init_worker,
+                initargs=(self._source_processor,),
+            ) as pool:
                 results = list(
                     tqdm(
                         pool.imap(
-                            self._source_processor.process_frame_and_save_data,
+                            _process_frame_in_worker,
                             self._source_dataset_iterator,
                         ),
                         desc=f"Processing \
@@ -169,8 +236,21 @@ class SourceDatasetConverter(ABC):
     @final
     def convert(self) -> None:
         """Convert all frames then run any configured context aggregators."""
-        index_df = self._convert_frames()
-        self._run_context_aggregators(index_df)
+        try:
+            index_df = self._convert_frames()
+            self._run_context_aggregators(index_df)
+        finally:
+            self._cleanup_after_convert()
+
+    def _cleanup_after_convert(self) -> None:
+        """Hook for subclasses to remove transient artifacts created at init
+        time (e.g. an HD-map prescan scratch dir).
+
+        Called from ``convert()``'s ``finally`` block so it runs whether
+        conversion succeeded or raised.
+        """
+        # Default no-op; subclasses override when they have something to
+        # clean up.
 
 
 class TFRecSourceDatasetConverter(SourceDatasetConverter, ABC):

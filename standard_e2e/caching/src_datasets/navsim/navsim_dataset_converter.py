@@ -28,6 +28,13 @@ class NavsimDatasetConverter(SourceDatasetConverter):
     With ``STANDARD_E2E_DEBUG=true`` only the first log is processed.
     """
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        # NAVSIM's worker hot path uses pickle + nuplan map API + numpy /
+        # PIL only; no TF ops fire inside the worker, so ``fork`` is safe
+        # and avoids the ~5 s/worker import tax incurred by ``spawn``.
+        return "fork"
+
     def _get_source_dataset_iterator(self) -> Iterator[tuple[Path, int]]:
         log_root = Path(self._input_path) / "navsim_logs" / self._split
         if not log_root.is_dir():
@@ -47,12 +54,16 @@ class NavsimDatasetConverter(SourceDatasetConverter):
             "Found %d NAVSIM log(s) for split '%s'.", len(log_files), self._split
         )
 
-        def _iter() -> Iterator[tuple[Path, int]]:
-            for log_path in log_files:
-                # Length-only peek; the processor caches the full payload itself.
-                with open(log_path, "rb") as fp:
-                    n_frames = len(pickle.load(fp))
-                for frame_idx in range(n_frames):
-                    yield (log_path, frame_idx)
-
-        return _iter()
+        # Pre-list all (log_path, frame_idx) tuples up front. The per-log
+        # length peek (``pickle.load``) is sequential here rather than
+        # interleaved with worker reads during processing; on HDD this
+        # also reduces seek contention between parent's per-log reads
+        # and workers' per-frame reads.
+        items: list[tuple[Path, int]] = []
+        for log_path in log_files:
+            with open(log_path, "rb") as fp:
+                n_frames = len(pickle.load(fp))
+            for frame_idx in range(n_frames):
+                items.append((log_path, frame_idx))
+        logging.info("Pre-listed %d NAVSIM frames.", len(items))
+        return iter(items)

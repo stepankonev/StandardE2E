@@ -61,26 +61,38 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
         data.ParseFromString(raw_frame_data.numpy())
         segment_id, frame_id = data.frame.context.name.split("-")
         frame_id = int(frame_id)
-        future_states = Trajectory(
-            data={
-                TrajectoryComponent.X: np.array(data.future_states.pos_x),
-                TrajectoryComponent.Y: np.array(data.future_states.pos_y),
-                TrajectoryComponent.Z: np.array(data.future_states.pos_z),
-                TrajectoryComponent.TIMESTAMP: self.TRAJECTORY_DELTA_T
-                * np.arange(1, len(data.future_states.pos_x) + 1),
-            }
+        future_states = (
+            Trajectory(
+                data={
+                    TrajectoryComponent.X: np.array(data.future_states.pos_x),
+                    TrajectoryComponent.Y: np.array(data.future_states.pos_y),
+                    TrajectoryComponent.Z: np.array(data.future_states.pos_z),
+                    TrajectoryComponent.TIMESTAMP: self.TRAJECTORY_DELTA_T
+                    * np.arange(1, len(data.future_states.pos_x) + 1),
+                }
+            )
+            if self.needs_attr("future_states")
+            else None
         )
-        past_states = Trajectory(
-            data={
-                TrajectoryComponent.X: np.array(data.past_states.pos_x),
-                TrajectoryComponent.Y: np.array(data.past_states.pos_y),
-                TrajectoryComponent.VELOCITY_X: np.array(data.past_states.vel_x),
-                TrajectoryComponent.VELOCITY_Y: np.array(data.past_states.vel_y),
-                TrajectoryComponent.ACCELERATION_X: np.array(data.past_states.accel_x),
-                TrajectoryComponent.ACCELERATION_Y: np.array(data.past_states.accel_y),
-                TrajectoryComponent.TIMESTAMP: self.TRAJECTORY_DELTA_T
-                * np.arange(-len(data.past_states.pos_x) + 1, 1),
-            }
+        past_states = (
+            Trajectory(
+                data={
+                    TrajectoryComponent.X: np.array(data.past_states.pos_x),
+                    TrajectoryComponent.Y: np.array(data.past_states.pos_y),
+                    TrajectoryComponent.VELOCITY_X: np.array(data.past_states.vel_x),
+                    TrajectoryComponent.VELOCITY_Y: np.array(data.past_states.vel_y),
+                    TrajectoryComponent.ACCELERATION_X: np.array(
+                        data.past_states.accel_x
+                    ),
+                    TrajectoryComponent.ACCELERATION_Y: np.array(
+                        data.past_states.accel_y
+                    ),
+                    TrajectoryComponent.TIMESTAMP: self.TRAJECTORY_DELTA_T
+                    * np.arange(-len(data.past_states.pos_x) + 1, 1),
+                }
+            )
+            if self.needs_attr("past_states")
+            else None
         )
         preference_scores_sum = sum(
             trajectory.preference_score for trajectory in data.preference_trajectories
@@ -123,8 +135,12 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
             frame_id=frame_id,
             timestamp=frame_id * self.FRAME_DELTA_T,
             split=self._split,
-            cameras=waymo_fetch_images_from_frame(data.frame),
-            intent=Intent(data.intent),
+            cameras=(
+                waymo_fetch_images_from_frame(data.frame)
+                if self.needs_attr("cameras")
+                else {}
+            ),
+            intent=Intent(data.intent) if self.needs_attr("intent") else None,
             future_states=future_states,
             past_states=past_states,
             aux_data={PREFERENCE_TRAJECTORIES_KEY: preference_trajectories},

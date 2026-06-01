@@ -78,10 +78,10 @@ pip install -e ".[dev]"
 
 - **Unified Dataset Interface**: Work with multiple datasets through a single API
 - **Multimodal Support**: Cameras, LiDAR (point cloud + BEV histogram), HD maps (BEV raster), trajectories, detections and more
-- **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation  
+- **Flexible Preprocessing**: Configurable pipelines with standardization and augmentation
+- **Lazy modality loading**: Configured adapters declare what they consume; no decoding work is done for modalities no adapter reads
 - **Trajectory Management**: Advanced handling of time-series vehicle data
 - **PyTorch Integration**: Ready-to-use datasets and dataloaders
-
 
 ## 📝 Quick Start & Examples
 ### Notebooks

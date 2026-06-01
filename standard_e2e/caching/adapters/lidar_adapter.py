@@ -32,6 +32,10 @@ class LidarAdapter(AbstractAdapter):
     def name(self) -> str:
         return "LidarAdapter"
 
+    @property
+    def consumes_attrs(self) -> set[str]:
+        return {"lidar"}
+
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         if standard_frame_data.lidar is None:
             return {}
@@ -109,6 +113,10 @@ class LidarBEVAdapter(AbstractAdapter):
     @property
     def name(self) -> str:
         return "LidarBEVAdapter"
+
+    @property
+    def consumes_attrs(self) -> set[str]:
+        return {"lidar"}
 
     @property
     def output_shape(self) -> tuple[int, int, int]:

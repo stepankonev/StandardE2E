@@ -24,6 +24,13 @@ class Av2LidarDatasetConverter(SourceDatasetConverter):
     With ``STANDARD_E2E_DEBUG=true`` only the first log is processed.
     """
 
+    @property
+    def multiprocessing_start_method(self) -> str:
+        # AV2 LiDAR's worker hot path is pyarrow + numpy only; no TF or cv2
+        # ops fire inside the worker, so ``fork`` is safe and avoids the
+        # ~5 s/worker import tax incurred by ``spawn``.
+        return "fork"
+
     def _get_source_dataset_iterator(self) -> Iterator[tuple[Path, int]]:
         split_root = Path(self._input_path) / self._split
         if not split_root.is_dir():
@@ -40,14 +47,19 @@ class Av2LidarDatasetConverter(SourceDatasetConverter):
             "Found %d AV2 lidar log(s) for split '%s'.", len(log_dirs), self._split
         )
 
-        def _iter() -> Iterator[tuple[Path, int]]:
-            for log_dir in log_dirs:
-                lidar_dir = log_dir / "sensors" / "lidar"
-                if not lidar_dir.is_dir():
-                    logging.warning("No lidar dir for %s; skipping log", log_dir.name)
-                    continue
-                sweep_ts = sorted(int(p.stem) for p in lidar_dir.glob("*.feather"))
-                for ts in sweep_ts:
-                    yield (log_dir, ts)
-
-        return _iter()
+        # Pre-list all (log_dir, ts) tuples up front rather than globbing
+        # each log's lidar dir lazily during iteration. On HDD this
+        # consolidates many in-flight directory scans (which would
+        # otherwise interleave with worker reads and starve the pool)
+        # into one bulk sequential pass at converter-init time. Memory
+        # cost is small (~50 MB on the full train split with 16 000 logs).
+        items: list[tuple[Path, int]] = []
+        for log_dir in log_dirs:
+            lidar_dir = log_dir / "sensors" / "lidar"
+            if not lidar_dir.is_dir():
+                logging.warning("No lidar dir for %s; skipping log", log_dir.name)
+                continue
+            for ts in sorted(int(p.stem) for p in lidar_dir.glob("*.feather")):
+                items.append((log_dir, ts))
+        logging.info("Pre-listed %d AV2 lidar sweeps.", len(items))
+        return iter(items)

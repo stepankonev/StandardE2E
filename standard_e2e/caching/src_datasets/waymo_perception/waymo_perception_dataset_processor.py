@@ -1,3 +1,5 @@
+import os
+import pickle
 from typing import Any, Optional
 
 import numpy as np
@@ -36,10 +38,13 @@ from standard_e2e.indexing import IndexDataGenerator
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
-from standard_e2e.third_party.waymo_open_dataset.utils import frame_utils
 from standard_e2e.utils import matrix_to_xyz_heading
 from standard_e2e.utils.image_utils import (
     waymo_fetch_images_from_frame,
+)
+from standard_e2e.utils.waymo_lidar_numpy import (
+    numpy_convert_range_image_to_point_cloud,
+    numpy_parse_range_image_and_camera_projection,
 )
 
 # (waymo_field_name, MapElementType, polyline_attr_or_None_for_point, is_closed)
@@ -135,6 +140,13 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         # successor_ids, predecessor_ids, left_neighbor_id,
         # right_neighbor_id, attrs.
         self._segment_map_cache: dict[str, list[dict[str, Any]]] = {}
+        # When set, prescanned segment data is spilled to disk as
+        # ``<dir>/<segment_id>.pkl``. The in-memory dict is then kept
+        # tiny (each worker lazily loads only the segments it touches).
+        # This is the path that lets the Pool initializer avoid shipping
+        # the entire ~200 MB cache to every worker — workers receive the
+        # processor with an empty in-memory dict + a path string instead.
+        self._segment_cache_dir: Optional[str] = None
 
     @property
     def allowed_splits(self) -> list[str]:
@@ -237,13 +249,33 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                     "attrs": attrs,
                 }
             )
-        self._segment_map_cache[segment_id] = cached
+        if self._segment_cache_dir is not None:
+            # Disk-spill mode: write the per-segment cache to a file and
+            # drop the in-memory copy. Workers will lazy-load via
+            # ``_build_hd_map`` on first hit for the segment.
+            os.makedirs(self._segment_cache_dir, exist_ok=True)
+            tmp = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl.tmp")
+            final = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl")
+            with open(tmp, "wb") as fp:
+                pickle.dump(cached, fp, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, final)
+        else:
+            self._segment_map_cache[segment_id] = cached
 
     def _build_hd_map(
         self, segment_id: str, pose_world_from_vehicle: np.ndarray
     ) -> HDMap | None:
         """Apply inverse pose to the cached features and build vehicle-frame HDMap."""
         cached = self._segment_map_cache.get(segment_id)
+        if cached is None and self._segment_cache_dir is not None:
+            # Disk-spill mode: lazy-load this segment's cache from disk
+            # on first hit, then keep it in memory for subsequent frames
+            # of the same segment.
+            path = os.path.join(self._segment_cache_dir, f"{segment_id}.pkl")
+            if os.path.exists(path):
+                with open(path, "rb") as fp:
+                    cached = pickle.load(fp)
+                self._segment_map_cache[segment_id] = cached
         if cached is None:
             return None
         T_v_w = np.linalg.inv(pose_world_from_vehicle).astype(np.float32)
@@ -289,7 +321,9 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         segment_id = frame.context.name
         timestamp = frame.timestamp_micros / 1_000_000.0
         frame_id = int(frame.timestamp_micros)
-        cameras_data = waymo_fetch_images_from_frame(frame)
+        cameras_data = (
+            waymo_fetch_images_from_frame(frame) if self.needs_attr("cameras") else {}
+        )
         extra_data = {
             "time_of_day": frame.context.stats.time_of_day,
             "location": frame.context.stats.location,
@@ -298,55 +332,72 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         detections_3d = []
         # camera_synced_box good, but often empty
         # https://github.com/waymo-research/waymo-open-dataset/blob/99a4cb3ff07e2fe06c2ce73da001f850f628e45a/src/waymo_open_dataset/label.proto#L108-#L133
-        for laser_label in frame.laser_labels:
-            if np.allclose(
-                np.array(
-                    [
-                        laser_label.box.center_x,
-                        laser_label.box.center_y,
-                        laser_label.box.center_z,
-                    ]
-                ),
-                np.zeros((3,)),
-            ):
-                print("Laser label is centered at the origin.")
-            gt_box = laser_label.box
-            detection = Detection3D(
-                unique_agent_id=laser_label.id,
-                detection_type=self._waymo_agent_type_to_canonical(laser_label.type),
-                trajectory=Trajectory(
-                    {
-                        TC.TIMESTAMP: [timestamp],
-                        TC.X: [gt_box.center_x],
-                        TC.Y: [gt_box.center_y],
-                        TC.Z: [gt_box.center_z],
-                        TC.HEADING: [gt_box.heading],
-                        TC.LENGTH: [gt_box.length],
-                        TC.WIDTH: [gt_box.width],
-                        TC.HEIGHT: [gt_box.height],
-                    }
-                ),
-            )
-            detections_3d.append(detection)
+        if self.needs_attr("frame_detections_3d"):
+            for laser_label in frame.laser_labels:
+                if np.allclose(
+                    np.array(
+                        [
+                            laser_label.box.center_x,
+                            laser_label.box.center_y,
+                            laser_label.box.center_z,
+                        ]
+                    ),
+                    np.zeros((3,)),
+                ):
+                    print("Laser label is centered at the origin.")
+                gt_box = laser_label.box
+                detection = Detection3D(
+                    unique_agent_id=laser_label.id,
+                    detection_type=self._waymo_agent_type_to_canonical(
+                        laser_label.type
+                    ),
+                    trajectory=Trajectory(
+                        {
+                            TC.TIMESTAMP: [timestamp],
+                            TC.X: [gt_box.center_x],
+                            TC.Y: [gt_box.center_y],
+                            TC.Z: [gt_box.center_z],
+                            TC.HEADING: [gt_box.heading],
+                            TC.LENGTH: [gt_box.length],
+                            TC.WIDTH: [gt_box.width],
+                            TC.HEIGHT: [gt_box.height],
+                        }
+                    ),
+                )
+                detections_3d.append(detection)
         current_x, current_y, current_z, current_heading = matrix_to_xyz_heading(
             np.array(frame.pose.transform).reshape(4, 4)
         )
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
-        if len(frame.map_features) > 0 and segment_id not in self._segment_map_cache:
+        if (
+            self.needs_attr("hd_map")
+            and len(frame.map_features) > 0
+            and segment_id not in self._segment_map_cache
+        ):
             self._cache_map_features_for_segment(segment_id, frame.map_features)
-        hd_map = self._build_hd_map(segment_id, pose)
+        hd_map = (
+            self._build_hd_map(segment_id, pose) if self.needs_attr("hd_map") else None
+        )
 
-        range_images, camera_projections, _, range_image_top_pose = (
-            frame_utils.parse_range_image_and_camera_projection(frame)
-        )
-        points_per_laser, _ = frame_utils.convert_range_image_to_point_cloud(
-            frame, range_images, camera_projections, range_image_top_pose
-        )
-        lidar_xyz = np.concatenate(points_per_laser, axis=0).astype(np.float32)
-        lidar = LidarData(
-            points=pd.DataFrame(lidar_xyz, columns=[c.value for c in LidarComponent])
-        )
+        if self.needs_attr("lidar"):
+            # Pure-numpy decode (see ``standard_e2e/utils/waymo_lidar_numpy.py``)
+            # — avoids TF runtime overhead in the worker hot path, which
+            # at par-32 dominated per-frame wall time.
+            range_images, _, _, range_image_top_pose = (
+                numpy_parse_range_image_and_camera_projection(frame)
+            )
+            points_per_laser = numpy_convert_range_image_to_point_cloud(
+                frame, range_images, range_image_top_pose
+            )
+            lidar_xyz = np.concatenate(points_per_laser, axis=0).astype(np.float32)
+            lidar: Optional[LidarData] = LidarData(
+                points=pd.DataFrame(
+                    lidar_xyz, columns=[c.value for c in LidarComponent]
+                )
+            )
+        else:
+            lidar = None
         frame_data = StandardFrameData(
             dataset_name=self.dataset_name,
             segment_id=segment_id,
