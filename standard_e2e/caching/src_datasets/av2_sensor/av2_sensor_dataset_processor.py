@@ -45,6 +45,7 @@ from standard_e2e.enums import (
     DetectionType,
     LidarComponent,
     MapElementType,
+    StandardFrameDataField,
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
@@ -461,7 +462,7 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
         self._refresh_log_cache(log_dir)
         timestamp_s = sweep_ts_ns / 1e9
 
-        if self.needs_attr("lidar"):
+        if self.needs_attr(StandardFrameDataField.LIDAR):
             sweep_path = log_dir / "sensors" / "lidar" / f"{sweep_ts_ns}.feather"
             sweep = Sweep.from_feather(sweep_path)
             lidar: Optional[LidarData] = LidarData(
@@ -478,16 +479,18 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
 
         cameras = (
             self._build_camera_dict(log_dir, sweep_ts_ns)
-            if self.needs_attr("cameras")
+            if self.needs_attr(StandardFrameDataField.CAMERAS)
             else {}
         )
         detections = (
             self._build_detections(sweep_ts_ns, timestamp_s)
-            if self.needs_attr("frame_detections_3d")
+            if self.needs_attr(StandardFrameDataField.FRAME_DETECTIONS_3D)
             else []
         )
         hd_map = (
-            self._build_hd_map(T_city_from_ego) if self.needs_attr("hd_map") else None
+            self._build_hd_map(T_city_from_ego)
+            if self.needs_attr(StandardFrameDataField.HD_MAP)
+            else None
         )
 
         return StandardFrameData(

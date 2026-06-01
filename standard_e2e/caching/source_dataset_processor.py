@@ -10,6 +10,7 @@ from standard_e2e.data_structures import (
     StandardFrameData,
     TransformedFrameData,
 )
+from standard_e2e.enums import StandardFrameDataField
 from standard_e2e.indexing import IndexDataGenerator
 from standard_e2e.utils import _check_list_of_objects_or_none
 
@@ -48,7 +49,7 @@ class SourceDatasetProcessor(ABC):
         # chain reads. Per-dataset ``_prepare_standardized_frame_data``
         # implementations consult ``self.needs_attr(...)`` to skip
         # building modalities no adapter consumes (lazy load).
-        self._consumed_attrs: set[str] = set()
+        self._consumed_attrs: set[StandardFrameDataField] = set()
         for _adapter in self._adapters:
             self._consumed_attrs |= _adapter.consumes_attrs
         self._index_data_generator = (
@@ -63,24 +64,22 @@ class SourceDatasetProcessor(ABC):
         logging.info("Consumed SFD attrs: %s", sorted(self._consumed_attrs))
         logging.info("Specific output path: %s", self._specific_output_path)
 
-    def needs_attr(self, attr: str) -> bool:
+    def needs_attr(self, attr: StandardFrameDataField) -> bool:
         """Whether at least one registered adapter reads this
-        ``StandardFrameData`` attribute. Used by per-dataset processors to
-        skip expensive modality builds (cameras, lidar, hd_map, detections,
-        …) when no adapter would consume them. ``True`` when ``attr`` is in
-        the consumed-attrs union, plus a hard-coded special case: the
-        identifier-only fields (``dataset_name``, ``split``, ``segment_id``,
-        ``frame_id``, ``timestamp``, ``global_position``) are always
-        treated as needed since they are required for the cache + index
-        regardless of adapter chain.
+        ``StandardFrameData`` field. Used by per-dataset processors to skip
+        expensive modality builds (cameras, lidar, hd_map, detections, …)
+        when no adapter would consume them. ``True`` when ``attr`` is in the
+        consumed-attrs union, plus a hard-coded special case: the
+        identifier / index fields are always treated as needed since they
+        are required for the cache + index regardless of adapter chain.
         """
         always = {
-            "dataset_name",
-            "split",
-            "segment_id",
-            "frame_id",
-            "timestamp",
-            "global_position",
+            StandardFrameDataField.DATASET_NAME,
+            StandardFrameDataField.SPLIT,
+            StandardFrameDataField.SEGMENT_ID,
+            StandardFrameDataField.FRAME_ID,
+            StandardFrameDataField.TIMESTAMP,
+            StandardFrameDataField.GLOBAL_POSITION,
         }
         if attr in always:
             return True

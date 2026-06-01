@@ -16,7 +16,13 @@ from standard_e2e.data_structures import (
     StandardFrameData,
     Trajectory,
 )
-from standard_e2e.enums import CameraDirection, Intent, Modality, TrajectoryComponent
+from standard_e2e.enums import (
+    CameraDirection,
+    Intent,
+    Modality,
+    StandardFrameDataField,
+    TrajectoryComponent,
+)
 from standard_e2e.third_party.waymo_open_dataset.protos import (
     end_to_end_driving_data_pb2 as wod_e2ed_pb2,
 )
@@ -71,7 +77,7 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
                     * np.arange(1, len(data.future_states.pos_x) + 1),
                 }
             )
-            if self.needs_attr("future_states")
+            if self.needs_attr(StandardFrameDataField.FUTURE_STATES)
             else None
         )
         past_states = (
@@ -91,7 +97,7 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
                     * np.arange(-len(data.past_states.pos_x) + 1, 1),
                 }
             )
-            if self.needs_attr("past_states")
+            if self.needs_attr(StandardFrameDataField.PAST_STATES)
             else None
         )
         preference_scores_sum = sum(
@@ -137,10 +143,14 @@ class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
             split=self._split,
             cameras=(
                 waymo_fetch_images_from_frame(data.frame)
-                if self.needs_attr("cameras")
+                if self.needs_attr(StandardFrameDataField.CAMERAS)
                 else {}
             ),
-            intent=Intent(data.intent) if self.needs_attr("intent") else None,
+            intent=(
+                Intent(data.intent)
+                if self.needs_attr(StandardFrameDataField.INTENT)
+                else None
+            ),
             future_states=future_states,
             past_states=past_states,
             aux_data={PREFERENCE_TRAJECTORIES_KEY: preference_trajectories},

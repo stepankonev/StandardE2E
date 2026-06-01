@@ -5,7 +5,7 @@ import numpy as np
 
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.data_structures import StandardFrameData
-from standard_e2e.enums import DetectionType, Modality
+from standard_e2e.enums import DetectionType, Modality, StandardFrameDataField
 from standard_e2e.enums import TrajectoryComponent as TC
 
 DETECTIONS_3D_BEV_CHANNELS_AUX_KEY = "detections_3d_bev_channels"
@@ -99,8 +99,8 @@ class Detections3DBEVAdapter(AbstractAdapter):
         return "Detections3DBEVAdapter"
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        return {"frame_detections_3d"}
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        return {StandardFrameDataField.FRAME_DETECTIONS_3D}
 
     @property
     def classes(self) -> list[DetectionType]:

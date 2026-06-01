@@ -6,7 +6,7 @@ import numpy as np
 
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.data_structures.frame_data import StandardFrameData
-from standard_e2e.enums import CameraDirection, Modality
+from standard_e2e.enums import CameraDirection, Modality, StandardFrameDataField
 from standard_e2e.utils.image_utils import CropTop
 
 
@@ -39,8 +39,8 @@ class PanoImageAdapter(AbstractAdapter):
         return "pano_image_adapter"
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        return {"cameras"}
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        return {StandardFrameDataField.CAMERAS}
 
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         """Transform cameras data to a single panoramic image."""

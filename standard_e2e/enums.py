@@ -20,6 +20,43 @@ class Modality(StrEnum):
     DETECTIONS_3D_BEV = "detections_3d_bev"
 
 
+class StandardFrameDataField(StrEnum):
+    """Field names of
+    :class:`~standard_e2e.data_structures.frame_data.StandardFrameData`.
+
+    This is the **input** side of the adapter contract: an adapter declares
+    which ``StandardFrameData`` fields it reads via
+    :attr:`~standard_e2e.caching.adapters.abstract_adapter.AbstractAdapter.consumes_attrs`,
+    and a processor consults ``needs_attr`` to skip building modalities no
+    adapter consumes. Do not confuse this with :class:`Modality`, which is
+    the **output** side (what adapters *produce* into ``TransformedFrameData``)
+    — e.g. the input field ``LIDAR`` can feed both the ``LIDAR_PC`` and
+    ``LIDAR_BEV`` output modalities.
+
+    Members must stay in sync with the ``StandardFrameData`` fields; a unit
+    test asserts ``set(StandardFrameDataField) == set(StandardFrameData.model_fields)``.
+    """
+
+    # Identifier / index fields (always required regardless of adapter chain).
+    DATASET_NAME = "dataset_name"
+    SPLIT = "split"
+    SEGMENT_ID = "segment_id"
+    FRAME_ID = "frame_id"
+    TIMESTAMP = "timestamp"
+    GLOBAL_POSITION = "global_position"
+    # Modality-bearing fields.
+    INTENT = "intent"
+    CAMERAS = "cameras"
+    LIDAR = "lidar"
+    FUTURE_STATES = "future_states"
+    PAST_STATES = "past_states"
+    HD_MAP = "hd_map"
+    FRAME_DETECTIONS_3D = "frame_detections_3d"
+    # Free-form side channels.
+    AUX_DATA = "aux_data"
+    EXTRA_INDEX_DATA = "extra_index_data"
+
+
 class CameraDirection(StrEnum):
     """Enumeration of camera directions."""
 

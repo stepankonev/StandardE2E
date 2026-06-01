@@ -4,7 +4,7 @@ import numpy as np
 
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.data_structures import LidarPointCloud, StandardFrameData
-from standard_e2e.enums import LidarComponent, Modality
+from standard_e2e.enums import LidarComponent, Modality, StandardFrameDataField
 
 
 class LidarAdapter(AbstractAdapter):
@@ -33,8 +33,8 @@ class LidarAdapter(AbstractAdapter):
         return "LidarAdapter"
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        return {"lidar"}
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        return {StandardFrameDataField.LIDAR}
 
     def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
         if standard_frame_data.lidar is None:
@@ -115,8 +115,8 @@ class LidarBEVAdapter(AbstractAdapter):
         return "LidarBEVAdapter"
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        return {"lidar"}
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        return {StandardFrameDataField.LIDAR}
 
     @property
     def output_shape(self) -> tuple[int, int, int]:
