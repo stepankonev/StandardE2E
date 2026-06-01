@@ -5,7 +5,7 @@ import numpy as np
 
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.data_structures import StandardFrameData
-from standard_e2e.enums import MapElementType, Modality
+from standard_e2e.enums import MapElementType, Modality, StandardFrameDataField
 
 HD_MAP_BEV_CHANNELS_AUX_KEY = "hd_map_bev_channels"
 
@@ -104,8 +104,8 @@ class HDMapBEVAdapter(AbstractAdapter):
         return "HDMapBEVAdapter"
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        return {"hd_map"}
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        return {StandardFrameDataField.HD_MAP}
 
     @property
     def channels(self) -> list[MapElementType]:

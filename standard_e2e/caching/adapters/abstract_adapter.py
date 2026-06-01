@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, final
 
 from standard_e2e.data_structures import StandardFrameData
-from standard_e2e.enums import Modality
+from standard_e2e.enums import Modality, StandardFrameDataField
 
 
 class AbstractAdapter(ABC):
@@ -26,14 +26,14 @@ class AbstractAdapter(ABC):
         return {}
 
     @property
-    def consumes_attrs(self) -> set[str]:
-        """``StandardFrameData`` attribute names this adapter reads.
+    def consumes_attrs(self) -> set[StandardFrameDataField]:
+        """``StandardFrameData`` fields this adapter reads.
 
         Used by source-dataset processors to skip building modalities that
         no adapter consumes (lazy-load). For example, an
-        :class:`HDMapBEVAdapter` returns ``{"hd_map"}``; a processor whose
-        adapter chain does not register any HD-map adapter can then skip
-        the (often expensive) ``_build_hd_map`` step entirely.
+        :class:`HDMapBEVAdapter` returns ``{StandardFrameDataField.HD_MAP}``;
+        a processor whose adapter chain registers no HD-map adapter can then
+        skip the (often expensive) ``_build_hd_map`` step entirely.
 
         Returning an empty set means "this adapter does not gate any
         modality build" — appropriate for adapters that read optional

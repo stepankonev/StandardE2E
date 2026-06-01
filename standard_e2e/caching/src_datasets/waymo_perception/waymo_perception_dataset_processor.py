@@ -32,6 +32,7 @@ from standard_e2e.enums import (
     DetectionType,
     LidarComponent,
     MapElementType,
+    StandardFrameDataField,
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
@@ -322,7 +323,9 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         timestamp = frame.timestamp_micros / 1_000_000.0
         frame_id = int(frame.timestamp_micros)
         cameras_data = (
-            waymo_fetch_images_from_frame(frame) if self.needs_attr("cameras") else {}
+            waymo_fetch_images_from_frame(frame)
+            if self.needs_attr(StandardFrameDataField.CAMERAS)
+            else {}
         )
         extra_data = {
             "time_of_day": frame.context.stats.time_of_day,
@@ -332,7 +335,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         detections_3d = []
         # camera_synced_box good, but often empty
         # https://github.com/waymo-research/waymo-open-dataset/blob/99a4cb3ff07e2fe06c2ce73da001f850f628e45a/src/waymo_open_dataset/label.proto#L108-#L133
-        if self.needs_attr("frame_detections_3d"):
+        if self.needs_attr(StandardFrameDataField.FRAME_DETECTIONS_3D):
             for laser_label in frame.laser_labels:
                 if np.allclose(
                     np.array(
@@ -371,16 +374,18 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
         if (
-            self.needs_attr("hd_map")
+            self.needs_attr(StandardFrameDataField.HD_MAP)
             and len(frame.map_features) > 0
             and segment_id not in self._segment_map_cache
         ):
             self._cache_map_features_for_segment(segment_id, frame.map_features)
         hd_map = (
-            self._build_hd_map(segment_id, pose) if self.needs_attr("hd_map") else None
+            self._build_hd_map(segment_id, pose)
+            if self.needs_attr(StandardFrameDataField.HD_MAP)
+            else None
         )
 
-        if self.needs_attr("lidar"):
+        if self.needs_attr(StandardFrameDataField.LIDAR):
             # Pure-numpy decode (see ``standard_e2e/utils/waymo_lidar_numpy.py``)
             # — avoids TF runtime overhead in the worker hot path, which
             # at par-32 dominated per-frame wall time.

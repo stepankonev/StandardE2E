@@ -58,6 +58,7 @@ from standard_e2e.enums import (
     DetectionType,
     Intent,
     LidarComponent,
+    StandardFrameDataField,
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
@@ -412,22 +413,22 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
 
         cameras = (
             self._build_camera_dict(sensor_blobs_root, frame)
-            if self.needs_attr("cameras")
+            if self.needs_attr(StandardFrameDataField.CAMERAS)
             else {}
         )
         lidar = (
             self._build_lidar(sensor_blobs_root, frame)
-            if self.needs_attr("lidar")
+            if self.needs_attr(StandardFrameDataField.LIDAR)
             else None
         )
         detections = (
             self._build_detections(frame, timestamp_s)
-            if self.needs_attr("frame_detections_3d")
+            if self.needs_attr(StandardFrameDataField.FRAME_DETECTIONS_3D)
             else []
         )
         intent = (
             _driving_command_to_intent(frame["driving_command"])
-            if self.needs_attr("intent")
+            if self.needs_attr(StandardFrameDataField.INTENT)
             else None
         )
 
@@ -439,7 +440,7 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         x, y, z, heading = matrix_to_xyz_heading(T_global_from_ego)
         hd_map = (
             self._build_hd_map(log_path, frame, T_global_from_ego)
-            if self.needs_attr("hd_map")
+            if self.needs_attr(StandardFrameDataField.HD_MAP)
             else None
         )
 

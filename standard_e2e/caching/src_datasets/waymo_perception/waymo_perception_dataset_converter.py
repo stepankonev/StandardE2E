@@ -10,6 +10,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from standard_e2e.caching import TFRecSourceDatasetConverter
+from standard_e2e.enums import StandardFrameDataField
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
@@ -60,11 +61,11 @@ class WaymoPerceptionDatasetConverter(TFRecSourceDatasetConverter):
         # The HD-map prescan reads frame 0 of every tfrecord (~3 s/file
         # on HDD; ~40 min on the full training split) to populate the
         # processor's ``_segment_map_cache``. The cache is only ever
-        # read inside ``_build_hd_map``, which is itself gated on
-        # ``needs_attr("hd_map")``. Skip the prescan entirely when no
+        # read inside ``_build_hd_map``, which is itself gated on the same
+        # ``needs_attr(HD_MAP)`` check. Skip the prescan entirely when no
         # adapter consumes ``hd_map`` — cameras-only / lidar-only chains
         # save the full prescan cost.
-        if self._source_processor.needs_attr("hd_map"):
+        if self._source_processor.needs_attr(StandardFrameDataField.HD_MAP):
             # Tell the processor to spill prescan results to disk so the
             # in-memory cache stays empty and ``Pool.initializer`` doesn't
             # ship hundreds of MB to every worker. Workers lazy-load per
