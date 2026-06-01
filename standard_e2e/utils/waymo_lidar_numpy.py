@@ -96,7 +96,8 @@ def numpy_parse_range_image_and_camera_projection(
 def _rotation_from_rpy(
     roll: np.ndarray, pitch: np.ndarray, yaw: np.ndarray
 ) -> np.ndarray:
-    """Build R = R_yaw @ R_pitch @ R_roll, matching ``transform_utils.get_rotation_matrix``.
+    """Build ``R = R_yaw @ R_pitch @ R_roll`` (matches upstream
+    ``transform_utils.get_rotation_matrix``).
 
     Inputs are arrays of the same shape; output is shape (... , 3, 3).
     """
@@ -203,7 +204,8 @@ def numpy_convert_range_image_to_point_cloud(
         # Azimuth correction = atan2(R[1,0], R[0,0])
         az_correction = np.arctan2(extrinsic[1, 0], extrinsic[0, 0])
 
-        # Per-column azimuth, matching the upstream's ((W-i-0.5)/W*2-1)*pi - az_correction
+        # Per-column azimuth, matching upstream:
+        # ((W - i - 0.5) / W * 2 - 1) * pi - az_correction
         ratios = (np.arange(W, 0, -1, dtype=np.float32) - 0.5) / np.float32(W)
         azimuth = (ratios * 2.0 - 1.0) * np.pi - az_correction  # [W]
 
