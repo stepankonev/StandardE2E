@@ -126,13 +126,6 @@ are translated through the unified
    For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
    truncate segment continuity in this mode, so use only for smoke-testing.
 
-.. tip::
-   The preprocessing pipeline scales well on multi-core machines and
-   uses lazy modality loading, so chains that don't configure every
-   adapter skip the corresponding work. See
-   :doc:`preprocessing_performance` for measured rates and tuning
-   knobs.
-
 Interactive Tutorials
 ---------------------
 
