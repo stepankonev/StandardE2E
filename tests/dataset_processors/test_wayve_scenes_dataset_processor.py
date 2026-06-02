@@ -25,23 +25,20 @@ from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_process
 )
 from standard_e2e.enums import CameraDirection
 
-_WAYVE_ROOTS = [
-    Path(p)
-    for p in (
-        os.environ.get("WAYVE_SCENES_ROOT", ""),
-        "/mnt/bigdisk/datasets/wayve_scenes_unzipped",
-    )
-    if p
-]
+# Real-frame checks read an extracted scene only from this env var; no
+# machine-specific path is hard-coded. They skip when it is unset.
+_WAYVE_SCENES_ROOT = os.environ.get("WAYVE_SCENES_ROOT", "")
 
 
 def _find_scene() -> Path | None:
-    for root in _WAYVE_ROOTS:
-        if not root.is_dir():
-            continue
-        for scene in sorted(root.glob("scene_*")):
-            if (scene / "colmap_sparse" / "rig" / "images.bin").is_file():
-                return scene
+    if not _WAYVE_SCENES_ROOT:
+        return None
+    root = Path(_WAYVE_SCENES_ROOT)
+    if not root.is_dir():
+        return None
+    for scene in sorted(root.glob("scene_*")):
+        if (scene / "colmap_sparse" / "rig" / "images.bin").is_file():
+            return scene
     return None
 
 
@@ -97,6 +94,7 @@ def test_lidar_uses_world_to_ego_not_ego_to_world(tmp_path):
     proc._cached_scene_dir = scene  # makes _refresh_scene_cache a no-op
 
     fd = proc._prepare_standardized_frame_data((str(scene), ts))
+    assert fd.lidar is not None
     pts = fd.lidar.points.to_numpy()
     # Match each world point to its ego image (order preserved by the clip here).
     at_car, ahead, behind = pts[0], pts[1], pts[2]
@@ -108,6 +106,7 @@ def test_lidar_uses_world_to_ego_not_ego_to_world(tmp_path):
 def test_lidar_round_trips_to_world_via_pose_matrix(built_frame):
     """ego cloud lifted by pose_matrix must land back on the world SfM cloud."""
     proc, fd = built_frame
+    assert fd.lidar is not None
     ego = fd.lidar.points.to_numpy().astype(np.float64)
     T = np.asarray(fd.aux_data["pose_matrix"], dtype=np.float64)  # ego->world
     world = (np.c_[ego, np.ones(len(ego))] @ T.T)[:, :3]
