@@ -115,6 +115,29 @@ are translated through the unified
    :class:`~standard_e2e.caching.src_datasets.navsim.NavsimDatasetProcessor`)
    at the mirror.
 
+For WayveScenes101 the input path points at a directory of **extracted**
+scenes (each ``scene_<NNN>.zip`` unpacked to ``scene_<NNN>/`` with its
+``colmap_sparse/rig/``, ``images/`` and ``masks/`` subdirectories). The
+split is a passthrough output label (the dataset has no perception split).
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.caching.process_source_dataset wayve_scenes \
+       --input_path=path/to/extracted_wayve_scenes \
+       --output_path=path/to/output \
+       --split=test \
+       --num_workers=32 \
+       --config_file=path/to/config.yaml \
+       --do_parallel_processing
+
+The WayveScenes processor surfaces cameras (5 fisheye views), the ego
+past/future trajectory (from the COLMAP poses), and a ``lidar_pc`` cloud
+derived from the per-scene **COLMAP SfM** reconstruction — transformed
+into each frame's ego (FLU) frame and range-clipped so it flows through
+the standard lidar adapters. The COLMAP binaries are parsed by a small
+dependency-free reader (no ``pycolmap`` needed at preprocessing time);
+the SfM cloud is photogrammetric, not sensor lidar.
+
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**
    pipeline stages: the per-frame conversion (one frame per worker) and
