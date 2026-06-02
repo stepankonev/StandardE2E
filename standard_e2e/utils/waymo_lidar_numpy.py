@@ -1,3 +1,7 @@
+# The geometry in this module is a numpy re-derivation of the decode in the
+# Waymo Open Dataset (waymo_open_dataset.utils.frame_utils / range_image_utils),
+# © The Waymo Open Dataset Authors, licensed under the Apache License 2.0. See
+# standard_e2e/third_party/waymo_open_dataset/LICENSE for the full license text.
 """Pure-numpy equivalents of the Waymo lidar decode hot path.
 
 The upstream ``waymo_open_dataset.utils.frame_utils`` runs:

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,7 +10,15 @@ authors = [
 ]
 description = "A unified framework for autonomous driving dataset management for end-to-end model development"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+# Bundle the project license, the third-party notice, and the vendored Waymo
+# Open Dataset's Apache 2.0 text into the wheel/sdist (PEP 639). The Apache copy
+# is required by its §4(a) when redistributing the vendored sources.
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.txt",
+    "standard_e2e/third_party/waymo_open_dataset/LICENSE",
+]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "torch",
@@ -40,7 +48,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -89,6 +96,14 @@ lint = [
 Homepage = "https://github.com/stepankonev/StandardE2E"
 Repository = "https://github.com/stepankonev/StandardE2E.git"
 Issues = "https://github.com/stepankonev/StandardE2E/issues"
+
+[tool.setuptools.package-data]
+# Keep the Apache 2.0 text physically beside the vendored Waymo code it governs,
+# so it survives in site-packages next to the sources. The project license and
+# the third-party notice are bundled via [project] license-files above. Together
+# these satisfy Apache-2.0 §4(a) when redistributing the vendored
+# standard_e2e/third_party/waymo_open_dataset/*.py sources.
+"standard_e2e.third_party.waymo_open_dataset" = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 include = ["standard_e2e*"]
