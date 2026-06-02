@@ -65,7 +65,7 @@ pip install -e ".[dev]"
 | [Waymo End-to-end](https://waymo.com/open/data/e2e/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ❌ | ❌ | ❌ | ✅ | ✅ |
 | [Waymo Perception](https://waymo.com/open/data/perception/) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/semicircle-orange) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Navsim](https://github.com/autonomousvision/navsim/blob/main/docs/splits.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/semicircle-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/semicircle-orange) | ![](https://img.shields.io/badge/SfM-orange)¹ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Argoverse 2 Lidar](https://www.argoverse.org/av2.html#lidar-link) ![](https://img.shields.io/badge/supported-darkgreen) | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Map Change](https://www.argoverse.org/av2.html#mapchange-link) ![](https://img.shields.io/badge/TBD-gray) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -73,6 +73,8 @@ pip install -e ".[dev]"
 | [KITTI-360](https://www.cvlibs.net/datasets/kitti-360/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) + 2 x ![](https://img.shields.io/badge/side%20fisheye-blue) | ✅ | ❓ | ❓ | ❓ | ❓ |
 | [Waymo Motion Prediction](https://waymo.com/open/data/motion/) ![](https://img.shields.io/badge/TBD-gray) | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Argoverse 2 Motion Forecasting [?]](https://www.argoverse.org/av2.html#forecasting-link) ![](https://img.shields.io/badge/TBD-gray) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+
+¹ WayveScenes101 ships no sensor lidar; the `lidar_pc` modality is populated from the per-scene **COLMAP SfM** point cloud, transformed into each frame's ego frame and range-clipped so it flows through the lidar adapters. It is photogrammetric (sparse, up-to-scale), not a sensor measurement. Cameras are 5 fisheye views (forward + side arc); the ego past/future trajectory is derived from the COLMAP poses. Scenes must be extracted from the distributed `scene_<NNN>.zip` archives before processing.
 
 ## 🚀 Key Features
 

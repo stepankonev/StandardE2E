@@ -55,6 +55,27 @@ the corresponding default value via
      - ✓
      - ✓ (4-class one-hot → :class:`~standard_e2e.enums.Intent`)
      - —
+   * - `WayveScenes101 <https://wayve.ai/science/wayvescenes101>`__
+     - ✓ (5 fisheye: forward + side arc)
+     - ✓ (COLMAP SfM, ego frame) [#wayve_lidar]_
+     - —
+     - —
+     - —
+     - —
+
+All datasets also emit the ego **past/future trajectory** (from each
+dataset's poses, via the segment-context aggregator) regardless of the
+columns above.
+
+.. [#wayve_lidar] WayveScenes101 ships **no sensor lidar**. Its ``lidar_pc``
+   is populated from the per-scene **COLMAP SfM** point cloud: filtered
+   (reprojection error ≤ 6, track length ≥ 2), converted OpenCV→FLU, then
+   transformed into each frame's ego (FLU, x-forward/y-left/z-up) frame with
+   the *world→ego* pose and range-clipped (50 m) so it flows through the
+   standard lidar adapters. It is photogrammetric (sparse, up-to-scale), not
+   a sensor measurement. The ego, cameras and lidar share one FLU frame, so
+   a frame's cloud lifted by ``aux_data["pose_matrix"]`` reproduces the
+   source SfM cloud exactly.
 
 How datasets are added
 ----------------------

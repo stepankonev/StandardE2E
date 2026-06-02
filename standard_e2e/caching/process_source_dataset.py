@@ -23,6 +23,10 @@ from standard_e2e.caching.src_datasets.waymo_perception import (
     WaymoPerceptionDatasetConverter,
     WaymoPerceptionDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.wayve_scenes import (
+    WayveScenesDatasetConverter,
+    WayveScenesDatasetProcessor,
+)
 from standard_e2e.utils import load_yaml_config
 
 
@@ -48,6 +52,7 @@ def main(argv=None):
         "av2_sensor": Av2SensorDatasetConverter,
         "av2_lidar": Av2LidarDatasetConverter,
         "navsim": NavsimDatasetConverter,
+        "wayve_scenes": WayveScenesDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -57,6 +62,7 @@ def main(argv=None):
         "av2_sensor": Av2SensorDatasetProcessor,
         "av2_lidar": Av2LidarDatasetProcessor,
         "navsim": NavsimDatasetProcessor,
+        "wayve_scenes": WayveScenesDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
