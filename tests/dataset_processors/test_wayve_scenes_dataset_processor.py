@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from standard_e2e.caching.adapters import LidarAdapter
 from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_processor import (
     _FLU_RDF,
     WayveScenesDatasetProcessor,
@@ -61,6 +62,63 @@ def test_flu_rdf_is_orthonormal_rotation():
     R = _FLU_RDF[:3, :3]
     np.testing.assert_allclose(R @ R.T, np.eye(3), atol=1e-12)
     assert np.isclose(np.linalg.det(R), 1.0)
+
+
+def test_lidar_uses_world_to_ego_not_ego_to_world(tmp_path):
+    """The per-frame cloud must be world->ego (inv of the ego pose).
+
+    Regression guard for the sign-flip where ``_build_lidar`` was fed the
+    ego->world pose: that places the car's own world point far from the ego
+    origin and makes the cloud drift opposite the true driving direction.
+    Synthetic, so it always runs (no dataset needed).
+    """
+    proc = WayveScenesDatasetProcessor(
+        common_output_path=str(tmp_path),
+        split="test",
+        adapters=[LidarAdapter()],  # so needs_attr("lidar") is True
+        context_aggregators=[],
+    )
+    ts = 1_000_000
+    # Ego at world (10, 0, 0), heading 0 -> ego-forward == world +x.
+    T_world_ego = np.eye(4, dtype=np.float64)
+    T_world_ego[:3, 3] = [10.0, 0.0, 0.0]
+    scene = tmp_path / "scene_synth"
+
+    proc._ego_pose = {ts: T_world_ego}
+    proc._frame_cams = {ts: {}}  # no cameras for this check
+    proc._points_world_flu = np.array(
+        [
+            [10.0, 0.0, 0.0],  # at the car      -> ego origin
+            [20.0, 0.0, 0.0],  # 10 m ahead      -> ego +x
+            [0.0, 0.0, 0.0],
+        ],  # 10 m behind     -> ego -x
+        dtype=np.float32,
+    )
+    proc._cached_scene_dir = scene  # makes _refresh_scene_cache a no-op
+
+    fd = proc._prepare_standardized_frame_data((str(scene), ts))
+    pts = fd.lidar.points.to_numpy()
+    # Match each world point to its ego image (order preserved by the clip here).
+    at_car, ahead, behind = pts[0], pts[1], pts[2]
+    np.testing.assert_allclose(at_car, [0, 0, 0], atol=1e-4)  # car -> origin
+    np.testing.assert_allclose(ahead, [10, 0, 0], atol=1e-4)  # forward -> +x
+    np.testing.assert_allclose(behind, [-10, 0, 0], atol=1e-4)  # behind  -> -x
+
+
+def test_lidar_round_trips_to_world_via_pose_matrix(built_frame):
+    """ego cloud lifted by pose_matrix must land back on the world SfM cloud."""
+    proc, fd = built_frame
+    ego = fd.lidar.points.to_numpy().astype(np.float64)
+    T = np.asarray(fd.aux_data["pose_matrix"], dtype=np.float64)  # ego->world
+    world = (np.c_[ego, np.ones(len(ego))] @ T.T)[:, :3]
+    # every lifted point should coincide with some original world SfM point
+    src = proc._points_world_flu.astype(np.float64)
+    # nearest-neighbour distance on a sample (cdist on a subset for speed)
+    sample = world[:: max(1, len(world) // 500)]
+    d = np.linalg.norm(sample[:, None, :] - src[None, :, :], axis=2).min(axis=1)
+    assert (
+        np.median(d) < 0.1
+    ), f"ego->world round-trip off the SfM cloud (median {d.median() if hasattr(d,'median') else np.median(d):.3f} m)"
 
 
 def test_world_from_cam_translation_equals_flu_camera_center():

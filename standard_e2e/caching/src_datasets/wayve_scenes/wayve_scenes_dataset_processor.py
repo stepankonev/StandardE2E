@@ -268,6 +268,13 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
         return out
 
     def _build_lidar(self, T_ego_world: np.ndarray) -> LidarData:
+        """Transform the world-frame SfM cloud into the per-frame ego frame.
+
+        ``T_ego_world`` must be the *world->ego* transform (``inv(T_world_ego)``);
+        applying it to world points yields ego-frame points. (Passing the
+        ego->world pose here instead is the classic sign-flip that makes the
+        cloud drift opposite the true driving direction.)
+        """
         pts = self._points_world_flu
         if len(pts) == 0:
             xyz_ego = np.zeros((0, 3), dtype=np.float32)
@@ -297,7 +304,7 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
             else {}
         )
         lidar = (
-            self._build_lidar(T_world_ego)
+            self._build_lidar(T_ego_world)
             if self.needs_attr(StandardFrameDataField.LIDAR)
             else None
         )
