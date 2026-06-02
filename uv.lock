@@ -1090,8 +1090,9 @@ wheels = [
 
 [[package]]
 name = "nuplan-devkit"
-version = "1.2.0"
-source = { git = "https://github.com/motional/nuplan-devkit.git?rev=nuplan-devkit-v1.2#ce3c323af01c0d7ec5672f7832ef53f9c679aab0" }
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/11/42bd90d32ed7adfcf5621c29b37b0b8ce82e8b63edab2406dc7ec24bb097/nuplan_devkit-2.0.0.tar.gz", hash = "sha256:774021ebcd9631f2094fe55de8ea2aa615c8505b20fccddeae6f8511d6ea2e93", size = 824337, upload-time = "2026-01-13T10:59:55.333Z" }
 
 [[package]]
 name = "nvidia-cublas-cu12"
@@ -1922,7 +1923,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'lint'", specifier = ">=1.0.0" },
-    { name = "nuplan-devkit", git = "https://github.com/motional/nuplan-devkit.git?rev=nuplan-devkit-v1.2" },
+    { name = "nuplan-devkit", specifier = ">=2.0.0,<3" },
     { name = "opencv-python-headless" },
     { name = "pandas" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.2.0.240909" },

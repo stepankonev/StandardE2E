@@ -33,7 +33,7 @@ dependencies = [
     "tqdm",
     "pydantic>=2.6,<3",
     "av2>=0.3.6",
-    "nuplan-devkit",
+    "nuplan-devkit>=2.0.0,<3",
     "geopandas>=0.14",
     "pyogrio>=0.7",
     "rasterio>=1.3",
@@ -206,6 +206,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "scipy.*"
 ignore_missing_imports = true
-
-[tool.uv.sources]
-nuplan-devkit = { git = "https://github.com/motional/nuplan-devkit.git", rev = "nuplan-devkit-v1.2" }
