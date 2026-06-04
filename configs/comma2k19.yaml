@@ -1,9 +1,12 @@
 preprocessing:
   # comma2k19 ships a single forward camera + ego pose (no lidar, HD map,
-  # detections, or driving command). The camera passes through unchanged; the
-  # past/future ego trajectories are added by the FuturePastStatesFromMatrices
-  # context aggregator (the processor's default), not a per-frame adapter.
+  # detections, or driving command). The past/future ego trajectories are added
+  # by the FuturePastStatesFromMatrices context aggregator (the processor's
+  # default), not a per-frame adapter.
   adapters:
+    # The native 1164x874 frame passes through. Add `params: {max_size: N}` to
+    # downscale its longest side to N px (intrinsics scaled to match) and cut
+    # output size.
     - name: cameras_identity_adapter
 dataset:
   features:

@@ -20,9 +20,9 @@ done
 
 # With STANDARD_E2E_DEBUG=true only the first segment is processed (~1200
 # frames at 20 Hz, full stride); unset it for the full extracted dataset.
-# To cut volume / time: --frame_stride N keeps every Nth frame, and
-# --image_max_size N downscales each frame's longest side to N px (native is
-# 20 Hz, 1164x874).
+# To cut volume / time: --frame_stride N keeps every Nth frame, and the
+# cameras_identity_adapter's max_size param (in the config) downscales each
+# frame's longest side to N px (native is 20 Hz, 1164x874).
 STANDARD_E2E_DEBUG=true uv run python -m standard_e2e.caching.process_source_dataset comma2k19 \
     --input_path=$EXTRACTED_PATH \
     --output_path=$OUTPUT_PATH \

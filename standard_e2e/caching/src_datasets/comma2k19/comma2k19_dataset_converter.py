@@ -8,9 +8,9 @@ segment's HEVC stream forward-only: a worker pulling tasks off the shared pool
 queue walks a monotonically increasing subsequence of a segment's frames.
 
 ``--frame_stride`` subsamples the native 20 Hz stream (``1`` keeps every
-frame); ``--image_max_size`` optionally downscales each frame (intrinsics
-scaled to match). With ``STANDARD_E2E_DEBUG=true`` only the first segment is
-processed.
+frame); downscaling, if wanted, is the ``cameras_identity_adapter``'s
+``max_size`` param (config-driven). With ``STANDARD_E2E_DEBUG=true`` only the
+first segment is processed.
 
 The frame iterator is a lazy generator so the full per-frame task list (~1.2M
 frames per chunk) is never materialised in memory.
@@ -28,23 +28,10 @@ from standard_e2e.caching.src_datasets.comma2k19._comma_io import (
     discover_segments,
     read_frame_times,
 )
-from standard_e2e.caching.src_datasets.comma2k19.comma2k19_dataset_processor import (
-    Comma2k19DatasetProcessor,
-)
 
 
 class Comma2k19DatasetConverter(SourceDatasetConverter):
     """Iterates extracted comma2k19 segments frame-by-frame."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Forward the optional downscale knob to the processor before the pool
-        # pickles it to the workers.
-        max_size = getattr(self._args, "image_max_size", None)
-        if max_size is not None and isinstance(
-            self._source_processor, Comma2k19DatasetProcessor
-        ):
-            self._source_processor.image_max_size = int(max_size)
 
     @property
     def multiprocessing_start_method(self) -> str:
@@ -62,15 +49,6 @@ class Comma2k19DatasetConverter(SourceDatasetConverter):
             help=(
                 "Sample every Nth video frame (1 = every 20 Hz frame). Use a "
                 "larger stride to cut output volume / processing time."
-            ),
-        )
-        parser.add_argument(
-            "--image_max_size",
-            type=int,
-            default=None,
-            help=(
-                "Downscale each frame so its longest side is at most N px "
-                "(intrinsics scaled to match). Default keeps native 1164x874."
             ),
         )
         return parser

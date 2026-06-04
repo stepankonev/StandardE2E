@@ -80,8 +80,9 @@ columns above.
    frames (~2 TB at the native 1164×874 resolution). Two converter knobs bound
    the output size and processing time: ``--frame_stride N`` keeps **every
    N-th frame** (``1`` = full 20 Hz; e.g. ``--frame_stride 4`` ≈ 5 Hz), and
-   ``--image_max_size N`` **downscales** each frame so its longest side is at
-   most ``N`` px (the intrinsics are scaled to match).
+   the ``cameras_identity_adapter``'s ``max_size`` param **downscales** each
+   frame so its longest side is at most that many px (intrinsics scaled to
+   match).
 
 .. [#wayve_lidar] WayveScenes101 ships **no sensor lidar**. Its ``lidar_pc``
    is populated from the per-scene **COLMAP SfM** point cloud: filtered

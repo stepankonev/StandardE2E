@@ -91,7 +91,6 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         index_data_generator: IndexDataGenerator | None = None,
         adapters: list[AbstractAdapter] | None = None,
         context_aggregators: list[SegmentContextAggregator] | None = None,
-        image_max_size: int | None = None,
     ):
         super().__init__(
             common_output_path=common_output_path,
@@ -100,10 +99,6 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
             adapters=adapters,
             context_aggregators=context_aggregators,
         )
-        # Optional downscale: cap each camera image's longest side at this many
-        # pixels (intrinsics scaled to match). ``None`` keeps the native
-        # 1164x874. Set by the converter from ``--image_max_size``.
-        self.image_max_size = image_max_size
         # Per-worker, per-segment cache (populated lazily in the worker).
         self._cached_segment_id: Optional[str] = None
         self._pose_world_from_ego = np.zeros((0, 4, 4), dtype=np.float64)
@@ -213,26 +208,11 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         )
 
     def _build_cameras(self, frame_idx: int) -> dict[CameraDirection, CameraData]:
-        image = self._read_frame(frame_idx)
-        intrinsics = self.camera_intrinsics
-        if self.image_max_size is not None:
-            h, w = image.shape[:2]
-            if max(h, w) > self.image_max_size:
-                scale = self.image_max_size / max(h, w)
-                new_w, new_h = max(1, round(w * scale)), max(1, round(h * scale))
-                image = np.ascontiguousarray(
-                    cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA),
-                    dtype=np.uint8,
-                )
-                # Scale K by the exact per-axis ratio so projection still holds.
-                intrinsics = intrinsics.copy()
-                intrinsics[0, :] *= new_w / w  # fx, skew, cx
-                intrinsics[1, :] *= new_h / h  # fy, cy
         return {
             CameraDirection.FRONT: CameraData(
                 camera_direction=CameraDirection.FRONT,
-                image=image,
-                intrinsics=intrinsics,
+                image=self._read_frame(frame_idx),
+                intrinsics=self.camera_intrinsics,
                 # The pose is the camera pose, so camera == ego (FLU).
                 extrinsics=np.eye(4, dtype=np.float32),
                 is_fisheye=False,

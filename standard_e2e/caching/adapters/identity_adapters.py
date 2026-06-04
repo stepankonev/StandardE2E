@@ -1,8 +1,11 @@
 from typing import Any
 
+import cv2
+import numpy as np
+
 from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.constants import PREFERENCE_TRAJECTORIES_KEY
-from standard_e2e.data_structures import StandardFrameData
+from standard_e2e.data_structures import CameraData, StandardFrameData
 from standard_e2e.enums import Modality, StandardFrameDataField
 
 
@@ -36,15 +39,59 @@ class IdentityAdapter(AbstractAdapter):
         return {self._modality: getattr(standard_frame_data, self._attr)}
 
 
-class CamerasIdentityAdapter(IdentityAdapter):
-    """Identity adapter for camera data."""
+def _downscale_camera(camera: CameraData, max_size: int) -> CameraData:
+    """Downscale a camera image so its longest side is at most ``max_size`` px,
+    scaling the intrinsics by the same per-axis ratio so projection holds."""
+    height, width = camera.image.shape[:2]
+    if max(height, width) <= max_size:
+        return camera
+    scale = max_size / max(height, width)
+    new_w, new_h = max(1, round(width * scale)), max(1, round(height * scale))
+    image = np.ascontiguousarray(
+        cv2.resize(camera.image, (new_w, new_h), interpolation=cv2.INTER_AREA),
+        dtype=np.uint8,
+    )
+    intrinsics = camera.intrinsics.copy()
+    intrinsics[0, :] *= new_w / width  # fx, skew, cx
+    intrinsics[1, :] *= new_h / height  # fy, cy
+    return CameraData(
+        camera_direction=camera.camera_direction,
+        image=image,
+        intrinsics=intrinsics,
+        extrinsics=camera.extrinsics,
+        distortion=camera.distortion,
+        is_fisheye=camera.is_fisheye,
+    )
 
-    def __init__(self):
+
+class CamerasIdentityAdapter(IdentityAdapter):
+    """Identity adapter for camera data.
+
+    With ``max_size`` set, each camera image is downscaled so its longest side
+    is at most ``max_size`` pixels and its intrinsics are scaled to match (so
+    projection still holds). ``None`` (the default) passes the cameras through
+    unchanged.
+    """
+
+    def __init__(self, max_size: int | None = None):
         super().__init__(Modality.CAMERAS, StandardFrameDataField.CAMERAS)
+        self._max_size = max_size
 
     @property
     def name(self) -> str:
         return "CamerasIdentityAdapter"
+
+    def _transform(self, standard_frame_data: StandardFrameData) -> dict[Modality, Any]:
+        transformed = super()._transform(standard_frame_data)
+        if self._max_size is None or Modality.CAMERAS not in transformed:
+            return transformed
+        cameras = transformed[Modality.CAMERAS]
+        return {
+            Modality.CAMERAS: {
+                direction: _downscale_camera(camera, self._max_size)
+                for direction, camera in cameras.items()
+            }
+        }
 
 
 class Detections3DIdentityAdapter(IdentityAdapter):
