@@ -3,7 +3,8 @@
 comma2k19 is a large highway-driving dataset: ~2000 one-minute *segments*, each
 a single forward-facing 20 Hz road camera (the comma EON, 1164x874) plus a
 fused GNSS/IMU ego pose and CAN telemetry. It ships **no** lidar, HD map, 3D
-boxes, or driving command.
+boxes, or driving command. Segments must be extracted from the distributed
+``Chunk_*.zip`` archives before processing (see :mod:`._comma_io`).
 
 Mapping to ``StandardFrameData``:
 
@@ -31,7 +32,6 @@ from __future__ import annotations
 
 import logging
 import os
-import zipfile
 from typing import Optional
 
 # Quieten the FFmpeg HEVC decoder OpenCV shells out to (must be set before the
@@ -57,7 +57,6 @@ from standard_e2e.caching.src_datasets.comma2k19._comma_geometry import (  # noq
 from standard_e2e.caching.src_datasets.comma2k19._comma_io import (  # noqa: E402
     SegmentRef,
     load_pose_arrays,
-    materialize_video,
 )
 from standard_e2e.data_structures import (  # noqa: E402
     CameraData,
@@ -92,7 +91,7 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         index_data_generator: IndexDataGenerator | None = None,
         adapters: list[AbstractAdapter] | None = None,
         context_aggregators: list[SegmentContextAggregator] | None = None,
-        scratch_root: str | None = None,
+        image_max_size: int | None = None,
     ):
         super().__init__(
             common_output_path=common_output_path,
@@ -101,15 +100,10 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
             adapters=adapters,
             context_aggregators=context_aggregators,
         )
-        # Scratch root for HEVC streams extracted from zip archives. Co-located
-        # with the output so it shares the filesystem the user sized for the
-        # dataset; removed by the converter's ``_cleanup_after_convert``. The
-        # main-process pid keeps concurrent runs from colliding; each worker
-        # writes to its own ``<pid>`` subdir.
-        self._scratch_root = scratch_root or os.path.join(
-            common_output_path, f".comma2k19_scratch_{os.getpid()}"
-        )
-
+        # Optional downscale: cap each camera image's longest side at this many
+        # pixels (intrinsics scaled to match). ``None`` keeps the native
+        # 1164x874. Set by the converter from ``--image_max_size``.
+        self.image_max_size = image_max_size
         # Per-worker, per-segment cache (populated lazily in the worker).
         self._cached_segment_id: Optional[str] = None
         self._pose_world_from_ego = np.zeros((0, 4, 4), dtype=np.float64)
@@ -120,9 +114,6 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         self._cap: Optional[cv2.VideoCapture] = None
         self._next_frame_idx = 0
         self._video_path: Optional[str] = None
-        self._owns_video_file = False
-        # Worker-local open ZipFile handles, keyed by archive path.
-        self._zip_cache: dict[str, zipfile.ZipFile] = {}
 
     @property
     def dataset_name(self) -> str:
@@ -155,18 +146,10 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
 
     # --- per-segment cache ------------------------------------------------
 
-    def _zip_for(self, container: str) -> zipfile.ZipFile:
-        handle = self._zip_cache.get(container)
-        if handle is None:
-            handle = zipfile.ZipFile(container)
-            self._zip_cache[container] = handle
-        return handle
-
     def _refresh_segment_cache(self, ref: SegmentRef) -> None:
         if self._cached_segment_id == ref.segment_id:
             return
-        zip_handle = self._zip_for(ref.container) if ref.kind == "zip" else None
-        poses = load_pose_arrays(ref, zip_handle=zip_handle)
+        poses = load_pose_arrays(ref)
         positions = poses["frame_positions"]
         quats = poses["frame_orientations"]
         velocities = poses["frame_velocities"]
@@ -183,10 +166,7 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         self._n_frames = n
 
         self._release_video()
-        worker_scratch = os.path.join(self._scratch_root, str(os.getpid()))
-        self._video_path, self._owns_video_file = materialize_video(
-            ref, worker_scratch, zip_handle=zip_handle
-        )
+        self._video_path = ref.video_path
         self._cap = None  # opened lazily on first read
         self._next_frame_idx = 0
         self._cached_segment_id = ref.segment_id
@@ -233,11 +213,26 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         )
 
     def _build_cameras(self, frame_idx: int) -> dict[CameraDirection, CameraData]:
+        image = self._read_frame(frame_idx)
+        intrinsics = self.camera_intrinsics
+        if self.image_max_size is not None:
+            h, w = image.shape[:2]
+            if max(h, w) > self.image_max_size:
+                scale = self.image_max_size / max(h, w)
+                new_w, new_h = max(1, round(w * scale)), max(1, round(h * scale))
+                image = np.ascontiguousarray(
+                    cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA),
+                    dtype=np.uint8,
+                )
+                # Scale K by the exact per-axis ratio so projection still holds.
+                intrinsics = intrinsics.copy()
+                intrinsics[0, :] *= new_w / w  # fx, skew, cx
+                intrinsics[1, :] *= new_h / h  # fy, cy
         return {
             CameraDirection.FRONT: CameraData(
                 camera_direction=CameraDirection.FRONT,
-                image=self._read_frame(frame_idx),
-                intrinsics=self.camera_intrinsics,
+                image=image,
+                intrinsics=intrinsics,
                 # The pose is the camera pose, so camera == ego (FLU).
                 extrinsics=np.eye(4, dtype=np.float32),
                 is_fisheye=False,
@@ -291,24 +286,8 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
         if self._cap is not None:
             self._cap.release()
             self._cap = None
-        if (
-            self._owns_video_file
-            and self._video_path
-            and os.path.exists(self._video_path)
-        ):
-            try:
-                os.remove(self._video_path)
-            except OSError:
-                pass
         self._video_path = None
-        self._owns_video_file = False
 
     def cleanup(self) -> None:
-        """Release worker-local video/zip handles (called on each worker)."""
+        """Release the worker-local video handle."""
         self._release_video()
-        for handle in self._zip_cache.values():
-            try:
-                handle.close()
-            except Exception:  # pragma: no cover - best-effort close
-                pass
-        self._zip_cache.clear()

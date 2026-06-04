@@ -1,14 +1,16 @@
 """Source-dataset converter for comma2k19.
 
-Discovers segments (extracted directories or ``Chunk_*.zip`` archives; see
-:mod:`._comma_io`) and yields one ``(SegmentRef, frame_index)`` task per video
-frame, ordered **segment-major / frame-ascending**. That ordering is what lets
-the processor decode each segment's HEVC stream forward-only: a worker pulling
-tasks off the shared pool queue walks a monotonically increasing subsequence of
-a segment's frames.
+Discovers extracted segment directories (see :mod:`._comma_io`; the
+``Chunk_*.zip`` archives must be unzipped first) and yields one
+``(SegmentRef, frame_index)`` task per video frame, ordered **segment-major /
+frame-ascending**. That ordering is what lets the processor decode each
+segment's HEVC stream forward-only: a worker pulling tasks off the shared pool
+queue walks a monotonically increasing subsequence of a segment's frames.
 
 ``--frame_stride`` subsamples the native 20 Hz stream (``1`` keeps every
-frame). With ``STANDARD_E2E_DEBUG=true`` only the first segment is processed.
+frame); ``--image_max_size`` optionally downscales each frame (intrinsics
+scaled to match). With ``STANDARD_E2E_DEBUG=true`` only the first segment is
+processed.
 
 The frame iterator is a lazy generator so the full per-frame task list (~1.2M
 frames per chunk) is never materialised in memory.
@@ -18,9 +20,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
-import zipfile
-from collections import defaultdict
 from typing import Iterator
 
 from standard_e2e.caching import SourceDatasetConverter
@@ -29,10 +28,23 @@ from standard_e2e.caching.src_datasets.comma2k19._comma_io import (
     discover_segments,
     read_frame_times,
 )
+from standard_e2e.caching.src_datasets.comma2k19.comma2k19_dataset_processor import (
+    Comma2k19DatasetProcessor,
+)
 
 
 class Comma2k19DatasetConverter(SourceDatasetConverter):
-    """Iterates comma2k19 segments frame-by-frame."""
+    """Iterates extracted comma2k19 segments frame-by-frame."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Forward the optional downscale knob to the processor before the pool
+        # pickles it to the workers.
+        max_size = getattr(self._args, "image_max_size", None)
+        if max_size is not None and isinstance(
+            self._source_processor, Comma2k19DatasetProcessor
+        ):
+            self._source_processor.image_max_size = int(max_size)
 
     @property
     def multiprocessing_start_method(self) -> str:
@@ -52,6 +64,15 @@ class Comma2k19DatasetConverter(SourceDatasetConverter):
                 "larger stride to cut output volume / processing time."
             ),
         )
+        parser.add_argument(
+            "--image_max_size",
+            type=int,
+            default=None,
+            help=(
+                "Downscale each frame so its longest side is at most N px "
+                "(intrinsics scaled to match). Default keeps native 1164x874."
+            ),
+        )
         return parser
 
     def _get_source_dataset_iterator(self) -> Iterator[tuple[SegmentRef, int]]:
@@ -69,24 +90,7 @@ class Comma2k19DatasetConverter(SourceDatasetConverter):
     def _iter_frames(
         segments: list[SegmentRef], stride: int
     ) -> Iterator[tuple[SegmentRef, int]]:
-        # Group by source archive/dir so each zip is opened once for the cheap
-        # frame-count probe (reading only ``frame_times``).
-        by_container: dict[tuple[str, str], list[SegmentRef]] = defaultdict(list)
         for ref in segments:
-            by_container[(ref.kind, ref.container)].append(ref)
-        for (kind, container), refs in by_container.items():
-            zip_handle = zipfile.ZipFile(container) if kind == "zip" else None
-            try:
-                for ref in refs:
-                    n_frames = len(read_frame_times(ref, zip_handle=zip_handle))
-                    for frame_idx in range(0, n_frames, stride):
-                        yield (ref, frame_idx)
-            finally:
-                if zip_handle is not None:
-                    zip_handle.close()
-
-    def _cleanup_after_convert(self) -> None:
-        # Remove the scratch tree of HEVC streams extracted from zip archives.
-        scratch_root = getattr(self._source_processor, "_scratch_root", None)
-        if scratch_root and os.path.isdir(scratch_root):
-            shutil.rmtree(scratch_root, ignore_errors=True)
+            n_frames = len(read_frame_times(ref))
+            for frame_idx in range(0, n_frames, stride):
+                yield (ref, frame_idx)

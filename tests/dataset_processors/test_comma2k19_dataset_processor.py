@@ -116,7 +116,7 @@ def test_discover_dir_segments_and_segment_id(tmp_path):
     segments = discover_segments(str(tmp_path))
     assert len(segments) == 1
     ref = segments[0]
-    assert ref.kind == "dir"
+    assert ref.path == str(seg)
     assert ref.segment_id == "abc123def456_2018-01-02--03-04-05_7"
     assert ref.route == "abc123def456|2018-01-02--03-04-05"
     assert ref.segment == "7"
@@ -217,3 +217,46 @@ def test_forward_only_reader_is_deterministic(built):
     assert np.array_equal(img_a, img_b)
     other = proc._read_frame(min(mid + 5, n - 1))
     assert not np.array_equal(img_a, other)
+
+
+def test_image_max_size_downscales_and_scales_intrinsics(tmp_path_factory):
+    ref = _first_segment()
+    if ref is None:
+        pytest.skip("no comma2k19 data available (set COMMA2K19_ROOT)")
+    out = tmp_path_factory.mktemp("comma2k19_lowres")
+    mid = len(load_pose_arrays(ref)["frame_times"]) // 2
+    full = Comma2k19DatasetProcessor(
+        common_output_path=str(out), split="all", context_aggregators=[]
+    )
+    small = Comma2k19DatasetProcessor(
+        common_output_path=str(out),
+        split="all",
+        context_aggregators=[],
+        image_max_size=300,
+    )
+    cam_full = full._prepare_standardized_frame_data((ref, mid)).cameras[
+        CameraDirection.FRONT
+    ]
+    cam_small = small._prepare_standardized_frame_data((ref, mid)).cameras[
+        CameraDirection.FRONT
+    ]
+    full.cleanup()
+    small.cleanup()
+    assert max(cam_full.image.shape[:2]) == 1164  # native, unchanged
+    assert max(cam_small.image.shape[:2]) <= 300
+    # Intrinsics scale by the same per-axis ratio as the image (so projection
+    # still holds at the reduced resolution).
+    sx = cam_small.image.shape[1] / cam_full.image.shape[1]
+    sy = cam_small.image.shape[0] / cam_full.image.shape[0]
+    np.testing.assert_allclose(
+        cam_small.intrinsics[0, 0], cam_full.intrinsics[0, 0] * sx, rtol=1e-3
+    )
+    np.testing.assert_allclose(
+        cam_small.intrinsics[1, 1], cam_full.intrinsics[1, 1] * sy, rtol=1e-3
+    )
+    np.testing.assert_allclose(
+        cam_small.intrinsics[0, 2], cam_full.intrinsics[0, 2] * sx, rtol=1e-3
+    )
+    np.testing.assert_allclose(
+        cam_small.intrinsics[1, 2], cam_full.intrinsics[1, 2] * sy, rtol=1e-3
+    )

@@ -74,6 +74,15 @@ All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
 columns above.
 
+.. note::
+
+   **comma2k19 is high-volume** — 20 Hz × ~2000 one-minute segments ≈ 2.4 M
+   frames (~2 TB at the native 1164×874 resolution). Two converter knobs bound
+   the output size and processing time: ``--frame_stride N`` keeps **every
+   N-th frame** (``1`` = full 20 Hz; e.g. ``--frame_stride 4`` ≈ 5 Hz), and
+   ``--image_max_size N`` **downscales** each frame so its longest side is at
+   most ``N`` px (the intrinsics are scaled to match).
+
 .. [#wayve_lidar] WayveScenes101 ships **no sensor lidar**. Its ``lidar_pc``
    is populated from the per-scene **COLMAP SfM** point cloud: filtered
    (reprojection error ≤ 6, track length ≥ 2), converted OpenCV→FLU, then
@@ -92,10 +101,10 @@ columns above.
    (x-forward/y-left/z-up), so ``global_position`` X/Y/Z/heading are
    segment-relative; ``global_position`` additionally carries the ego
    **speed** (:attr:`~standard_e2e.enums.TrajectoryComponent.SPEED`) from the
-   ECEF velocity. Segments are read from extracted directories or the
-   distributed ``Chunk_*.zip`` archives directly; each ``video.hevc`` is
-   decoded forward-only, since HEVC random seek is unreliable. Native rate is
-   20 Hz — use ``--frame_stride`` to subsample.
+   ECEF velocity. Segments must be extracted from the distributed
+   ``Chunk_*.zip`` archives first (as with WayveScenes101); each ``video.hevc``
+   is then decoded forward-only, since HEVC random seek is unreliable. Native
+   rate is 20 Hz — use ``--frame_stride`` to subsample.
 
 How datasets are added
 ----------------------

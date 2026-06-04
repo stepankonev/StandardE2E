@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
-INPUT_PATH="/mnt/bigdisk/comma2k19/comma2k19"
+# comma2k19 must be UNZIPPED before processing (as with WayveScenes101):
+#   1) extract the distributed Chunk_*.zip archives once into EXTRACTED_PATH;
+#   2) point --input_path at EXTRACTED_PATH -- the processor reads the
+#      <dongle>|<route>/<segment>/ directories it contains.
+
+ZIP_DIR="/mnt/bigdisk/comma2k19/comma2k19"
+EXTRACTED_PATH="/mnt/nvme1/data/comma2k19_extracted"
 OUTPUT_PATH="/mnt/nvme1/data/standard_e2e_test_comma2k19"
 NUM_WORKERS=8
 CONFIG_PATH="/home/stvn/code/StandardE2E/configs/comma2k19.yaml"
 
-# comma2k19 reads either extracted segment directories or the distributed
-# Chunk_*.zip archives directly (each segment's video.hevc is extracted to a
-# scratch file under the output dir and cleaned up afterwards). With
-# STANDARD_E2E_DEBUG=true only the first segment is processed (~1200 frames at
-# 20 Hz, full stride); unset it for the full ~2000-segment dataset. Native
-# rate is 20 Hz -- raise --frame_stride to subsample and cut output volume.
+# One-time extraction (idempotent: -n skips files that already exist). Each
+# chunk is ~9 GB zipped; extract only the chunks you intend to process.
+mkdir -p "$EXTRACTED_PATH"
+for zip in "$ZIP_DIR"/Chunk_*.zip; do
+    echo "extracting $(basename "$zip") ..."
+    unzip -n -q "$zip" -d "$EXTRACTED_PATH"
+done
+
+# With STANDARD_E2E_DEBUG=true only the first segment is processed (~1200
+# frames at 20 Hz, full stride); unset it for the full extracted dataset.
+# To cut volume / time: --frame_stride N keeps every Nth frame, and
+# --image_max_size N downscales each frame's longest side to N px (native is
+# 20 Hz, 1164x874).
 STANDARD_E2E_DEBUG=true uv run python -m standard_e2e.caching.process_source_dataset comma2k19 \
-    --input_path=$INPUT_PATH \
+    --input_path=$EXTRACTED_PATH \
     --output_path=$OUTPUT_PATH \
     --split=all \
     --num_workers=$NUM_WORKERS \
