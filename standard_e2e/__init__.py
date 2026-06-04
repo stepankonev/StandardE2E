@@ -9,7 +9,7 @@ The original submodule paths (``standard_e2e.data_structures``,
 ``standard_e2e.enums``, ...) keep working unchanged — these are aliases.
 """
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 __author__ = "stepankonev"
 
 from standard_e2e.data_structures import (
