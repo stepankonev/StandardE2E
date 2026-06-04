@@ -62,6 +62,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `comma2k19 <https://github.com/commaai/comma2k19>`__
+     - ✓ (1 forward: comma EON, 1164×874 pinhole) [#comma2k19]_
+     - —
+     - —
+     - —
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -76,6 +83,19 @@ columns above.
    a sensor measurement. The ego, cameras and lidar share one FLU frame, so
    a frame's cloud lifted by ``aux_data["pose_matrix"]`` reproduces the
    source SfM cloud exactly.
+
+.. [#comma2k19] comma2k19 ships a **single forward-facing** 20 Hz camera
+   (comma EON, 1164×874, treated as a pinhole; identity extrinsics, since the
+   dataset pose *is* the camera pose) plus a fused GNSS/IMU ego pose and CAN
+   telemetry — no lidar, HD map, 3D boxes, or driving command. The ego pose is
+   derived from the ECEF ``global_pose`` into a per-segment local FLU frame
+   (x-forward/y-left/z-up), so ``global_position`` X/Y/Z/heading are
+   segment-relative; ``global_position`` additionally carries the ego
+   **speed** (:attr:`~standard_e2e.enums.TrajectoryComponent.SPEED`) from the
+   ECEF velocity. Segments are read from extracted directories or the
+   distributed ``Chunk_*.zip`` archives directly; each ``video.hevc`` is
+   decoded forward-only, since HEVC random seek is unreliable. Native rate is
+   20 Hz — use ``--frame_stride`` to subsample.
 
 How datasets are added
 ----------------------
