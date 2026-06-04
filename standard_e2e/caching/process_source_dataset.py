@@ -11,6 +11,10 @@ from standard_e2e.caching.src_datasets.av2_sensor import (
     Av2SensorDatasetConverter,
     Av2SensorDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.comma2k19 import (
+    Comma2k19DatasetConverter,
+    Comma2k19DatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.navsim import (
     NavsimDatasetConverter,
     NavsimDatasetProcessor,
@@ -53,6 +57,7 @@ def main(argv=None):
         "av2_lidar": Av2LidarDatasetConverter,
         "navsim": NavsimDatasetConverter,
         "wayve_scenes": WayveScenesDatasetConverter,
+        "comma2k19": Comma2k19DatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -63,6 +68,7 @@ def main(argv=None):
         "av2_lidar": Av2LidarDatasetProcessor,
         "navsim": NavsimDatasetProcessor,
         "wayve_scenes": WayveScenesDatasetProcessor,
+        "comma2k19": Comma2k19DatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

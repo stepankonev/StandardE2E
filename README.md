@@ -68,6 +68,7 @@ pip install -e ".[dev]"
 | [WayveScenes101](https://wayve.ai/science/wayvescenes101) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/semicircle-orange) | ![](https://img.shields.io/badge/SfM-orange)¹ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Sensor](https://www.argoverse.org/av2.html#sensor-link) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | [Argoverse 2 Lidar](https://www.argoverse.org/av2.html#lidar-link) ![](https://img.shields.io/badge/supported-darkgreen) | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| [comma2k19](https://github.com/commaai/comma2k19) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/front-darkred)² | ❌ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Map Change](https://www.argoverse.org/av2.html#mapchange-link) ![](https://img.shields.io/badge/TBD-gray) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [KITTI](https://www.cvlibs.net/datasets/kitti/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) | ✅ | ❓ | ❓ | ❓ | ❓ |
 | [KITTI-360](https://www.cvlibs.net/datasets/kitti-360/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) + 2 x ![](https://img.shields.io/badge/side%20fisheye-blue) | ✅ | ❓ | ❓ | ❓ | ❓ |
@@ -75,6 +76,8 @@ pip install -e ".[dev]"
 | [Argoverse 2 Motion Forecasting [?]](https://www.argoverse.org/av2.html#forecasting-link) ![](https://img.shields.io/badge/TBD-gray) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 
 ¹ WayveScenes101 ships no sensor lidar; the `lidar_pc` modality is populated from the per-scene **COLMAP SfM** point cloud, transformed into each frame's ego frame and range-clipped so it flows through the lidar adapters. It is photogrammetric (sparse, up-to-scale), not a sensor measurement. Cameras are 5 fisheye views (forward + side arc); the ego past/future trajectory is derived from the COLMAP poses. Scenes must be extracted from the distributed `scene_<NNN>.zip` archives before processing.
+
+² comma2k19 is a single forward-facing 20 Hz camera (comma EON, 1164×874, pinhole) with a fused GNSS/IMU ego pose; the ego past/future trajectory is derived from the global ECEF poses and `global_position` additionally carries the ego **speed**. It ships no lidar, HD map, 3D boxes, or driving command. Segments must be extracted from the distributed `Chunk_*.zip` archives before processing (as with WayveScenes101); each `video.hevc` is then decoded frame-by-frame, forward-only. `global_position` is expressed in a per-segment local frame (ECEF-axis-aligned, origin at the segment start), so absolute X/Y/Z and heading are segment-relative; the ego-relative past/future trajectories are unaffected. Native rate is 20 Hz — use `--frame_stride` to subsample and bound output volume.
 
 ## 🚀 Key Features
 

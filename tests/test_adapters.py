@@ -91,6 +91,38 @@ def test_cameras_identity_adapter_returns_cameras_mapping():
     assert out[Modality.CAMERAS][cam_dir].image.shape[0] == 20
 
 
+def test_cameras_identity_adapter_max_size_downscales_and_scales_intrinsics():
+    cam_dir = CameraDirection.FRONT
+    image = np.random.randint(0, 255, size=(20, 10, 3)).astype(np.uint8)
+    intrinsics = np.array(
+        [[100.0, 0.0, 8.0], [0.0, 100.0, 6.0], [0.0, 0.0, 1.0]], dtype=np.float32
+    )
+    cam = CameraData(
+        camera_direction=cam_dir,
+        image=image,
+        intrinsics=intrinsics,
+        extrinsics=np.eye(4, dtype=np.float32),
+    )
+    frame = make_frame(cameras={cam_dir: cam})
+
+    res = CamerasIdentityAdapter(max_size=10).transform(frame)[Modality.CAMERAS][
+        cam_dir
+    ]
+    # Longest side 20 -> 10 (x0.5), aspect preserved.
+    assert res.image.shape[0] == 10 and res.image.shape[1] == 5
+    # Intrinsics scale by the same per-axis ratio as the image.
+    np.testing.assert_allclose(res.intrinsics[0, 0], 50.0)  # fx
+    np.testing.assert_allclose(res.intrinsics[1, 1], 50.0)  # fy
+    np.testing.assert_allclose(res.intrinsics[0, 2], 4.0)  # cx
+    np.testing.assert_allclose(res.intrinsics[1, 2], 3.0)  # cy
+
+    # No resize when the image already fits; default (no max_size) passes through.
+    keep = CamerasIdentityAdapter(max_size=100).transform(frame)
+    assert keep[Modality.CAMERAS][cam_dir].image.shape[0] == 20
+    passthrough = CamerasIdentityAdapter().transform(frame)
+    assert passthrough[Modality.CAMERAS][cam_dir].image.shape[0] == 20
+
+
 def test_future_states_identity_adapter():
     traj = Trajectory()
     frame = make_frame(future_states=traj)
