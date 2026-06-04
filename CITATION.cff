@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "StandardE2E: A Unified Framework for End-to-End Autonomous Driving Datasets"
+authors:
+  - family-names: Konev
+    given-names: Stepan
+repository-code: "https://github.com/stepankonev/StandardE2E"
+url: "https://github.com/stepankonev/StandardE2E"
+license: MIT
+preferred-citation:
+  type: article
+  title: "StandardE2E: A Unified Framework for End-to-End Autonomous Driving Datasets"
+  authors:
+    - family-names: Konev
+      given-names: Stepan
+  year: 2026
+  journal: "arXiv preprint arXiv:2606.04271"
+  url: "https://arxiv.org/abs/2606.04271"

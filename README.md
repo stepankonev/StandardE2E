@@ -124,13 +124,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Citation
 
-If you find this project useful, you can support it by giving it a ⭐, or by contributing with your PRs / issues / feature requests. Also, if you use this project, you can greatly support it by citing
+If you find this project useful, you can support it by giving it a ⭐, or by contributing with your PRs / issues / feature requests. Also, if you use this project, you can greatly support it by citing our paper ([arXiv:2606.04271](https://arxiv.org/abs/2606.04271)):
 ```bibtex
-@software{standarde2e,
-  title={StandardE2E: A Unified Framework for Autonomous Driving Dataset Management},
-  author={stepankonev},
-  year={2025--2026},
-  url={https://github.com/stepankonev/StandardE2E}
+@misc{konev2026standarde2e,
+  title={StandardE2E: A Unified Framework for End-to-End Autonomous Driving Datasets},
+  author={Stepan Konev},
+  year={2026},
+  eprint={2606.04271},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  url={https://arxiv.org/abs/2606.04271}
 }
 ```
 and using the badge [![StandardE2E](https://raw.githubusercontent.com/stepankonev/StandardE2E/main/assets/StandardE2E_gh_badge_dark.svg)](https://github.com/stepankonev/StandardE2E)
