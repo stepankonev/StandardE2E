@@ -69,6 +69,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `TruckDrive <https://torc-ai.github.io/TruckDrive/>`__ (heavy-truck)
+     - ✓ (11-camera 8 MP rig) [#truckdrive]_
+     - ✓ (Aeva FMCW joint cloud, ego frame)
+     - —
+     - ✓ (ego frame)
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -106,6 +113,26 @@ columns above.
    ``Chunk_*.zip`` archives first (as with WayveScenes101); each ``video.hevc``
    is then decoded forward-only, since HEVC random seek is unreliable. Native
    rate is 20 Hz — use ``--frame_stride`` to subsample.
+
+.. [#truckdrive] TruckDrive (Torc Robotics / Princeton, CVPR 2026) is a
+   long-range highway **heavy-truck** dataset. Its 8 MP surround rig has
+   **11 cameras** — more than the eight canonical
+   :class:`~standard_e2e.enums.CameraDirection` slots — so each camera is
+   mapped to the canonical member matching its facing wherever one fits, with
+   dedicated members added only for the extra views the eight can't name: the
+   forward telephoto pair (``FRONT_LEFT_NARROW`` / ``FRONT_RIGHT_NARROW``) and
+   the rear-facing side pair (``SIDE_LEFT_BACK`` / ``SIDE_RIGHT_BACK``).
+   ``lidar_pc`` is the seven-sensor **Aeva FMCW** joint cloud (xyz kept,
+   transformed into the ego ``velodyne`` frame); ``detections_3d`` are the
+   tracked 3D boxes in the ego frame, with the ego vehicle's own cab/trailer
+   and ``DontCare`` groups excluded per the paper taxonomy. The ego pose
+   (PPK + LiDAR-SLAM) drives the past/future trajectory. Short-range Ouster
+   lidar, 4D radar, accumulated GT depth and lane lines have no StandardE2E
+   target yet and are not ingested. The dataset ships as per-scene,
+   per-modality zips and **must be extracted first**
+   (``scripts/extract_truckdrive.sh``, or
+   ``scripts/prepare_dataset_truckdrive.sh`` to extract and preprocess in one
+   step); frames are matched across sensors by their synchronization key.
 
 How datasets are added
 ----------------------
