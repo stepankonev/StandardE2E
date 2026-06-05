@@ -66,7 +66,7 @@ from standard_e2e.data_structures import (  # noqa: E402
 from standard_e2e.enums import CameraDirection, StandardFrameDataField  # noqa: E402
 from standard_e2e.enums import TrajectoryComponent as TC  # noqa: E402
 from standard_e2e.indexing import IndexDataGenerator  # noqa: E402
-from standard_e2e.utils import matrix_to_xyz_heading  # noqa: E402
+from standard_e2e.utils import intrinsics_matrix, matrix_to_xyz_heading  # noqa: E402
 
 # Single decode thread per worker process: comma2k19 parallelism is across
 # segments/frames in the pool, so letting each VideoCapture spin up its own
@@ -124,13 +124,8 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
     def camera_intrinsics(self) -> np.ndarray:
         """EON pinhole intrinsics ``K`` (3x3 float32)."""
         focal = self.EON_FOCAL_LENGTH
-        return np.array(
-            [
-                [focal, 0.0, self.CAM_WIDTH / 2.0],
-                [0.0, focal, self.CAM_HEIGHT / 2.0],
-                [0.0, 0.0, 1.0],
-            ],
-            dtype=np.float32,
+        return intrinsics_matrix(
+            focal, focal, self.CAM_WIDTH / 2.0, self.CAM_HEIGHT / 2.0
         )
 
     def _get_default_adapters(self) -> list[AbstractAdapter]:

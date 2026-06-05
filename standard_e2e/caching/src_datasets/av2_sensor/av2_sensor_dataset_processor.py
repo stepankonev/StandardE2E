@@ -15,7 +15,6 @@ from av2.geometry.interpolate import (
 from av2.map.map_api import ArgoverseStaticMap
 from av2.structures.sweep import Sweep
 from av2.utils.io import read_img
-from scipy.spatial.transform import Rotation
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
@@ -49,7 +48,12 @@ from standard_e2e.enums import (
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
-from standard_e2e.utils import matrix_to_xyz_heading
+from standard_e2e.utils import (
+    intrinsics_matrix,
+    matrix_to_xyz_heading,
+    quat_wxyz_to_rotmat,
+    se3,
+)
 
 # AV2 ring cameras → our canonical CameraDirection. Stereo cameras are
 # excluded: they run at 5 Hz and do not synchronise 1:1 with the 10 Hz
@@ -131,18 +135,14 @@ _AV2_MARK_TYPE_TO_PAINT: dict[str, tuple[Optional[str], Optional[str]]] = {
 
 
 def _quat_wxyz_to_rotmat(qw: float, qx: float, qy: float, qz: float) -> np.ndarray:
-    """AV2 stores Hamilton quaternions as (qw, qx, qy, qz); scipy expects (x,y,z,w)."""
-    rotmat = Rotation.from_quat([qx, qy, qz, qw]).as_matrix().astype(np.float32)
-    return cast(np.ndarray, rotmat)
+    """AV2 stores Hamilton quaternions as (qw, qx, qy, qz)."""
+    return quat_wxyz_to_rotmat((qw, qx, qy, qz)).astype(np.float32)
 
 
 def _se3_from_quat_translation(
     qw: float, qx: float, qy: float, qz: float, tx: float, ty: float, tz: float
 ) -> np.ndarray:
-    T = np.eye(4, dtype=np.float32)
-    T[:3, :3] = _quat_wxyz_to_rotmat(qw, qx, qy, qz)
-    T[:3, 3] = (tx, ty, tz)
-    return T
+    return se3(_quat_wxyz_to_rotmat(qw, qx, qy, qz), (tx, ty, tz), dtype=np.float32)
 
 
 class Av2SensorDatasetProcessor(SourceDatasetProcessor):
@@ -223,10 +223,7 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
         self._camera_extrinsics.clear()
         for raw_row in intrinsics_df.itertuples(index=False):
             row = cast(Any, raw_row)
-            K = np.array(
-                [[row.fx_px, 0.0, row.cx_px], [0.0, row.fy_px, row.cy_px], [0, 0, 1]],
-                dtype=np.float32,
-            )
+            K = intrinsics_matrix(row.fx_px, row.fy_px, row.cx_px, row.cy_px)
             self._camera_intrinsics[row.sensor_name] = K
             # AV2 ships 3 radial distortion coefficients (k1, k2, k3); CameraData
             # expands them into the 5-term Brown-Conrady form with zero tangential.

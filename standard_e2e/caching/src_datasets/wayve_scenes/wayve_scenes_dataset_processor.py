@@ -46,7 +46,6 @@ from standard_e2e.caching.segment_context import (
     SegmentContextAggregator,
 )
 from standard_e2e.caching.src_datasets.wayve_scenes._colmap import (
-    qvec_wxyz_to_rotmat,
     read_cameras_bin,
     read_images_bin,
     read_points3D_bin,
@@ -64,7 +63,13 @@ from standard_e2e.enums import (
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
-from standard_e2e.utils import matrix_to_xyz_heading
+from standard_e2e.utils import (
+    intrinsics_matrix,
+    matrix_to_xyz_heading,
+    quat_wxyz_to_rotmat,
+    se3,
+    transform_points,
+)
 
 
 def _decode_rgb(path: Path) -> np.ndarray:
@@ -108,10 +113,7 @@ def _opencv_points_to_flu(points_opencv: np.ndarray) -> np.ndarray:
 
 
 def _cam_from_world_4x4(qvec_wxyz: np.ndarray, tvec: np.ndarray) -> np.ndarray:
-    T = np.eye(4, dtype=np.float64)
-    T[:3, :3] = qvec_wxyz_to_rotmat(qvec_wxyz)
-    T[:3, 3] = tvec
-    return T
+    return se3(quat_wxyz_to_rotmat(qvec_wxyz), tvec)
 
 
 def _world_from_cam_flu(qvec_wxyz: np.ndarray, tvec: np.ndarray) -> np.ndarray:
@@ -200,9 +202,7 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
         self._cam_calib = {}
         for cid, cam in cameras.items():
             fx, fy, cx, cy = cam.params[:4]
-            K = np.array(
-                [[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], dtype=np.float32
-            )
+            K = intrinsics_matrix(fx, fy, cx, cy)
             dist = cam.params[4:8].astype(np.float32)  # OPENCV_FISHEYE k1..k4
             self._cam_calib[cid] = (K, dist)
 
@@ -279,10 +279,7 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
         if len(pts) == 0:
             xyz_ego = np.zeros((0, 3), dtype=np.float32)
         else:
-            homog = np.concatenate(
-                [pts, np.ones((len(pts), 1), dtype=np.float32)], axis=1
-            )
-            xyz_ego = (homog @ T_ego_world.T)[:, :3]
+            xyz_ego = transform_points(T_ego_world, pts)
             within = np.linalg.norm(xyz_ego, axis=1) <= self.LIDAR_MAX_RANGE_M
             xyz_ego = xyz_ego[within].astype(np.float32)
         return LidarData(
