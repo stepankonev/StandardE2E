@@ -19,11 +19,11 @@ import numpy as np
 import pytest
 
 from standard_e2e.caching.src_datasets.wayve_scenes._colmap import (
-    qvec_wxyz_to_rotmat,
     read_cameras_bin,
     read_images_bin,
     read_points3D_bin,
 )
+from standard_e2e.utils.geometry import quat_wxyz_to_rotmat
 
 # Extracted WayveScenes scenes: ``WAYVE_SCENES_ROOT`` env var wins; the raw
 # mount is a fallback (it normally holds only .zip archives, so tests skip in
@@ -135,7 +135,7 @@ def test_qvec_to_rotmat_matches_scipy():
         from scipy.spatial.transform import Rotation
 
         ref = Rotation.from_quat(q_xyzw).as_matrix()
-        ours = qvec_wxyz_to_rotmat(np.array([q_xyzw[3], *q_xyzw[:3]]))
+        ours = quat_wxyz_to_rotmat(np.array([q_xyzw[3], *q_xyzw[:3]]))
         np.testing.assert_allclose(ours, ref, atol=1e-12)
 
 
@@ -175,7 +175,7 @@ def test_parity_with_pycolmap_on_real_scene():
         cfw = ref.cam_from_world()
         ref_R = Rotation.from_quat(np.asarray(cfw.rotation.quat)).as_matrix()
         o = our_by_name[ref.name]
-        if not np.allclose(qvec_wxyz_to_rotmat(o.qvec_wxyz), ref_R, atol=1e-9):
+        if not np.allclose(quat_wxyz_to_rotmat(o.qvec_wxyz), ref_R, atol=1e-9):
             mismatches += 1
         if not np.allclose(o.tvec, np.asarray(cfw.translation), atol=1e-9):
             mismatches += 1

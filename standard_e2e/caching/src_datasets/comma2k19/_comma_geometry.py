@@ -37,44 +37,16 @@ from __future__ import annotations
 
 import numpy as np
 
+from standard_e2e.utils.geometry import quats_wxyz_to_rotmats
+
 # FRD (x-fwd, y-right, z-down) <-> FLU (x-fwd, y-left, z-up): negate y and z.
 # The matrix is its own inverse, so it converts vectors in both directions.
 FRD_TO_FLU = np.diag([1.0, -1.0, -1.0]).astype(np.float64)
 
 
-def quats_to_rotmats(quats_wxyz: np.ndarray) -> np.ndarray:
-    """Convert Hamilton quaternions to rotation matrices.
-
-    Args:
-        quats_wxyz: ``(N, 4)`` array of Hamilton quaternions ordered
-            ``(w, x, y, z)`` (comma2k19's native order). Need not be
-            unit-norm; each row is normalised first.
-
-    Returns:
-        ``(N, 3, 3)`` float64 array of rotation matrices ``ecef_from_device``:
-        each maps a device-frame (FRD) vector into ECEF, i.e. its columns are
-        the device axes expressed in ECEF.
-    """
-    q = np.asarray(quats_wxyz, dtype=np.float64)
-    if q.ndim != 2 or q.shape[1] != 4:
-        raise ValueError(f"quats must have shape (N, 4); got {q.shape}")
-    norms = np.linalg.norm(q, axis=1, keepdims=True)
-    if np.any(norms == 0.0):
-        raise ValueError("quaternions must be non-zero")
-    q = q / norms
-    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
-    n = q.shape[0]
-    r = np.empty((n, 3, 3), dtype=np.float64)
-    r[:, 0, 0] = 1.0 - 2.0 * (y * y + z * z)
-    r[:, 0, 1] = 2.0 * (x * y - z * w)
-    r[:, 0, 2] = 2.0 * (x * z + y * w)
-    r[:, 1, 0] = 2.0 * (x * y + z * w)
-    r[:, 1, 1] = 1.0 - 2.0 * (x * x + z * z)
-    r[:, 1, 2] = 2.0 * (y * z - x * w)
-    r[:, 2, 0] = 2.0 * (x * z - y * w)
-    r[:, 2, 1] = 2.0 * (y * z + x * w)
-    r[:, 2, 2] = 1.0 - 2.0 * (x * x + y * y)
-    return r
+# comma2k19 stores Hamilton (w, x, y, z) quaternions; the resulting matrix is
+# ``ecef_from_device`` -- the device-FRD axes expressed as ECEF columns.
+quats_to_rotmats = quats_wxyz_to_rotmats
 
 
 def pose_matrices_world_from_ego(

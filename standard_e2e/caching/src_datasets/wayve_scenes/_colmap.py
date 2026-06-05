@@ -140,16 +140,3 @@ def read_points3D_bin(
     error = np.array(err_list, dtype=np.float64).reshape(-1)
     track_length = np.array(track_list, dtype=np.int64).reshape(-1)
     return xyz, rgb, error, track_length
-
-
-def qvec_wxyz_to_rotmat(qvec_wxyz: np.ndarray) -> np.ndarray:
-    """COLMAP (qw, qx, qy, qz) -> 3x3 rotation matrix (cam_from_world)."""
-    w, x, y, z = qvec_wxyz
-    return np.array(
-        [
-            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
-            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
-            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
-        ],
-        dtype=np.float64,
-    )

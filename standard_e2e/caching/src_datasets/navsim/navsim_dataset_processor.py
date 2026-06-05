@@ -21,12 +21,11 @@ import logging
 import os
 import pickle
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 from PIL import Image
-from scipy.spatial.transform import Rotation
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
@@ -62,7 +61,7 @@ from standard_e2e.enums import (
 )
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import IndexDataGenerator
-from standard_e2e.utils import matrix_to_xyz_heading
+from standard_e2e.utils import matrix_to_xyz_heading, quat_wxyz_to_rotmat, se3
 
 # nuPlan ships maps under a fixed map-version folder name. NAVSIM's official
 # install docs hardcode this version (see navsim/docs/install.md).
@@ -112,17 +111,13 @@ _DRIVING_COMMAND_TO_INTENT: tuple[Intent, ...] = (
 
 def _quat_to_rotmat_wxyz(qw: float, qx: float, qy: float, qz: float) -> np.ndarray:
     """NAVSIM (and nuplan) store Hamilton quaternions as (qw, qx, qy, qz)."""
-    rotmat = Rotation.from_quat([qx, qy, qz, qw]).as_matrix().astype(np.float32)
-    return cast(np.ndarray, rotmat)
+    return quat_wxyz_to_rotmat((qw, qx, qy, qz)).astype(np.float32)
 
 
 def _se3_from_rotation_translation(
     rotation: np.ndarray, translation: np.ndarray
 ) -> np.ndarray:
-    T = np.eye(4, dtype=np.float32)
-    T[:3, :3] = np.asarray(rotation, dtype=np.float32)
-    T[:3, 3] = np.asarray(translation, dtype=np.float32)
-    return T
+    return se3(rotation, translation, dtype=np.float32)
 
 
 def _driving_command_to_intent(driving_command: np.ndarray) -> Intent:
