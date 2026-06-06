@@ -58,8 +58,19 @@ class StandardFrameDataField(StrEnum):
 
 
 class CameraDirection(StrEnum):
-    """Enumeration of camera directions."""
+    """Enumeration of camera directions.
 
+    The canonical surround-view set (``FRONT`` .. ``REAR_RIGHT``) is shared
+    across datasets (nuScenes / Waymo / AV2 / WayveScenes style); processors map
+    each camera to the canonical member that matches its facing so the same key
+    means the same thing across datasets. A few rigs carry more cameras than
+    these eight slots name -- e.g. the TruckDrive truck pairs long-range forward
+    *telephoto* cameras with its wide ``FRONT_LEFT`` / ``FRONT_RIGHT`` and adds
+    rear-facing side cameras alongside ``SIDE_LEFT`` / ``SIDE_RIGHT`` -- so the
+    genuinely-extra views get their own members below. Members are additive.
+    """
+
+    # Canonical surround-view directions.
     FRONT = "front"
     FRONT_LEFT = "front_left"
     FRONT_RIGHT = "front_right"
@@ -68,6 +79,14 @@ class CameraDirection(StrEnum):
     REAR = "rear"
     REAR_LEFT = "rear_left"
     REAR_RIGHT = "rear_right"
+
+    # Extra TruckDrive-rig views beyond the canonical eight: the forward
+    # telephoto pair (with the wide FRONT_LEFT/RIGHT) and the rear-facing
+    # side pair (with SIDE_LEFT/RIGHT).
+    FRONT_LEFT_NARROW = "front_left_narrow"
+    FRONT_RIGHT_NARROW = "front_right_narrow"
+    SIDE_LEFT_BACK = "side_left_back"
+    SIDE_RIGHT_BACK = "side_right_back"
 
 
 class Intent(IntEnum):

@@ -1,0 +1,55 @@
+# TruckDrive preprocessing config.
+#
+# PREREQUISITE -- extract the data first. TruckDrive ships as per-scene,
+# per-modality zips (scene_*/camera.zip, lidar.zip, ...). They must be unzipped
+# into the devkit layout before processing, then ``--input_path`` points at the
+# extracted root. The easiest path is ``scripts/prepare_dataset_truckdrive.sh``,
+# which extracts (via ``scripts/extract_truckdrive.sh``) and converts in one go.
+preprocessing:
+  # TruckDrive ships an 11-camera 8 MP surround rig, the Aeva joint LiDAR and
+  # tracked 3D boxes. The past/future ego trajectories are added by the
+  # FuturePastStatesFromMatrices context aggregator (the processor's default),
+  # not a per-frame adapter.
+  #
+  # NOTE: ``pano_adapter`` is intentionally NOT used -- it would stitch only the
+  # three forward cameras (FRONT_LEFT / FRONT / FRONT_RIGHT) into a single
+  # panorama, whereas TruckDrive's value is the full 11-camera rig, so a
+  # per-camera identity pass is the right fit.
+  adapters:
+    # 8 MP (3848x2168) frames are downscaled so each camera's longest side is
+    # at most ``max_size`` px (intrinsics scaled to match). With 11 cameras per
+    # frame this keeps the .npz manageable; raise/remove it to trade size for
+    # resolution.
+    - name: cameras_identity_adapter
+      params:
+        max_size: 512
+    # Aeva joint cloud (xyz) in the ego frame. Add ``params: {max_points: N}``
+    # to cap points per frame; left uncapped here since long-range returns are
+    # the point of the dataset.
+    - name: lidar_adapter
+    - name: detections_3d_identity_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - detections_3d
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # Long-horizon planning target (highway speeds); TruckDrive's E2E
+    # benchmark evaluates multi-second futures.
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0
