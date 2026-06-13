@@ -23,6 +23,10 @@ from standard_e2e.caching.src_datasets.truckdrive import (
     TruckDriveDatasetConverter,
     TruckDriveDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.vod import (
+    VodDatasetConverter,
+    VodDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.waymo_e2e import (
     WaymoE2EDatasetConverter,
     WaymoE2EDatasetProcessor,
@@ -63,6 +67,7 @@ def main(argv=None):
         "wayve_scenes": WayveScenesDatasetConverter,
         "comma2k19": Comma2k19DatasetConverter,
         "truckdrive": TruckDriveDatasetConverter,
+        "vod": VodDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -75,6 +80,7 @@ def main(argv=None):
         "wayve_scenes": WayveScenesDatasetProcessor,
         "comma2k19": Comma2k19DatasetProcessor,
         "truckdrive": TruckDriveDatasetProcessor,
+        "vod": VodDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
