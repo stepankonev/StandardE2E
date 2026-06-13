@@ -27,22 +27,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from standard_e2e.utils import transform_points
+from standard_e2e.utils import se3, transform_points, wrap_to_pi
 
 # Calibration line keys (KITTI format). ``P2`` is the (rectified) left-colour
 # camera projection matrix; its left 3x3 block is the pinhole ``K``.
 # ``Tr_velo_to_cam`` maps a velodyne-frame point into the camera frame.
 _CALIB_INTRINSICS_KEY = "P2"
 _CALIB_EXTRINSICS_KEY = "Tr_velo_to_cam"
-
-
-def _row_major_3x4_to_4x4(values: np.ndarray) -> np.ndarray:
-    """Pack 12 row-major ``[R | t]`` values into a 4x4 homogeneous transform."""
-    if values.size != 12:
-        raise ValueError(f"expected 12 values for a 3x4 transform; got {values.size}")
-    transform = np.eye(4, dtype=np.float64)
-    transform[:3, :4] = values.reshape(3, 4)
-    return transform
 
 
 def parse_calibration(calib_text: str) -> tuple[np.ndarray, np.ndarray]:
@@ -72,7 +63,13 @@ def parse_calibration(calib_text: str) -> tuple[np.ndarray, np.ndarray]:
         raise ValueError(f"calibration missing {missing}; found keys {sorted(values)}")
 
     intrinsics = values[_CALIB_INTRINSICS_KEY].reshape(3, 4)[:3, :3].astype(np.float32)
-    t_cam_from_lidar = _row_major_3x4_to_4x4(values[_CALIB_EXTRINSICS_KEY])
+    extrinsics = values[_CALIB_EXTRINSICS_KEY]
+    if extrinsics.size != 12:
+        raise ValueError(
+            f"{_CALIB_EXTRINSICS_KEY} must have 12 values; got {extrinsics.size}"
+        )
+    rt = extrinsics.reshape(3, 4)
+    t_cam_from_lidar = se3(rt[:, :3], rt[:, 3])
     return intrinsics, t_cam_from_lidar
 
 
@@ -91,11 +88,6 @@ def ego_pose_map_from_lidar(
     """
     map_from_camera = np.asarray(map_from_camera, dtype=np.float64).reshape(4, 4)
     return map_from_camera @ np.asarray(t_cam_from_lidar, dtype=np.float64)
-
-
-def _wrap_to_pi(angle: float) -> float:
-    """Wrap an angle to ``[-pi, pi]`` (numpy-backed)."""
-    return float(np.arctan2(np.sin(angle), np.cos(angle)))
 
 
 def box_camera_to_ego(
@@ -129,5 +121,5 @@ def box_camera_to_ego(
     # lidar containment); raise it by H/2 along ego +z (up) to the geometric
     # center StandardE2E expects.
     center = center + np.array([0.0, 0.0, height / 2.0])
-    heading = _wrap_to_pi(-float(rotation))
+    heading = wrap_to_pi(-float(rotation))
     return center, length, width, height, heading

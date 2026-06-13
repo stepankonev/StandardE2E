@@ -323,18 +323,18 @@ def test_iter_frame_refs_groups_by_scene_and_split(tmp_path):
         ("delft_2", 600),
         ("delft_3", 1400),
     ]
-    assert all(r.subdir == "training" and r.split == "train" for r in train)
+    assert all(r.subdir == "training" for r in train)
 
     test = list(io.iter_frame_refs(resolved, "test"))
     assert [(r.scene_name, r.frame_id) for r in test] == [("delft_7", 2600)]
-    assert test[0].subdir == "testing" and test[0].split == "test"
+    assert test[0].subdir == "testing"
 
     # val scenes have no present frames in this layout.
     assert list(io.iter_frame_refs(resolved, "val")) == []
 
 
 def test_frame_ref_paths():
-    ref = io.FrameRef("/root", "delft_2", "training", 549, "train")
+    ref = io.FrameRef("/root", "delft_2", "training", 549)
     assert ref.stem == "00549"
     assert ref.velodyne_path.endswith("lidar/training/velodyne/00549.bin")
     assert ref.image_path.endswith("lidar/training/image_2/00549.jpg")

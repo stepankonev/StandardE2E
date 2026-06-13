@@ -49,7 +49,6 @@ class FrameRef:
     scene_name: str  # e.g. "delft_2" -> StandardFrameData.segment_id
     subdir: str  # "training" | "testing"
     frame_id: int  # global frame index
-    split: str  # "train" | "val" | "test"
 
     @property
     def stem(self) -> str:
@@ -134,8 +133,7 @@ def frame_refs_for_scenes(root: str, scenes: list[VodScene]) -> Iterator[FrameRe
 
     Frames are ordered scene-major / frame-ascending so the trajectory aggregator
     sees contiguous per-scene runs. Frames listed in a scene range but absent on
-    disk (dropped from the public release) are silently skipped. Each frame's
-    split label is taken from its scene.
+    disk (dropped from the public release) are silently skipped.
     """
     present_by_subdir: dict[str, set[int]] = {}
     for scene in scenes:
@@ -144,7 +142,7 @@ def frame_refs_for_scenes(root: str, scenes: list[VodScene]) -> Iterator[FrameRe
             present = _present_frame_ids(root, scene.subdir)
             present_by_subdir[scene.subdir] = present
         for frame_id in sorted(f for f in present if scene.contains(f)):
-            yield FrameRef(root, scene.name, scene.subdir, frame_id, scene.split)
+            yield FrameRef(root, scene.name, scene.subdir, frame_id)
 
 
 def iter_frame_refs(root: str, split: str) -> Iterator[FrameRef]:

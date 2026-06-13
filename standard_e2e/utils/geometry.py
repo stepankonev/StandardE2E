@@ -63,3 +63,8 @@ def transform_points(transform: ArrayLike, points: ArrayLike) -> np.ndarray:
     mat = np.asarray(transform, dtype=pts.dtype)
     homog = np.concatenate([pts, np.ones((len(pts), 1), dtype=pts.dtype)], axis=1)
     return cast(np.ndarray, (homog @ mat.T)[:, :3])
+
+
+def wrap_to_pi(angle: float) -> float:
+    """Wrap an angle in radians to ``[-pi, pi]``."""
+    return float(np.arctan2(np.sin(angle), np.cos(angle)))
