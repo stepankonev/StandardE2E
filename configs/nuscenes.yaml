@@ -42,6 +42,17 @@ preprocessing:
         max_y: 32.0
         pixels_per_meter: 4.0
         polyline_thickness: 1
+    # Rasterise the 3D boxes (one channel per DetectionType, filled oriented
+    # rectangles) onto the SAME grid as ``hdmap_bev_adapter`` so the two BEV
+    # rasters co-register pixel-for-pixel. The vector ``detections_3d`` above is
+    # kept as well (e.g. for projecting boxes into the camera images).
+    - name: detections_3d_bev_adapter
+      params:
+        min_x: -32.0
+        max_x: 32.0
+        min_y: -32.0
+        max_y: 32.0
+        pixels_per_meter: 4.0
 dataset:
   features:
     - frame_name: current_sensors
@@ -50,6 +61,7 @@ dataset:
         - lidar_pc
         - detections_3d
         - hd_map_bev
+        - detections_3d_bev
         - past_states
       selector:
         name: current
