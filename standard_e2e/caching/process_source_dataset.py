@@ -19,6 +19,10 @@ from standard_e2e.caching.src_datasets.navsim import (
     NavsimDatasetConverter,
     NavsimDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.nuscenes import (
+    NuscenesDatasetConverter,
+    NuscenesDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.truckdrive import (
     TruckDriveDatasetConverter,
     TruckDriveDatasetProcessor,
@@ -64,6 +68,7 @@ def main(argv=None):
         "av2_sensor": Av2SensorDatasetConverter,
         "av2_lidar": Av2LidarDatasetConverter,
         "navsim": NavsimDatasetConverter,
+        "nuscenes": NuscenesDatasetConverter,
         "wayve_scenes": WayveScenesDatasetConverter,
         "comma2k19": Comma2k19DatasetConverter,
         "truckdrive": TruckDriveDatasetConverter,
@@ -77,6 +82,7 @@ def main(argv=None):
         "av2_sensor": Av2SensorDatasetProcessor,
         "av2_lidar": Av2LidarDatasetProcessor,
         "navsim": NavsimDatasetProcessor,
+        "nuscenes": NuscenesDatasetProcessor,
         "wayve_scenes": WayveScenesDatasetProcessor,
         "comma2k19": Comma2k19DatasetProcessor,
         "truckdrive": TruckDriveDatasetProcessor,

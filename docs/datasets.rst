@@ -83,6 +83,13 @@ the corresponding default value via
      - ✓ (ego frame)
      - —
      - —
+   * - `nuScenes <https://www.nuscenes.org/nuscenes>`__
+     - ✓ (6 surround cameras) [#nuscenes]_
+     - ✓ (LIDAR_TOP, ego frame)
+     - ✓ (map-expansion → unified taxonomy)
+     - ✓ (ego frame)
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -165,6 +172,34 @@ columns above.
    zips and **must be extracted first** (``scripts/extract_vod.sh`` -- lidar tree
    only, with an optional track-id overlay -- or
    ``scripts/prepare_dataset_vod.sh`` to extract and preprocess in one step).
+
+.. [#nuscenes] nuScenes (Motional, CVPR 2020) is the de-facto surround-view
+   E2E / BEV benchmark: 1000 ~20 s scenes, a 6-camera surround rig (1600×900),
+   a 32-beam ``LIDAR_TOP`` and densely annotated 3D boxes at 2 Hz keyframes
+   (one frame = one keyframe sample; one segment = one scene). The six ``CAM_*``
+   channels map onto the canonical
+   :class:`~standard_e2e.enums.CameraDirection` members; ``lidar_pc`` is the
+   ``LIDAR_TOP`` cloud (xyz, in the ego frame); ``detections_3d`` are the
+   ``sample_annotation`` boxes transformed from the global frame into the ego
+   frame, each ``category_name`` folded into the coarse
+   :class:`~standard_e2e.enums.DetectionType`. The vector **map-expansion**
+   (lane centers from the arcline paths, lane/road dividers, crossings,
+   walkways, stop lines, drivable area, intersections) is translated to the
+   unified :class:`~standard_e2e.enums.MapElementType` in the ego frame and
+   rasterised by ``HDMapBEVAdapter`` -- only when the separate
+   ``nuScenes-map-expansion-v1.3`` pack is unzipped into ``<dataroot>/maps/``
+   (else the HD map is skipped). ``--split`` is an official nuScenes label that
+   also selects the metadata version (``mini_train`` / ``mini_val`` →
+   ``v1.0-mini``, ``train`` / ``val`` → ``v1.0-trainval``, ``test`` →
+   ``v1.0-test``); the test split ships no annotations. nuScenes is read
+   **directly from the JSON tables** -- the ``nuscenes-devkit`` is not a runtime
+   dependency (it pins ``numpy<2``), so the split scene-lists and the
+   lane-arcline discretization are vendored from it (Apache-2.0). The 5 radars
+   have no StandardE2E target yet. A partially-downloaded trainval converts
+   cleanly: scenes whose sensor blob is not yet on disk are skipped. The release
+   ships as ``.tgz`` archives and must be extracted first
+   (``scripts/extract_nuscenes.sh``, or ``scripts/prepare_dataset_nuscenes.sh``
+   to extract and preprocess in one step).
 
 How datasets are added
 ----------------------
