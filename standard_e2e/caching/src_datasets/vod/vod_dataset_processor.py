@@ -19,8 +19,9 @@ LiDAR, the 3D detections and the ego trajectory):
   (reflectance is dropped -- StandardE2E lidar is xyz-only).
 * **frame_detections_3d**: the KITTI boxes mapped from camera coordinates into
   the ego frame, each ``category`` folded into the coarse ``DetectionType``
-  taxonomy; ``DontCare`` is excluded. Box yaw is VoD's rotation about LiDAR -Z,
-  so the ego-frame heading is its negation (see :mod:`._vod_geometry`).
+  taxonomy; ``DontCare`` is excluded. Box yaw is VoD's KITTI rotation about
+  LiDAR -Z with the camera-x zero-reference, so the ego-frame heading is
+  ``-(rotation + pi/2)`` (see :mod:`._vod_geometry`).
 * **global_position** / ``aux_data["pose_matrix"]``: the ego pose
   ``T_map_from_lidar`` in the static map frame, from the per-frame pose JSON.
   Past/future ego trajectories are produced by

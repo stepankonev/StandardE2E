@@ -144,14 +144,14 @@ def test_ego_pose_map_from_lidar_identity_and_translation():
 
 def test_box_camera_to_ego_identity_dims_and_yaw_sign():
     # Identity camera->lidar: x/y pass through; dims reorder (h,w,l)->(l,w,h); the
-    # KITTI bottom-center is raised by H/2 (=0.75) to the geometric center; VoD
-    # yaw about LiDAR -Z negates to the FLU (+Z) heading.
+    # KITTI bottom-center is raised by H/2 (=0.75) to the geometric center; the
+    # FLU heading is -(rotation + pi/2) (KITTI camera-x zero-reference).
     center, length, width, height, heading = box_camera_to_ego(
         np.array([1.0, 2.0, 3.0]), np.array([1.5, 0.6, 4.0]), 0.5, np.eye(4)
     )
     np.testing.assert_allclose(center, [1.0, 2.0, 3.0 + 0.75], atol=1e-12)
     assert (length, width, height) == (4.0, 0.6, 1.5)
-    assert np.isclose(heading, -0.5)
+    assert np.isclose(heading, -(0.5 + np.pi / 2))
 
 
 def test_box_camera_to_ego_raises_bottom_center_by_half_height():
@@ -161,11 +161,13 @@ def test_box_camera_to_ego_raises_bottom_center_by_half_height():
     assert np.isclose(c_short[2], 0.5) and np.isclose(c_tall[2], 1.5)
 
 
-def test_box_camera_to_ego_yaw_wraps_to_pi():
-    _, _, _, _, heading = box_camera_to_ego(
-        np.zeros(3), np.ones(3), float(np.pi), np.eye(4)
-    )
-    assert np.isclose(abs(heading), np.pi)
+def test_box_camera_to_ego_yaw_offset_and_wrap():
+    # rotation 0 -> heading = -pi/2 (the KITTI camera-x zero-reference offset).
+    _, _, _, _, h0 = box_camera_to_ego(np.zeros(3), np.ones(3), 0.0, np.eye(4))
+    assert np.isclose(h0, -np.pi / 2)
+    # rotation pi -> -(pi + pi/2) = -3pi/2 wraps back into [-pi, pi] (+pi/2).
+    _, _, _, _, hp = box_camera_to_ego(np.zeros(3), np.ones(3), float(np.pi), np.eye(4))
+    assert np.isclose(hp, np.pi / 2)
 
 
 def test_box_camera_to_ego_applies_camera_to_lidar_transform():

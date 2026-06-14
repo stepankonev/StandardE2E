@@ -152,8 +152,9 @@ columns above.
    :class:`~standard_e2e.enums.DetectionType` (the two-wheeler family
    ``bicycle`` / ``Cyclist`` / ``rider`` / ``moped_scooter`` / ``motor`` →
    ``BICYCLE``; ``Car`` / ``truck`` / ``vehicle_other`` → ``VEHICLE``; static or
-   ambiguous boxes → ``UNKNOWN``; ``DontCare`` dropped). Box yaw is VoD's
-   rotation about the LiDAR **-Z** axis, so the ego heading is its negation. One
+   ambiguous boxes → ``UNKNOWN``; ``DontCare`` dropped). Box yaw is VoD's KITTI
+   rotation about the LiDAR **-Z** axis (camera-x zero-reference), so the ego
+   heading is ``-(rotation + pi/2)``. One
    frame = one keyframe; one segment = one recording scene (``delft_*``), grouped
    via the official scene table so the per-segment past/future ego trajectory
    (from the per-frame ``mapToCamera`` pose) never spans two recordings. The

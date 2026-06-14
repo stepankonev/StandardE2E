@@ -15,12 +15,15 @@ with numpy (no devkit dependency):
   + ``rotation`` mapped to an ego-frame center, ``(length, width, height)`` and
   heading.
 
-Box yaw: VoD defines ``rotation`` about the LiDAR's **negative** vertical (-Z)
-axis (``docs/ANNOTATION.md``); the ego FLU heading (yaw about +Z) is therefore
-``-rotation``. Box ``location`` is the KITTI **bottom-face** center (verified
-empirically via lidar containment -- untreated, contained points pile up at
-+H/2 inside the box), so :func:`box_camera_to_ego` raises it by H/2 along the
-ego +z axis to the geometric center StandardE2E stores.
+Box yaw: VoD's KITTI ``rotation`` is about the LiDAR's **negative** vertical
+(-Z) axis (``docs/ANNOTATION.md``) but keeps the KITTI zero-reference -- a
+box's length runs along the camera x-axis (lidar lateral -y) at
+``rotation == 0`` -- so the ego FLU heading (yaw about +Z, from +x) is
+``-(rotation + pi/2)``, matching the devkit's box-corner builder. Box
+``location`` is the KITTI **bottom-face** center (verified empirically via
+lidar containment -- untreated, contained points pile up at +H/2 inside the
+box), so :func:`box_camera_to_ego` raises it by H/2 along the ego +z axis to
+the geometric center StandardE2E stores.
 """
 
 from __future__ import annotations
@@ -107,8 +110,8 @@ def box_camera_to_ego(
 
     Returns:
         ``(center_xyz, length, width, height, heading)`` with ``center_xyz`` a
-        ``(3,)`` float64 ego-frame point and ``heading`` the FLU yaw (about +Z),
-        wrapped to ``[-pi, pi]``.
+        ``(3,)`` float64 ego-frame point and ``heading`` the FLU yaw (about +Z,
+        from +x) ``= wrap(-(rotation + pi/2))``, wrapped to ``[-pi, pi]``.
     """
     location_cam = np.asarray(location_cam, dtype=np.float64).reshape(1, 3)
     center = transform_points(
@@ -121,5 +124,7 @@ def box_camera_to_ego(
     # lidar containment); raise it by H/2 along ego +z (up) to the geometric
     # center StandardE2E expects.
     center = center + np.array([0.0, 0.0, height / 2.0])
-    heading = wrap_to_pi(-float(rotation))
+    # VoD's KITTI rotation keeps the camera-x zero-reference, so the heading
+    # (FLU yaw about +z, from +x) is -(rotation + pi/2) -- see the devkit.
+    heading = wrap_to_pi(-(float(rotation) + np.pi / 2))
     return center, length, width, height, heading
