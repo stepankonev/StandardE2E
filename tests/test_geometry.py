@@ -7,6 +7,7 @@ from standard_e2e.utils.geometry import (
     quats_wxyz_to_rotmats,
     se3,
     transform_points,
+    wrap_to_pi,
 )
 
 
@@ -78,3 +79,13 @@ def test_transform_points():
     assert out.dtype == np.float32  # computed in the points' dtype
     with pytest.raises(ValueError):
         transform_points(transform, np.zeros((4, 2)))
+
+
+def test_wrap_to_pi():
+    assert wrap_to_pi(0.0) == 0.0
+    np.testing.assert_allclose(wrap_to_pi(np.pi / 2), np.pi / 2, atol=1e-12)
+    # Angles outside [-pi, pi] wrap back into range.
+    np.testing.assert_allclose(wrap_to_pi(3 * np.pi / 2), -np.pi / 2, atol=1e-12)
+    np.testing.assert_allclose(wrap_to_pi(-3 * np.pi / 2), np.pi / 2, atol=1e-12)
+    assert abs(wrap_to_pi(5 * np.pi)) == pytest.approx(np.pi)
+    assert isinstance(wrap_to_pi(1.0), float)
