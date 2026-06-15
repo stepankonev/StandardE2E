@@ -1,0 +1,46 @@
+# View-of-Delft (VoD) preprocessing config.
+#
+# PREREQUISITE -- extract the data first. VoD ships as zips; unzip the ``lidar/``
+# tree into the devkit layout before processing (scripts/extract_vod.sh), then
+# ``--input_path`` points at the extracted ``view_of_delft_PUBLIC``. The easiest
+# path is ``scripts/prepare_dataset_vod.sh``, which extracts and converts in one
+# go.
+preprocessing:
+  # VoD carries a single front camera, a 64-layer Velodyne LiDAR and KITTI 3D
+  # boxes. The past/future ego trajectories are added by the
+  # FuturePastStatesFromMatrices context aggregator (the processor's default),
+  # not a per-frame adapter. The 3+1D radar has no StandardE2E modality yet and
+  # is not ingested.
+  adapters:
+    # Single 1936x1216 front camera. Add ``params: {max_size: N}`` to downscale
+    # the longest side (intrinsics scaled to match) if you need smaller .npz
+    # files; left at native resolution here.
+    - name: cameras_identity_adapter
+    # Velodyne HDL-64 xyz in the ego frame. Add ``params: {max_points: N}`` to
+    # cap points per frame; left uncapped.
+    - name: lidar_adapter
+    - name: detections_3d_identity_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - detections_3d
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # Short-horizon urban planning target (~10 Hz keyframes).
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0

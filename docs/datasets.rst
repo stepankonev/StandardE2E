@@ -76,6 +76,13 @@ the corresponding default value via
      - ✓ (ego frame)
      - —
      - —
+   * - `View-of-Delft <https://intelligent-vehicles.org/datasets/view-of-delft/>`__ (urban radar)
+     - ✓ (1 front: 1936×1216 pinhole) [#vod]_
+     - ✓ (Velodyne HDL-64, ego frame)
+     - —
+     - ✓ (ego frame)
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -133,6 +140,31 @@ columns above.
    (``scripts/extract_truckdrive.sh``, or
    ``scripts/prepare_dataset_truckdrive.sh`` to extract and preprocess in one
    step); frames are matched across sensors by their synchronization key.
+
+.. [#vod] View-of-Delft (TU Delft, IEEE RA-L 2022) is a compact **urban**
+   dataset whose distinctive sensor is a **3+1D radar**. StandardE2E ingests its
+   single **front camera** (:class:`~standard_e2e.enums.CameraDirection.FRONT`,
+   1936×1216 pinhole; intrinsics from the calib ``P2``, extrinsics from
+   ``inv(Tr_velo_to_cam)``), the 64-layer **Velodyne** ``lidar_pc`` (xyz in the
+   ego ``velodyne`` frame, per-point reflectance dropped) and KITTI
+   ``detections_3d`` mapped from camera coordinates into the ego frame -- each of
+   VoD's 13 classes folded into the coarse
+   :class:`~standard_e2e.enums.DetectionType` (the two-wheeler family
+   ``bicycle`` / ``Cyclist`` / ``rider`` / ``moped_scooter`` / ``motor`` →
+   ``BICYCLE``; ``Car`` / ``truck`` / ``vehicle_other`` → ``VEHICLE``; static or
+   ambiguous boxes → ``UNKNOWN``; ``DontCare`` dropped). Box yaw is VoD's KITTI
+   rotation about the LiDAR **-Z** axis (camera-x zero-reference), so the ego
+   heading is ``-(rotation + pi/2)``. One
+   frame = one keyframe; one segment = one recording scene (``delft_*``), grouped
+   via the official scene table so the per-segment past/future ego trajectory
+   (from the per-frame ``mapToCamera`` pose) never spans two recordings. The
+   **3+1D radar** (``radar`` / ``radar_3frames`` / ``radar_5frames``) has no
+   StandardE2E modality yet and is not ingested; the detection release ships no
+   per-frame timestamps, so they are **synthesised** at the 10 Hz LiDAR-lead
+   rate; the **test** split has sensor data but no labels. The dataset ships as
+   zips and **must be extracted first** (``scripts/extract_vod.sh`` -- lidar tree
+   only, with an optional track-id overlay -- or
+   ``scripts/prepare_dataset_vod.sh`` to extract and preprocess in one step).
 
 How datasets are added
 ----------------------
