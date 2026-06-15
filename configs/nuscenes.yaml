@@ -1,0 +1,82 @@
+# nuScenes preprocessing config.
+#
+# PREREQUISITE -- extract the data first. nuScenes ships as tar archives
+# (v1.0-mini.tgz; or v1.0-trainval_meta.tgz + the *_blobs.tgz; or v1.0-test_*).
+# Extract them all into one DATAROOT so <DATAROOT>/<version>/*.json,
+# <DATAROOT>/samples/ and <DATAROOT>/sweeps/ exist, then --input_path points at
+# DATAROOT. The easiest path is scripts/prepare_dataset_nuscenes.sh, which
+# extracts (via scripts/extract_nuscenes.sh) and converts in one go.
+#
+# --split is an official nuScenes label and also selects the metadata version:
+#   mini_train / mini_val -> v1.0-mini, train / val -> v1.0-trainval,
+#   test -> v1.0-test.
+preprocessing:
+  # nuScenes ships a 6-camera surround rig, the 32-beam LIDAR_TOP and densely
+  # annotated 3D boxes at 2 Hz keyframes. The past/future ego trajectories are
+  # added by the FuturePastStatesFromMatrices context aggregator (the
+  # processor's default), not a per-frame adapter.
+  #
+  # NOTE: ``pano_adapter`` is intentionally NOT used -- it would stitch only the
+  # three forward cameras into a single panorama, whereas a per-camera identity
+  # pass keeps all six surround views.
+  adapters:
+    # 1600x900 frames are downscaled so each camera's longest side is at most
+    # ``max_size`` px (intrinsics scaled to match). With 6 cameras per frame
+    # this keeps the .npz manageable; raise/remove it to trade size for
+    # resolution.
+    - name: cameras_identity_adapter
+      params:
+        max_size: 800
+    # LIDAR_TOP xyz in the ego frame. Add ``params: {max_points: N}`` to cap
+    # points per frame; left uncapped here (a sweep is only ~34k points).
+    - name: lidar_adapter
+    - name: detections_3d_identity_adapter
+    # Rasterise the vector map-expansion (lanes, dividers, crossings, drivable
+    # area, ...) to a BEV image. Requires the nuScenes-map-expansion pack
+    # unzipped into <dataroot>/maps/; without it the HD map is skipped.
+    - name: hdmap_bev_adapter
+      params:
+        min_x: -32.0
+        max_x: 32.0
+        min_y: -32.0
+        max_y: 32.0
+        pixels_per_meter: 4.0
+        polyline_thickness: 1
+    # Rasterise the 3D boxes (one channel per DetectionType, filled oriented
+    # rectangles) onto the SAME grid as ``hdmap_bev_adapter`` so the two BEV
+    # rasters co-register pixel-for-pixel. The vector ``detections_3d`` above is
+    # kept as well (e.g. for projecting boxes into the camera images).
+    - name: detections_3d_bev_adapter
+      params:
+        min_x: -32.0
+        max_x: 32.0
+        min_y: -32.0
+        max_y: 32.0
+        pixels_per_meter: 4.0
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - detections_3d
+        - hd_map_bev
+        - detections_3d_bev
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # 3 s planning horizon (6 keyframes at 2 Hz) -- the standard nuScenes
+    # open-loop planning target (UniAD / VAD / ST-P3).
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0
