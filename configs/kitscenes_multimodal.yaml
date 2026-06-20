@@ -1,0 +1,67 @@
+# KITScenes Multimodal preprocessing config.
+# Dataset key: kitscenes_multimodal (distinct from the planned KITScenes-LongTail).
+#
+# PREREQUISITE -- download and extract the data first. KITScenes ships per-split
+# tarballs on Hugging Face (KIT-MRT/KITScenes-Multimodal,
+# data/<split>/<scene_uuid>.tar). Download a split, extract the tarballs so each
+# <scene_uuid>/ directory exists, then --input_path points at the directory that
+# holds the scenes (the per-split folder, or any parent of the <scene_uuid>/
+# dirs). The easiest path is scripts/prepare_dataset_kitscenes_multimodal.sh.
+#
+# --split is one of train / val / test / test_e2e / overlap_train_val / all. When
+# the tree is organised by split folder (the HF layout) only that split's scenes
+# are processed; for a flat layout (e.g. the single-scene sample) every scene is
+# processed and --split is just the output label.
+preprocessing:
+  # KITScenes carries six surround "ring" cameras, the 128-beam top LiDAR and a
+  # Lanelet2 HD map. The past/future ego trajectories are added by the
+  # FuturePastStatesFromMatrices context aggregator (the processor's default),
+  # not a per-frame adapter. KITScenes ships no 3D object boxes, so there is no
+  # detections adapter. The three "base" cameras, the other six LiDARs and the
+  # radars have no StandardE2E target yet and are not ingested.
+  adapters:
+    # Six 3504x2272 ring cameras are downscaled so each camera's longest side is
+    # at most ``max_size`` px (intrinsics scaled to match). With six cameras per
+    # frame this keeps the .npz manageable; raise/remove it to trade size for
+    # resolution.
+    - name: cameras_identity_adapter
+      params:
+        max_size: 800
+    # lidar_top xyz in the ego frame. Add ``params: {max_points: N}`` to cap
+    # points per frame; left uncapped here (a top sweep is ~210k points).
+    - name: lidar_adapter
+    # Rasterise the Lanelet2 map (lane centerlines, boundaries, road edges,
+    # crosswalks, stop lines, traffic lights) to a BEV image.
+    - name: hdmap_bev_adapter
+      params:
+        min_x: -32.0
+        max_x: 32.0
+        min_y: -32.0
+        max_y: 32.0
+        pixels_per_meter: 4.0
+        polyline_thickness: 1
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - hd_map_bev
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # 3 s planning horizon (30 frames at 10 Hz) -- the standard open-loop
+    # planning target.
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0

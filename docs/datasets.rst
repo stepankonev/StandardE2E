@@ -90,6 +90,13 @@ the corresponding default value via
      - ✓ (ego frame)
      - —
      - —
+   * - `KITScenes Multimodal <https://www.kitscenes.com/multimodal/>`__
+     - ✓ (6 surround ring cameras) [#kitscenes]_
+     - ✓ (lidar_top, ego frame)
+     - ✓ (Lanelet2 → unified taxonomy)
+     - —
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -200,6 +207,45 @@ columns above.
    ships as ``.tgz`` archives and must be extracted first
    (``scripts/extract_nuscenes.sh``, or ``scripts/prepare_dataset_nuscenes.sh``
    to extract and preprocess in one step).
+
+.. [#kitscenes] KITScenes Multimodal (KIT / MRT, arXiv:2606.02956) -- the
+   StandardE2E dataset key is ``kitscenes_multimodal``, distinct from the planned
+   **KITScenes-LongTail** variant which will be added as a sibling -- is a large
+   **European urban** dataset (~1000 scenes at 10 Hz) whose headline annotation
+   is a dense, georeferenced **Lanelet2 HD map**. StandardE2E ingests its six
+   surround **ring** cameras (``camera_ring_*`` → the canonical
+   :class:`~standard_e2e.enums.CameraDirection` surround members; pinhole ``K``,
+   ``T_ego_from_camera`` extrinsics from the calib's ``T_to_reference``), the
+   128-beam **lidar_top** ``lidar_pc`` (xyz de-discretized from its int32 storage
+   with the invalid-return sentinels dropped, in the ego ``base_frame`` whose
+   origin is ``lidar_top``), and the **HD map**: each scene's Lanelet2 OSM
+   (``maps/map.osm``) is parsed directly and translated to the unified
+   :class:`~standard_e2e.enums.MapElementType` taxonomy -- lanelet
+   road/emergency/bicycle → ``LANE_CENTER`` (centerline from the left/right bound
+   midpoints), ``crosswalk`` → ``CROSSWALK``,
+   ``line_thin`` / ``line_thick`` / ``bike_marking`` → ``LANE_BOUNDARY``,
+   ``curbstone`` / ``road_border`` → ``ROAD_EDGE``, ``stop_line`` →
+   ``STOP_LINE``, ``traffic_light*`` → ``TRAFFIC_LIGHT`` -- then cropped to an
+   ego-centric ROI per frame and rasterised by ``HDMapBEVAdapter``. The
+   georeferencing needs no GNSS reconciliation: ``poses.txt`` is already in the
+   Lanelet2 map-local frame (UTM zone 32N minus the ``origin.json`` anchor),
+   verified by the ego trajectory lying on the map's node cloud; the map is
+   projected with ``pyproj`` (no ``lanelet2`` runtime dependency -- it pins
+   ``numpy<2``, like the nuScenes devkit). One frame = one synchronized 10 Hz
+   snapshot; one segment = one scene (a UUID directory); the reference timeline
+   gives per-frame timestamps and ``poses.txt`` the per-frame ego pose, which
+   drives the past/future trajectory. KITScenes ships **no 3D object boxes** (the
+   HD map is its annotation product), so ``detections_3d`` is always empty. Not
+   ingested: the three "base" cameras (hi-res front-center + rectified stereo
+   pair), the other six LiDARs, the three imaging radars and the GNSS/INS
+   streams. Splits follow the official geo-disjoint folders
+   (``train`` / ``val`` / ``test`` / ``test_e2e`` / ``overlap_train_val``); a
+   flat layout (e.g. the single-scene sample) processes every scene with
+   ``--split`` as the output label. The release ships as per-split tarballs on
+   Hugging Face (``KIT-MRT/KITScenes-Multimodal``) and **must be downloaded and
+   extracted first** (``scripts/extract_kitscenes.sh``, or
+   ``scripts/prepare_dataset_kitscenes_multimodal.sh`` to extract and preprocess
+   in one step).
 
 How datasets are added
 ----------------------
