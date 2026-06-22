@@ -119,6 +119,16 @@ class SourceDatasetProcessor(ABC):
     def context_aggregators(self):
         return self._context_aggregators
 
+    @property
+    def adapters(self) -> list[AbstractAdapter]:
+        """The registered adapter chain (read-only view).
+
+        Exposed so the converter can serialize each adapter's
+        :attr:`~standard_e2e.caching.adapters.abstract_adapter.AbstractAdapter.spec`
+        into the per-(dataset, split) ``dataset_info.yaml``.
+        """
+        return list(self._adapters)
+
     @final
     def process_frame(
         self, raw_frame_data: Any

@@ -26,6 +26,18 @@ class AbstractAdapter(ABC):
         return {}
 
     @property
+    def spec(self) -> dict[str, Any]:
+        """Serializable description of this adapter: ``name`` + ``metadata``.
+
+        Written to the per-(dataset, split) ``dataset_info.yaml`` by the
+        converter so a downstream consumer (e.g. the visualization tool) can
+        discover what each modality contains -- BEV grid params, channel orders,
+        ... -- without opening an ``.npz``. The same metadata also rides on every
+        frame's ``aux_data``.
+        """
+        return {"name": self.name, "metadata": self.metadata}
+
+    @property
     def consumes_attrs(self) -> set[StandardFrameDataField]:
         """``StandardFrameData`` fields this adapter reads.
 
