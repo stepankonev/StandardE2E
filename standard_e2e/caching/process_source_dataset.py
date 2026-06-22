@@ -15,6 +15,10 @@ from standard_e2e.caching.src_datasets.comma2k19 import (
     Comma2k19DatasetConverter,
     Comma2k19DatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.kitscenes_multimodal import (
+    KITScenesMultimodalDatasetConverter,
+    KITScenesMultimodalDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.navsim import (
     NavsimDatasetConverter,
     NavsimDatasetProcessor,
@@ -73,6 +77,7 @@ def main(argv=None):
         "comma2k19": Comma2k19DatasetConverter,
         "truckdrive": TruckDriveDatasetConverter,
         "vod": VodDatasetConverter,
+        "kitscenes_multimodal": KITScenesMultimodalDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -87,6 +92,7 @@ def main(argv=None):
         "comma2k19": Comma2k19DatasetProcessor,
         "truckdrive": TruckDriveDatasetProcessor,
         "vod": VodDatasetProcessor,
+        "kitscenes_multimodal": KITScenesMultimodalDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

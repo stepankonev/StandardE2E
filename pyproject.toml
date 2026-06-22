@@ -36,6 +36,7 @@ dependencies = [
     "nuplan-devkit>=2.0.0,<3",
     "geopandas>=0.14",
     "pyogrio>=0.7",
+    "pyproj>=3.4",
     "rasterio>=1.3",
     "scipy>=1.10",
     "shapely>=2.0",
@@ -202,6 +203,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "nuplan.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pyarrow.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
