@@ -36,7 +36,7 @@ from standard_e2e.enums import (
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.visualization import render_frame
 from standard_e2e.visualization.render import figure_to_bgr
-from standard_e2e.visualization.visualize_processed import _select_segments
+from standard_e2e.visualization.visualize_processed import _infer_fps, _select_segments
 from standard_e2e.visualization.visualize_processed import main as visualize_main
 
 
@@ -250,6 +250,22 @@ def test_select_segments_by_id():
 def test_select_segments_unknown_id_raises():
     with pytest.raises(ValueError):
         _select_segments(_index(["a", "b"]), ["zzz"], None)
+
+
+# --------------------------------------------------------------------------- #
+# fps inference (real-time playback)
+# --------------------------------------------------------------------------- #
+def test_infer_fps_from_timestamps():
+    assert _infer_fps(np.array([0.0, 0.1, 0.2, 0.3])) == pytest.approx(10.0)  # 10 Hz
+    assert _infer_fps(np.array([0.0, 0.5, 1.0, 1.5])) == pytest.approx(2.0)  # 2 Hz
+    # Robust to ordering and an outlier gap (uses the median interval).
+    assert _infer_fps(np.array([0.3, 0.0, 0.1, 0.2, 5.0])) == pytest.approx(10.0)
+
+
+def test_infer_fps_fallback_and_clamp():
+    assert _infer_fps(np.array([1.0])) == 10.0  # too few -> default
+    assert _infer_fps(np.array([2.0, 2.0])) == 10.0  # zero interval -> default
+    assert _infer_fps(np.array([0.0, 0.001])) == 60.0  # 1000 Hz clamped to 60
 
 
 # --------------------------------------------------------------------------- #
