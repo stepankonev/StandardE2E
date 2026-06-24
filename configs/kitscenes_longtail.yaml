@@ -1,0 +1,52 @@
+# KITScenes LongTail preprocessing config.
+# Dataset key: kitscenes_longtail (the long-tail / reasoning-traces sibling of
+# kitscenes_multimodal; arXiv 2603.23607).
+#
+# PREREQUISITE -- download the data first. LongTail ships as Hugging Face
+# `datasets` parquet (KIT-MRT/KITScenes-LongTail, gated; data/<split>-*.parquet),
+# one ~9 s scenario per row. Point --input_path at the dataset root (the folder
+# holding data/) or at the data/ folder itself. The easiest path is
+# scripts/prepare_dataset_kitscenes_longtail.sh.
+#
+# --split is one of train / test / train_raw / test_raw / val. "raw" splits are
+# the native-resolution frames; the non-raw splits are the processed frames the
+# vendored camera intrinsics match. NOTE: the released `test` split withholds the
+# future trajectories (eval ground truth) -- only train/train_raw carry real
+# expert_like + counterfactual futures.
+preprocessing:
+  # LongTail carries six surround "ring" cameras (a 360deg multi-view video per
+  # scenario, unrolled into one frame per timestep @ 5 Hz), a high-level driving
+  # instruction (folded into `intent`), per-frame ego-relative past states, and
+  # -- on the t=0 (last) frame -- an expert future trajectory plus several
+  # counterfactual futures (`preference_trajectory`). It ships no LiDAR, HD map
+  # or 3D boxes, so there are no sensor/map/detection adapters.
+  adapters:
+    # Six 3504x2272 ring cameras are downscaled so each camera's longest side is
+    # at most ``max_size`` px (intrinsics scaled to match).
+    - name: cameras_identity_adapter
+      params:
+        max_size: 800
+    # High-level driving instruction -> Intent (left / right / straight / unknown).
+    - name: intent_identity_adapter
+    # 4 s past ego trajectory (21 pts @ 5 Hz).
+    - name: past_states_identity_adapter
+    # 5 s expert future ego trajectory (25 pts @ 5 Hz).
+    - name: future_states_identity_adapter
+    # Counterfactual futures (wrong_speed / neglect_instruction / off_road / crash).
+    - name: preference_trajectory_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - intent
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+        - preference_trajectory
+      selector:
+        name: current

@@ -225,6 +225,22 @@ def test_render_minimal_trajectory_only(fig):
     _assert_renders(fig, _frame({Modality.FUTURE_STATES: _traj()}))
 
 
+def test_render_preference_trajectory_list(fig):
+    # preference_trajectory is a *list* of Trajectory (e.g. the KITScenes
+    # LongTail counterfactuals) -- the renderer must draw each, not assume a
+    # single trajectory.
+    _assert_renders(
+        fig,
+        _frame(
+            {
+                Modality.PAST_STATES: _traj(),
+                Modality.FUTURE_STATES: _traj(),
+                Modality.PREFERENCE_TRAJECTORY: [_traj(), _traj(), _traj()],
+            }
+        ),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Scene selection
 # --------------------------------------------------------------------------- #

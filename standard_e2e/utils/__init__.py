@@ -1,6 +1,7 @@
 from standard_e2e.utils.common import (
     _assert_strictly_increasing,
     _check_list_of_objects_or_none,
+    decode_image_bytes,
     load_yaml_config,
     matrix_to_xyz_heading,
 )
@@ -15,6 +16,7 @@ from standard_e2e.utils.geometry import (
 
 __all__ = [
     "load_yaml_config",
+    "decode_image_bytes",
     "_assert_strictly_increasing",
     "_check_list_of_objects_or_none",
     "matrix_to_xyz_heading",

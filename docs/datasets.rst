@@ -97,6 +97,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `KITScenes LongTail <https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail>`__
+     - ✓ (6 surround ring cameras) [#kitscenes_longtail]_
+     - —
+     - —
+     - —
+     - ✓ (driving instruction)
+     - ✓ (counterfactual futures)
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -209,8 +216,9 @@ columns above.
    to extract and preprocess in one step).
 
 .. [#kitscenes] KITScenes Multimodal (KIT / MRT, arXiv:2606.02956) -- the
-   StandardE2E dataset key is ``kitscenes_multimodal``, distinct from the planned
-   **KITScenes-LongTail** variant which will be added as a sibling -- is a large
+   StandardE2E dataset key is ``kitscenes_multimodal``, distinct from its
+   long-tail sibling **KITScenes LongTail** (key ``kitscenes_longtail``,
+   [#kitscenes_longtail]_) -- is a large
    **European urban** dataset (~1000 scenes at 10 Hz) whose headline annotation
    is a dense, georeferenced **Lanelet2 HD map**. StandardE2E ingests its six
    surround **ring** cameras (``camera_ring_*`` → the canonical
@@ -246,6 +254,42 @@ columns above.
    extracted first** (``scripts/extract_kitscenes.sh``, or
    ``scripts/prepare_dataset_kitscenes_multimodal.sh`` to extract and preprocess
    in one step).
+
+.. [#kitscenes_longtail] KITScenes LongTail (KIT / MRT, arXiv:2603.23607) is the
+   **long-tail / reasoning-traces** sibling of KITScenes Multimodal (key
+   ``kitscenes_longtail``) -- ~1000 9 s scenarios deliberately filtered for
+   **rare events** (adverse weather, construction, night, road closures,
+   overtaking / lane changes). Unlike Multimodal's per-scene sensor directories
+   it ships as Hugging Face ``datasets`` **parquet**, one **scenario per row**,
+   with a different modality set. Each scenario is a 360° multi-view video, so it
+   is **unrolled into one frame per timestep** (5 Hz; one frame = one timestep,
+   one segment = one scenario, ~21 frames over the 4 s observation window).
+   StandardE2E ingests, per frame, the six surround **ring** cameras at that
+   timestep (mapped to the canonical
+   :class:`~standard_e2e.enums.CameraDirection` surround members with the
+   fixed-rig pinhole ``K`` and ``T_ego_from_camera`` from the README's
+   ``(K, R, t)``, where ``R`` is ego→camera so the extrinsics are
+   ``inv(se3(R, t))``), the high-level **driving_instruction** folded into the
+   coarse :class:`~standard_e2e.enums.Intent` (``left`` → ``GO_LEFT``, ``right``
+   → ``GO_RIGHT``, ``straight`` → ``GO_STRAIGHT``, else ``UNKNOWN``; the raw
+   instruction kept in ``aux_data``), and **past_states** -- the ego history up
+   to that timestep, re-expressed **ego-relative to the frame** (ego at the
+   origin, facing +x along its path tangent), metres (x forward, y left). The
+   **prediction targets** -- the 5 s **expert** future (``future_states``, 25
+   pts) and the **counterfactual** futures (``wrong_speed`` /
+   ``neglect_instruction`` / ``off_road`` / ``crash``) as
+   **``preference_trajectory``** (only the ones present) -- are attached to the
+   ``t=0`` (last) frame only (marked ``is_prediction_frame`` in the index). It
+   ships **no lidar, HD map or 3D boxes**.
+   The multilingual **reasoning traces** (English / Spanish / Chinese) are
+   surfaced (English) into ``aux_data``. Note: the released **test** split
+   withholds the future trajectories (eval ground truth -- a ``[[-100, -100]]``
+   sentinel); only **train** / **train_raw** carry real expert + counterfactual
+   futures. The **_raw** splits are native-resolution frames; the non-``raw``
+   splits are the processed frames the vendored intrinsics match. The release
+   ships as gated Hugging Face parquet (``KIT-MRT/KITScenes-LongTail``) and
+   **must be downloaded first**
+   (``scripts/prepare_dataset_kitscenes_longtail.sh``).
 
 How datasets are added
 ----------------------
