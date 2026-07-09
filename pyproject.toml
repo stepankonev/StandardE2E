@@ -28,6 +28,7 @@ dependencies = [
     "Pillow",
     "albumentations",
     "opencv-python-headless",
+    "matplotlib",
     "pyyaml",
     "tensorflow-cpu",
     "tqdm",
@@ -75,7 +76,6 @@ dev = [
     "types-PyYAML",
     "types-tqdm",
     "types-tensorflow",
-    "matplotlib"
 ]
 test = [
     "pytest>=7.0.0",
