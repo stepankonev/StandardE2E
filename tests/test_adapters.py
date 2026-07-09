@@ -430,10 +430,23 @@ def test_hdmap_bev_adapter_unknown_channel_string_raises():
 
 def test_hdmap_bev_adapter_metadata_lists_channels_in_order():
     adapter = HDMapBEVAdapter(channels=["drivable_area", "lane_center"])
-    assert adapter.metadata == {"hd_map_bev_channels": ["drivable_area", "lane_center"]}
+    assert adapter.metadata["hd_map_bev_channels"] == ["drivable_area", "lane_center"]
     # Default adapter exposes all enum members in declaration order.
-    assert HDMapBEVAdapter().metadata == {
-        "hd_map_bev_channels": [t.value for t in MapElementType]
+    assert HDMapBEVAdapter().metadata["hd_map_bev_channels"] == [
+        t.value for t in MapElementType
+    ]
+
+
+def test_hdmap_bev_adapter_metadata_exposes_grid():
+    adapter = HDMapBEVAdapter(
+        min_x=-16.0, max_x=16.0, min_y=-8.0, max_y=8.0, pixels_per_meter=2.0
+    )
+    assert adapter.metadata["hd_map_bev_grid"] == {
+        "min_x": -16.0,
+        "max_x": 16.0,
+        "min_y": -8.0,
+        "max_y": 8.0,
+        "pixels_per_meter": 2.0,
     }
 
 
@@ -600,10 +613,14 @@ def test_detections_bev_adapter_unknown_class_raises():
 
 def test_detections_bev_adapter_metadata_lists_channels_in_order():
     adapter = Detections3DBEVAdapter(classes=["pedestrian", "vehicle"])
-    assert adapter.metadata == {"detections_3d_bev_channels": ["pedestrian", "vehicle"]}
-    assert Detections3DBEVAdapter().metadata == {
-        "detections_3d_bev_channels": [t.value for t in DetectionType]
-    }
+    assert adapter.metadata["detections_3d_bev_channels"] == ["pedestrian", "vehicle"]
+    assert Detections3DBEVAdapter().metadata["detections_3d_bev_channels"] == [
+        t.value for t in DetectionType
+    ]
+    assert (
+        Detections3DBEVAdapter().metadata["detections_3d_bev_grid"]["pixels_per_meter"]
+        == 4.0
+    )
 
 
 def test_detections_bev_adapter_invalid_args_raise():

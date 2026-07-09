@@ -6,6 +6,9 @@ from standard_e2e.caching.adapters.abstract_adapter import AbstractAdapter
 from standard_e2e.data_structures import LidarPointCloud, StandardFrameData
 from standard_e2e.enums import LidarComponent, Modality, StandardFrameDataField
 
+LIDAR_BEV_CHANNELS_AUX_KEY = "lidar_bev_channels"
+LIDAR_BEV_GRID_AUX_KEY = "lidar_bev_grid"
+
 
 class LidarAdapter(AbstractAdapter):
     """Lidar adapter: extracts XYZ from ``StandardFrameData.lidar`` into a
@@ -126,6 +129,23 @@ class LidarBEVAdapter(AbstractAdapter):
         w = int((self._max_y - self._min_y) * ppm)
         c = 2 if self._use_ground_plane else 1
         return (c, h, w)
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Expose the BEV channel order + grid so the .npz / dataset_info.yaml is
+        self-describing (pixels map back to meters; channels name the height
+        bands)."""
+        channels = ["below", "above"] if self._use_ground_plane else ["above"]
+        return {
+            LIDAR_BEV_CHANNELS_AUX_KEY: channels,
+            LIDAR_BEV_GRID_AUX_KEY: {
+                "min_x": self._min_x,
+                "max_x": self._max_x,
+                "min_y": self._min_y,
+                "max_y": self._max_y,
+                "pixels_per_meter": self._pixels_per_meter,
+            },
+        }
 
     def _splat(self, xy: np.ndarray) -> np.ndarray:
         ppm = int(self._pixels_per_meter)

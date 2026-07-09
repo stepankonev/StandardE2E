@@ -12,10 +12,12 @@ from typing import Any, Optional, Union, cast, final
 
 import pandas as pd
 import tensorflow as tf
+import yaml
 from tqdm import tqdm
 
 from standard_e2e.caching.segment_context import SegmentContextAggregator
 from standard_e2e.caching.source_dataset_processor import SourceDatasetProcessor
+from standard_e2e.constants import DATASET_INFO_FILE_NAME
 from standard_e2e.data_structures import FrameIndexData
 
 # Worker-local state for the parallel pool. Each worker process gets its own
@@ -231,7 +233,24 @@ class SourceDatasetConverter(ABC):
         index_df = FrameIndexData.save_index_data(
             results, self._source_processor.specific_output_path
         )
+        self._write_dataset_info()
         return index_df
+
+    def _write_dataset_info(self) -> None:
+        """Write a ``dataset_info.yaml`` (dataset name, split and each adapter's
+        spec) next to the index so the visualization tool can consume the
+        processed folder without opening an ``.npz``."""
+        info = {
+            "dataset_name": self._source_processor.dataset_name,
+            "split": self._source_processor.split,
+            "adapters": [adapter.spec for adapter in self._source_processor.adapters],
+        }
+        path = os.path.join(
+            self._source_processor.specific_output_path, DATASET_INFO_FILE_NAME
+        )
+        with open(path, "w", encoding="utf-8") as handle:
+            yaml.safe_dump(info, handle, sort_keys=False)
+        logging.info("Dataset info written to %s", path)
 
     @final
     def convert(self) -> None:

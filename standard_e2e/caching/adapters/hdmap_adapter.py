@@ -8,6 +8,7 @@ from standard_e2e.data_structures import StandardFrameData
 from standard_e2e.enums import MapElementType, Modality, StandardFrameDataField
 
 HD_MAP_BEV_CHANNELS_AUX_KEY = "hd_map_bev_channels"
+HD_MAP_BEV_GRID_AUX_KEY = "hd_map_bev_grid"
 
 ChannelSpec = Union[MapElementType, str]
 
@@ -114,8 +115,19 @@ class HDMapBEVAdapter(AbstractAdapter):
 
     @property
     def metadata(self) -> dict[str, Any]:
-        """Expose the BEV channel order so the .npz remains self-describing."""
-        return {HD_MAP_BEV_CHANNELS_AUX_KEY: [t.value for t in self._channels]}
+        """Expose the BEV channel order + grid so the .npz / dataset_info.yaml is
+        self-describing (a consumer can map pixels back to meters and channels to
+        :class:`MapElementType` without re-deriving the adapter config)."""
+        return {
+            HD_MAP_BEV_CHANNELS_AUX_KEY: [t.value for t in self._channels],
+            HD_MAP_BEV_GRID_AUX_KEY: {
+                "min_x": self._min_x,
+                "max_x": self._max_x,
+                "min_y": self._min_y,
+                "max_y": self._max_y,
+                "pixels_per_meter": self._pixels_per_meter,
+            },
+        }
 
     @property
     def output_shape(self) -> tuple[int, int, int]:
