@@ -133,7 +133,12 @@ Run from the project root so `uv run` uses the project environment. If you use p
     ```bash
     uv run python examples/creating_unified_dataloader.py --processed_data_path PROCESSED_DATA_PATH
     ```
-4. **Add a new dataset adapter** - Guide for adding support for new datasets ([`adding_new_dataset.md`](standard_e2e/caching/src_datasets/adding_new_dataset.md))
+4. **Visualize processed output** - Render any processed `<dataset>/<split>` folder to per-scene MP4s, auto-detecting whichever modalities the frames carry: a camera mosaic (surround grid or stitched panorama) plus a co-registered BEV panel (HD-map / lidar / detection rasters, lidar points, 3D boxes, past/future/preference trajectories, ego). Playback speed defaults to the rate inferred from the frame timestamps; `--fps` overrides. Select scenes with `--num-scenes N` or repeatable `--scene-id ID` (default: first scene).
+    ```bash
+    uv run python -m standard_e2e.visualization.visualize_processed \
+      PROCESSED_DATA_PATH/DATASET_NAME/SPLIT --num-scenes 2 --out visualizations
+    ```
+5. **Add a new dataset adapter** - Guide for adding support for new datasets ([`adding_new_dataset.md`](standard_e2e/caching/src_datasets/adding_new_dataset.md))
 
 
 ## 📄 License
