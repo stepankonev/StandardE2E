@@ -288,11 +288,27 @@ def _draw_trajectories(ax, frame, zorder) -> None:
         traj = _modality(frame, modality)
         if traj is None:
             continue
-        x = np.asarray(traj.get(TC.X)).reshape(-1)
-        y = np.asarray(traj.get(TC.Y)).reshape(-1)
-        if x.size == 0:
-            continue
-        ax.plot(y, x, "-", color=color, lw=2.2, zorder=zorder, label=label)
+        # past/future are a single Trajectory; preference_trajectory is a list of
+        # them (e.g. the LongTail counterfactuals). Normalise and draw each, with
+        # a single legend entry per modality.
+        trajectories = list(traj) if isinstance(traj, (list, tuple)) else [traj]
+        style = "--" if modality == Modality.PREFERENCE_TRAJECTORY else "-"
+        labelled = False
+        for one in trajectories:
+            x = np.asarray(one.get(TC.X)).reshape(-1)
+            y = np.asarray(one.get(TC.Y)).reshape(-1)
+            if x.size == 0:
+                continue
+            ax.plot(
+                y,
+                x,
+                style,
+                color=color,
+                lw=2.2,
+                zorder=zorder,
+                label=None if labelled else label,
+            )
+            labelled = True
 
 
 def _draw_bev(ax, frame: TransformedFrameData) -> bool:

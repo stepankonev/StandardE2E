@@ -149,6 +149,31 @@ the SfM cloud is photogrammetric, not sensor lidar.
    For quicker debug runs, set ``STANDARD_E2E_DEBUG=true``. Some datasets may
    truncate segment continuity in this mode, so use only for smoke-testing.
 
+Visualizing processed output
+----------------------------
+
+Any processed ``<dataset>/<split>`` folder (the ``.npz`` frames plus
+``index.parquet`` written above) can be rendered to per-scene MP4s with one
+dataset-agnostic tool -- it auto-detects whichever modalities each frame
+carries: a camera mosaic (a per-direction surround grid, or a stitched
+panorama as the pano adapter emits) and a single co-registered BEV panel
+(HD-map / lidar / detection rasters, ``lidar_pc`` points, vector 3D boxes,
+past / future / preference trajectories, ego).
+
+.. code-block:: bash
+
+   uv run python -m standard_e2e.visualization.visualize_processed \
+       path/to/output/DATASET_NAME/SPLIT --num-scenes 2 --out visualizations
+
+Select scenes with ``--num-scenes N`` or repeatable ``--scene-id ID`` (default:
+the first scene); cap length with ``--max-frames``. Playback speed defaults to
+the rate inferred from the frame timestamps, so videos play in real time (very
+low rates are encoded by duplicating frames, keeping the real-time duration);
+pass ``--fps`` to override. The BEV meter grids and channel orders are read
+from the ``dataset_info.yaml`` / per-frame metadata the converter writes, so
+the panel is correct for any adapter grid configuration without per-dataset
+code.
+
 Interactive Tutorials
 ---------------------
 

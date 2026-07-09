@@ -1,5 +1,21 @@
+import cv2
 import numpy as np
 import yaml
+
+
+def decode_image_bytes(data: bytes) -> np.ndarray:
+    """Decode encoded image bytes (JPEG/PNG/...) to a contiguous ``(H, W, 3)``
+    uint8 **RGB** array.
+
+    Generic counterpart to reading an image off disk -- used by sources that
+    ship images inline (e.g. Hugging Face ``datasets`` parquet, where an image
+    cell is ``{"bytes": <encoded>, "path": ...}``).
+    """
+    buffer = np.frombuffer(data, dtype=np.uint8)
+    bgr = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise ValueError("failed to decode image bytes")
+    return np.ascontiguousarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), dtype=np.uint8)
 
 
 def load_yaml_config(file_path):
