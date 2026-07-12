@@ -1,0 +1,53 @@
+# NATIX Edge Case Driving Dataset preprocessing config.
+# Dataset key: natix_edgecase -- the curated edge-case sibling of
+# natix_multicam (identical footage / GPS / calibration formats, plus the
+# per-clip VLM event annotations in edge-case.json).
+#
+# PREREQUISITE -- download the data first (no extraction step; the dataset is
+# a plain directory tree). The gated Hugging Face repository
+# (natix-network-org/natix-edge-case-driving-dataset, ~3.3 GB) carries the
+# full first release under data/, including data/edge-case.json.
+# --input_path points at the downloaded root (or its data/ folder) -- see
+# scripts/prepare_dataset_natix_edgecase.sh.
+#
+# NATIX has no canonical train/val/test split; --split is a passthrough
+# output label (all / train / val / test), as for natix_multicam.
+preprocessing:
+  # Same modality set as natix_multicam: a 4- or 6-camera Tesla dashcam rig +
+  # a consumer-grade GPS ego pose (no lidar, HD map, detections, or driving
+  # command). The past/future ego trajectories are added by the
+  # FuturePastStatesFromMatrices context aggregator (the processor's
+  # default), not a per-frame adapter. The edge-case annotations ride along
+  # in aux_data / the index, not as a modality.
+  adapters:
+    # Standard cameras are 1448x938 or 1280x960; the front camera can be
+    # natively 2896x1876. Downscale so each camera's longest side is at most
+    # ``max_size`` px (intrinsics scaled to match) -- with up to six cameras
+    # per frame this keeps the .npz manageable; raise/remove it to trade size
+    # for resolution.
+    - name: cameras_identity_adapter
+      params:
+        max_size: 800
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # 3 s planning horizon -- frames follow the GPS fix rate (~1-10 Hz), so
+    # the closest-timestamp selector picks the fix nearest to +3 s.
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0

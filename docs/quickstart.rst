@@ -138,6 +138,42 @@ the standard lidar adapters. The COLMAP binaries are parsed by a small
 dependency-free reader (no ``pycolmap`` needed at preprocessing time);
 the SfM cloud is photogrammetric, not sensor lidar.
 
+For the NATIX Edge Case dataset (``natix_edgecase``; the curated
+edge-case sibling of ``natix_multicam`` — see :doc:`datasets`) the
+invocation is the standard one over the downloaded Hugging Face tree,
+but the release's **VLM event annotations** deserve a note on where
+they end up. Every emitted frame stores the events covering its
+timestamp inside its ``.npz`` as ``aux_data["edge_case_events"]`` — one
+plain dict per covering event carrying the verbatim ``label``, the
+``start_sec`` / ``end_sec`` window (video seconds from clip start) and
+the complete ``ai_analysis`` object (event classification, visual
+evidence, contextual analysis, agentic validation, detected event); the
+list is empty outside events. Two flattened index columns make in-event
+frames selectable without opening any ``.npz``:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   root = "path/to/output"
+   index = pd.read_parquet(f"{root}/natix_edgecase/all/index.parquet")
+
+   # Select frames covered by an annotated event (2908 of 10747 in the
+   # first release) straight from the index...
+   in_event = index[index.extra_edge_case_count > 0]
+   print(in_event.extra_edge_case.iloc[0])   # summary text
+
+   # ...and read the full VLM payload from the frame's npz aux data.
+   frame = np.load(f"{root}/{in_event.filename.iloc[0]}", allow_pickle=True)
+   events = frame["aux_data"].item()["edge_case_events"]
+   print(events[0]["ai_analysis"]["EVENT CLASSIFICATION"])
+
+The same ``aux_data`` dict is available on every frame loaded through
+:class:`~standard_e2e.unified_dataset.UnifiedE2EDataset` (as
+``frame.aux_data``), so the annotations ride along into training
+pipelines with no extra plumbing.
+
 .. tip::
    ``--num_workers`` and ``--do_parallel_processing`` cover **both**
    pipeline stages: the per-frame conversion (one frame per worker) and
