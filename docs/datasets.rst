@@ -111,6 +111,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `NATIX Edge Case <https://huggingface.co/datasets/natix-network-org/natix-edge-case-driving-dataset>`__ (curated edge cases)
+     - ✓ (4- or 6-camera Tesla rig) [#natix_edgecase]_
+     - —
+     - —
+     - —
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -298,9 +305,10 @@ columns above.
    **must be downloaded first**
    (``scripts/prepare_dataset_kitscenes_longtail.sh``).
 
-.. [#natix_multicam] NATIX Multi-Camera (key ``natix_multicam``; NATIX has
-   announced a telemetry-included sibling release, which would be added
-   alongside) is a **crowd-sourced** real-world driving dataset: 100 h of
+.. [#natix_multicam] NATIX Multi-Camera (key ``natix_multicam``; its curated
+   edge-case sibling is supported as ``natix_edgecase`` -- see
+   [#natix_edgecase]_ -- and NATIX has also announced a telemetry-included
+   release) is a **crowd-sourced** real-world driving dataset: 100 h of
    **Tesla-dashcam** surround footage from everyday, non-expert drivers in
    Switzerland and the United States -- ~1-minute mp4 clips at ~36 fps plus
    per-clip **consumer-grade GPS** metadata (1-10 Hz), per-trip camera
@@ -333,6 +341,40 @@ columns above.
    carries a ~20-minute ``dataset-sample/``; the full ~1.28 TB is pulled
    from a Cloudflare R2 bucket with credentials granted on access approval
    (``scripts/prepare_dataset_natix_multicam.sh``).
+
+.. [#natix_edgecase] NATIX Edge Case (key ``natix_edgecase``) is the
+   **curated edge-case sibling** of NATIX Multi-Camera: rare, challenging
+   real-world scenarios -- construction zones, adverse weather, road-surface
+   deterioration, illegal maneuvers, obstructions -- crowd-sourced from the
+   same decentralized Tesla-dashcam network. The first public release is
+   **20 minutes / 86 mp4 clips** across six US states (4- and 6-camera
+   rigs) with **21 VLM-annotated events**. Footage, GPS metadata,
+   calibration and folder layout are **identical to** ``natix_multicam``
+   (same frame/segment definitions, camera mapping, GPS ego pose and
+   data-quality bounds -- everything in [#natix_multicam]_ applies; the
+   processor is a subclass). The release adds the **edge-case annotations**
+   (``data/edge-case.json``): per annotated clip, one or more events, each
+   with a ``label`` (may be empty), a ``[start_sec, end_sec]`` window in
+   **video seconds from clip start**, and a structured **VLM**
+   ``ai_analysis`` (event classification, visual evidence, context, agentic
+   validation, final detected event). Every emitted frame carries the events
+   covering its timestamp -- the full payload in
+   ``aux_data["edge_case_events"]``, and ``edge_case_count`` /
+   ``edge_case`` (summaries; a missing label falls back to the VLM ``EVENT
+   CLASSIFICATION``) in the index -- so in-event frames are filterable via
+   ``extra_edge_case_count > 0`` without touching the npz. Windows map onto
+   the frame timeline through each clip's front CSV (the epoch of video
+   frame 1, extrapolated when the CSV's leading rows are missing). The
+   annotations are **VLM-generated best-effort** (integer-second windows,
+   model-written descriptions) -- guidance, not ground truth. One further
+   observed GPS degradation (passed through as-shipped): a trip's fixes can
+   **freeze** (lat/lon stuck, speed 0) for tens of seconds of moving
+   footage, leaving the pose-derived past/future trajectories degenerate
+   over that stretch even though the cameras are fine. **No
+   extraction step** -- the gated Hugging Face repo
+   (``natix-network-org/natix-edge-case-driving-dataset``, ~3.3 GB) carries
+   everything under ``data/``
+   (``scripts/prepare_dataset_natix_edgecase.sh``).
 
 How datasets are added
 ----------------------

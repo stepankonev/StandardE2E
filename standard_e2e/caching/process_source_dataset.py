@@ -23,6 +23,10 @@ from standard_e2e.caching.src_datasets.kitscenes_multimodal import (
     KITScenesMultimodalDatasetConverter,
     KITScenesMultimodalDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.natix_edgecase import (
+    NatixEdgeCaseDatasetConverter,
+    NatixEdgeCaseDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.natix_multicam import (
     NatixMulticamDatasetConverter,
     NatixMulticamDatasetProcessor,
@@ -88,6 +92,7 @@ def main(argv=None):
         "kitscenes_multimodal": KITScenesMultimodalDatasetConverter,
         "kitscenes_longtail": KITScenesLongTailDatasetConverter,
         "natix_multicam": NatixMulticamDatasetConverter,
+        "natix_edgecase": NatixEdgeCaseDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -105,6 +110,7 @@ def main(argv=None):
         "kitscenes_multimodal": KITScenesMultimodalDatasetProcessor,
         "kitscenes_longtail": KITScenesLongTailDatasetProcessor,
         "natix_multicam": NatixMulticamDatasetProcessor,
+        "natix_edgecase": NatixEdgeCaseDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
