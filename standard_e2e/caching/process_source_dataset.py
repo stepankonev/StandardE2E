@@ -23,6 +23,10 @@ from standard_e2e.caching.src_datasets.kitscenes_multimodal import (
     KITScenesMultimodalDatasetConverter,
     KITScenesMultimodalDatasetProcessor,
 )
+from standard_e2e.caching.src_datasets.natix_multicam import (
+    NatixMulticamDatasetConverter,
+    NatixMulticamDatasetProcessor,
+)
 from standard_e2e.caching.src_datasets.navsim import (
     NavsimDatasetConverter,
     NavsimDatasetProcessor,
@@ -83,6 +87,7 @@ def main(argv=None):
         "vod": VodDatasetConverter,
         "kitscenes_multimodal": KITScenesMultimodalDatasetConverter,
         "kitscenes_longtail": KITScenesLongTailDatasetConverter,
+        "natix_multicam": NatixMulticamDatasetConverter,
     }.get(dataset_name)
     if dataset_converter_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
@@ -99,6 +104,7 @@ def main(argv=None):
         "vod": VodDatasetProcessor,
         "kitscenes_multimodal": KITScenesMultimodalDatasetProcessor,
         "kitscenes_longtail": KITScenesLongTailDatasetProcessor,
+        "natix_multicam": NatixMulticamDatasetProcessor,
     }.get(dataset_name)
     if dataset_processor_cls is None:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

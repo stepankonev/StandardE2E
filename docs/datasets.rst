@@ -104,6 +104,13 @@ the corresponding default value via
      - —
      - ✓ (driving instruction)
      - ✓ (counterfactual futures)
+   * - `NATIX Multi-Camera <https://huggingface.co/datasets/natix-network-org/natix-multi-camera-driving-dataset>`__ (crowd-sourced dashcam)
+     - ✓ (4- or 6-camera Tesla rig) [#natix_multicam]_
+     - —
+     - —
+     - —
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
@@ -290,6 +297,42 @@ columns above.
    ships as gated Hugging Face parquet (``KIT-MRT/KITScenes-LongTail``) and
    **must be downloaded first**
    (``scripts/prepare_dataset_kitscenes_longtail.sh``).
+
+.. [#natix_multicam] NATIX Multi-Camera (key ``natix_multicam``; NATIX has
+   announced a telemetry-included sibling release, which would be added
+   alongside) is a **crowd-sourced** real-world driving dataset: 100 h of
+   **Tesla-dashcam** surround footage from everyday, non-expert drivers in
+   Switzerland and the United States -- ~1-minute mp4 clips at ~36 fps plus
+   per-clip **consumer-grade GPS** metadata (1-10 Hz), per-trip camera
+   calibration and trip-level metadata. One **frame = one front-camera GPS
+   fix** (the video between fixes carries no pose and is not emitted;
+   ``--frame_stride`` subsamples further); one **segment = one trip piece**
+   (continuous minutes), its clips concatenated chronologically with the
+   wall-clock CSV timestamps localized via ``trip_insight.json``'s IANA
+   timezone. Cameras map to the canonical
+   :class:`~standard_e2e.enums.CameraDirection` by **facing**, verified from
+   the calibration rotations: in 4-camera trips ``LEFT`` / ``RIGHT`` *are*
+   the backward-facing repeaters → ``REAR_LEFT`` / ``REAR_RIGHT`` (not
+   ``SIDE_*``); the 6-camera pillar pair faces forward-side → ``FRONT_LEFT``
+   / ``FRONT_RIGHT``. Pinhole ``K`` + Brown-Conrady distortion as shipped
+   (the front camera can be natively 2896×1876; its ``K`` already matches),
+   extrinsics ``T_ego_from_camera`` in the **optical** frame (converted from
+   the ``ground_nominal`` body-FLU rotations, cm → m). Per-camera streams
+   differ in frame rate and duration, so each camera is matched to the fix
+   **by timestamp**; a camera with no usable match is absent from that
+   frame's ``cameras``. The ego pose is GPS-derived (per-segment
+   azimuthal-equidistant local east/north frame anchored at the first fix,
+   z = 0, yaw from ``heading_deg`` with unreliable headings held through
+   stops) and drives the past/future trajectories; ``global_position`` also
+   carries the fix **speed**. ``extra_index_data`` carries trip / country /
+   region / camera_count. No lidar, HD map, 3D boxes or driving command; no
+   canonical split (``--split`` is a passthrough label). Source-data quality
+   bounds (documented, not corrected): GPS accuracy is tens of metres,
+   video/GPS sync error 0-1 s (extremes to 3 s), calibrations are nominal
+   per vehicle model. **No extraction step** -- the gated Hugging Face repo
+   carries a ~20-minute ``dataset-sample/``; the full ~1.28 TB is pulled
+   from a Cloudflare R2 bucket with credentials granted on access approval
+   (``scripts/prepare_dataset_natix_multicam.sh``).
 
 How datasets are added
 ----------------------

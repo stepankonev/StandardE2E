@@ -1,0 +1,51 @@
+# NATIX Multi-Camera Driving Dataset preprocessing config.
+# Dataset key: natix_multicam (NATIX has announced a telemetry-included
+# sibling release, which would be added alongside).
+#
+# PREREQUISITE -- download the data first (no extraction step; the dataset is
+# a plain directory tree). The Hugging Face repository
+# (natix-network-org/natix-multi-camera-driving-dataset, gated) carries a
+# ~20-minute dataset-sample/; the full 100 h release is pulled from a
+# Cloudflare R2 bucket with credentials provided on access approval (see the
+# dataset card). --input_path points at the downloaded root (or its
+# dataset-sample/ folder) -- see scripts/prepare_dataset_natix_multicam.sh.
+#
+# NATIX has no canonical train/val/test split; --split is a passthrough
+# output label (all / train / val / test), as for comma2k19.
+preprocessing:
+  # NATIX carries a 4- or 6-camera Tesla dashcam rig + a consumer-grade GPS
+  # ego pose (no lidar, HD map, detections, or driving command). The
+  # past/future ego trajectories are added by the FuturePastStatesFromMatrices
+  # context aggregator (the processor's default), not a per-frame adapter.
+  adapters:
+    # Standard cameras are 1448x938 or 1280x960; the front camera can be
+    # natively 2896x1876. Downscale so each camera's longest side is at most
+    # ``max_size`` px (intrinsics scaled to match) -- with up to six cameras
+    # per frame this keeps the .npz manageable; raise/remove it to trade size
+    # for resolution.
+    - name: cameras_identity_adapter
+      params:
+        max_size: 800
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    # 3 s planning horizon -- frames follow the GPS fix rate (~1-10 Hz), so
+    # the closest-timestamp selector picks the fix nearest to +3 s.
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0
