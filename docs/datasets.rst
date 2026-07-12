@@ -358,11 +358,16 @@ columns above.
    **video seconds from clip start**, and a structured **VLM**
    ``ai_analysis`` (event classification, visual evidence, context, agentic
    validation, final detected event). Every emitted frame carries the events
-   covering its timestamp -- the full payload in
-   ``aux_data["edge_case_events"]``, and ``edge_case_count`` /
-   ``edge_case`` (summaries; a missing label falls back to the VLM ``EVENT
-   CLASSIFICATION``) in the index -- so in-event frames are filterable via
-   ``extra_edge_case_count > 0`` without touching the npz. Windows map onto
+   covering its timestamp **inside its .npz**, as
+   ``aux_data["edge_case_events"]`` -- a list (empty outside events) of one
+   plain dict per covering event with the verbatim ``label``, the
+   ``start_sec`` / ``end_sec`` window and the complete ``ai_analysis``
+   object -- and, flattened into the index, ``extra_edge_case_count`` /
+   ``extra_edge_case`` (summaries; a missing label falls back to the VLM
+   ``EVENT CLASSIFICATION``) -- so in-event frames are filterable via
+   ``extra_edge_case_count > 0`` without touching the npz, and the full
+   analysis text travels with the frame itself (access snippet in
+   :doc:`quickstart`). Windows map onto
    the frame timeline through each clip's front CSV (the epoch of video
    frame 1, extrapolated when the CSV's leading rows are missing). The
    annotations are **VLM-generated best-effort** (integer-second windows,
