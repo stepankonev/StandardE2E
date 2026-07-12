@@ -6,6 +6,7 @@
   ![Python versions](https://img.shields.io/badge/Python-3.12-informational?logo=python&logoColor=white)
   ![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)
   ![License](https://img.shields.io/badge/license-MIT-green.svg)
+  [![PyPI Downloads](https://static.pepy.tech/personalized-badge/standard-e2e?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/standard-e2e)
   [![Tests](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/stepankonev/StandardE2E/actions/workflows/tests.yml)
   [![codecov](https://codecov.io/github/stepankonev/StandardE2E/graph/badge.svg?token=3MWJNB10OO)](https://codecov.io/github/stepankonev/StandardE2E)
   [![Code Style](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
