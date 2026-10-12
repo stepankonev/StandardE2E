@@ -35,15 +35,15 @@ from each frame's dynamic ``traffic_lights`` field, not the static map.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import numpy as np
+from nuplan.common.actor_state.state_representation import Point2D
+from nuplan.common.maps.abstract_map import AbstractMap
+from nuplan.common.maps.maps_datatypes import SemanticMapLayer
 
 from standard_e2e.data_structures import HDMap, MapElement
 from standard_e2e.enums import MapElementType
-
-if TYPE_CHECKING:  # pragma: no cover - import-only typing
-    from nuplan.common.maps.abstract_map import AbstractMap
 
 
 def _xy_city_to_ego(
@@ -118,11 +118,6 @@ def build_navsim_hd_map(
         :class:`HDMap` with elements in the ego frame, ready for
         :class:`~standard_e2e.caching.adapters.HDMapBEVAdapter` rasterisation.
     """
-    # Imports kept inside the function so this module imports cleanly even
-    # when the ``nuplan-devkit`` extras aren't installed (e.g., docs build).
-    from nuplan.common.actor_state.state_representation import Point2D
-    from nuplan.common.maps.maps_datatypes import SemanticMapLayer
-
     layers_to_query = [
         SemanticMapLayer.LANE,
         SemanticMapLayer.LANE_CONNECTOR,

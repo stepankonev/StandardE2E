@@ -6,13 +6,15 @@ Welcome to StandardE2E! This guide will get you up and running quickly.
 Installation
 ------------
 
-Install from PyPI:
+The default environment is the training one: StandardE2E with PyTorch and no dataset
+SDKs. Install it from PyPI:
 
 .. code-block:: bash
 
    pip install standard-e2e
 
-Or from source for development (with uv):
+Or work from source with `uv <https://docs.astral.sh/uv/>`_ (``--all-extras`` adds the
+test and lint tools):
 
 .. code-block:: bash
 
@@ -20,123 +22,43 @@ Or from source for development (with uv):
    cd StandardE2E
    uv sync --all-extras
 
-Or with pip/conda: create a venv, then ``pip install -e ".[dev]"``.
-
 Preprocessing (required before training)
 ----------------------------------------
 
-Convert raw data into the unified format before any training or loading. This
-Waymo End-to-End example (training split) builds scene files containing
-:class:`~standard_e2e.data_structures.frame_data.TransformedFrameData` and the index used by the :class:`~standard_e2e.training.UnifiedE2EDataset`.
+Raw data is converted into the unified format once per dataset: scene files containing
+:class:`~standard_e2e.data_structures.frame_data.TransformedFrameData` and the index used
+by the :class:`~standard_e2e.training.UnifiedE2EDataset`. Each dataset is preprocessed in
+its own isolated environment, which holds only the SDK that dataset needs (TensorFlow
+for Waymo, ``av2`` for Argoverse 2, nuplan-devkit for NAVSIM, ...) and no PyTorch. Its
+folder in the repository, ``datasets/<name>/``, carries that environment and a
+preprocessing pipeline that `stepix <https://github.com/stepankonev/stepix>`_ runs: set
+the paths in the ``[params]`` block of ``datasets/<name>/README.md``, then run, from the
+repository root:
 
 .. code-block:: bash
 
-   uv run python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+   uvx stepix run datasets/waymo_e2e/README.md
+
+The pipeline checks the input, extracts archives where the dataset ships them, and
+runs the converter in the dataset's environment. The same converter can be run by hand
+in that environment, e.g. for the Waymo End-to-End training split:
+
+.. code-block:: bash
+
+   uv run --project datasets/waymo_e2e python -m standard_e2e.caching.process_source_dataset waymo_e2e \
        --input_path=path/to/input \
        --output_path=path/to/output \
        --split=training \
        --num_workers=32 \
-       --config_file=path/to/config.yaml \
+       --config_file=configs/base.yaml \
        --do_parallel_processing
 
-See the in-repo examples for the exact flow:
+See the `datasets/ <https://github.com/stepankonev/StandardE2E/tree/main/datasets>`_
+folder for every supported dataset's description, input layout and pipeline, and the
+in-repo examples for the programmatic flow:
+
 - Script: `examples/dataset_preprocessing.py <https://github.com/stepankonev/StandardE2E/blob/main/examples/dataset_preprocessing.py>`_
 - Notebook walkthrough: `notebooks/intro_tutorial.ipynb <https://github.com/stepankonev/StandardE2E/blob/main/notebooks/intro_tutorial.ipynb>`_
-
-For Argoverse 2 Sensor the equivalent invocation is:
-
-.. code-block:: bash
-
-   uv run python -m standard_e2e.caching.process_source_dataset av2_sensor \
-       --input_path=path/to/argoverse2/sensor \
-       --output_path=path/to/output \
-       --split=train \
-       --num_workers=32 \
-       --config_file=path/to/config.yaml \
-       --do_parallel_processing
-
-A ready-made wrapper for AV2 Sensor lives at
-`scripts/prepare_dataset_av2_sensor.sh <https://github.com/stepankonev/StandardE2E/blob/main/scripts/prepare_dataset_av2_sensor.sh>`_.
-
-For Argoverse 2 Lidar (same on-disk format as Sensor minus cameras and
-``annotations.feather``; ~20× more logs but no 3D box labels) the
-invocation is the same with ``av2_lidar`` and an input path pointing at
-the lidar split:
-
-.. code-block:: bash
-
-   uv run python -m standard_e2e.caching.process_source_dataset av2_lidar \
-       --input_path=path/to/argoverse2/lidar \
-       --output_path=path/to/output \
-       --split=train \
-       --num_workers=32 \
-       --config_file=path/to/config.yaml \
-       --do_parallel_processing
-
-The processor inherits from :class:`~standard_e2e.caching.src_datasets.av2_sensor.Av2SensorDatasetProcessor`
-and short-circuits the camera + detection helpers so the missing
-modalities surface as defaults at training time via
-:class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`.
-
-For NAVSIM (OpenScene-v1.1) the input path points at the OpenScene
-root containing ``navsim_logs/``, ``sensor_blobs/`` and ``maps/``
-subdirectories. Only the ``trainval`` split is published; users sample
-train/val/test subsets from it via ``SceneFilter`` (NAVSIM upstream) or
-custom filters on top of the produced index.parquet.
-
-.. code-block:: bash
-
-   uv run python -m standard_e2e.caching.process_source_dataset navsim \
-       --input_path=path/to/openscene-v1.1 \
-       --output_path=path/to/output \
-       --split=trainval \
-       --num_workers=32 \
-       --config_file=path/to/config.yaml \
-       --do_parallel_processing
-
-The NAVSIM processor surfaces all 6 modalities (cameras, lidar, HD
-map, 3D detections, driving command via :class:`~standard_e2e.enums.Intent`,
-past/future ego trajectory). HD-map extraction goes through nuPlan's
-:class:`AbstractMap` API loaded from ``maps/<city>/<version>/map.gpkg``;
-the maps root is resolved with the precedence ``maps_root_path``
-constructor arg → ``NUPLAN_MAPS_ROOT`` env var (NAVSIM convention) →
-``<input_path>/maps`` (OpenScene-v1.1 layout). nuPlan's vector layers
-are translated through the unified
-:class:`~standard_e2e.enums.MapElementType` taxonomy — see the
-``_navsim_map.py`` translation table for the per-layer rules.
-
-.. note::
-
-   nuPlan's ``GPKGMapsDB`` writes a ``.maplocks/`` directory next to
-   the maps root. If the dataset itself lives on a read-only mount,
-   create a writable mirror once with the JSON manifest copied and the
-   city directories symlinked, then point ``NUPLAN_MAPS_ROOT`` (or the
-   ``maps_root_path`` constructor arg on
-   :class:`~standard_e2e.caching.src_datasets.navsim.NavsimDatasetProcessor`)
-   at the mirror.
-
-For WayveScenes101 the input path points at a directory of **extracted**
-scenes (each ``scene_<NNN>.zip`` unpacked to ``scene_<NNN>/`` with its
-``colmap_sparse/rig/``, ``images/`` and ``masks/`` subdirectories). The
-split is a passthrough output label (the dataset has no perception split).
-
-.. code-block:: bash
-
-   uv run python -m standard_e2e.caching.process_source_dataset wayve_scenes \
-       --input_path=path/to/extracted_wayve_scenes \
-       --output_path=path/to/output \
-       --split=test \
-       --num_workers=32 \
-       --config_file=path/to/config.yaml \
-       --do_parallel_processing
-
-The WayveScenes processor surfaces cameras (5 fisheye views), the ego
-past/future trajectory (from the COLMAP poses), and a ``lidar_pc`` cloud
-derived from the per-scene **COLMAP SfM** reconstruction — transformed
-into each frame's ego (FLU) frame and range-clipped so it flows through
-the standard lidar adapters. The COLMAP binaries are parsed by a small
-dependency-free reader (no ``pycolmap`` needed at preprocessing time);
-the SfM cloud is photogrammetric, not sensor lidar.
 
 For the NATIX Edge Case dataset (``natix_edgecase``; the curated
 edge-case sibling of ``natix_multicam`` — see :doc:`datasets`) the
@@ -240,7 +162,7 @@ For complete working examples, see:
 
    .. code-block:: bash
 
-      uv run python examples/dataset_preprocessing.py \
+      uv run --project datasets/waymo_e2e python examples/dataset_preprocessing.py \
           --e2e_dataset_path /path/to/raw/waymo/e2e \
           --split training \
           --processed_data_path /path/to/processed

@@ -1,0 +1,27 @@
+[project]
+name = "standard-e2e-av2-sensor"
+version = "0.0.0"
+description = "Isolated preprocessing environment for Argoverse 2 Sensor (StandardE2E)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "standard-e2e",
+    "av2>=0.3.6",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
+
+[tool.uv]
+package = false
+# av2 requires the full opencv-python, which installs the same cv2/ package
+# as StandardE2E's opencv-python-headless (whichever lands last wins). Keep
+# only the headless build; av2's image reads work with it.
+# torchvision is only for StandardE2E's training code (av2 itself requires
+# PyTorch, so torch stays).
+override-dependencies = [
+    "opencv-python; sys_platform == 'never'",
+    "torchvision; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+standard-e2e = { path = "../..", editable = true }

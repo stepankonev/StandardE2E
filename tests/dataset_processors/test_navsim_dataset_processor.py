@@ -21,6 +21,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# nuplan-devkit is installed in the NAVSIM environment only (datasets/navsim/).
+pytest.importorskip("nuplan")
+
 from standard_e2e.caching.adapters import (
     CamerasIdentityAdapter,
     Detections3DIdentityAdapter,

@@ -4,7 +4,7 @@ VoD (TU Delft, RA-L 2022) is a compact urban dataset whose distinctive sensor is
 a **3+1D radar**; it also carries a 64-layer Velodyne LiDAR, a single front
 camera and densely annotated KITTI-format 3D boxes over 24 short recording
 scenes. The release ships as zips and must be extracted first (see
-``scripts/extract_vod.sh`` / :mod:`._vod_io`).
+``datasets/vod/extract.sh`` / :mod:`._vod_io`).
 
 Mapping to ``StandardFrameData`` (this release covers the camera, the Velodyne
 LiDAR, the 3D detections and the ego trajectory):

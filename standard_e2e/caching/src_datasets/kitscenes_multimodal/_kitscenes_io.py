@@ -149,7 +149,7 @@ def resolve_scene_dirs(input_path: str, split: str) -> list[Path]:
         raise FileNotFoundError(
             f"No KITScenes scene directories under {root} (expected a "
             f"<scene_uuid>/calibration/calib.json). Download and extract a split "
-            f"first, e.g. scripts/prepare_dataset_kitscenes_multimodal.sh."
+            f"first, e.g. with the datasets/kitscenes_multimodal/README.md pipeline."
         )
 
     organised_by_split = any(

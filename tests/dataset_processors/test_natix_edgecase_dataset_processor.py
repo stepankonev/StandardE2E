@@ -30,6 +30,9 @@ import cv2
 import numpy as np
 import pytest
 
+# pyproj is installed in the NATIX environments only (datasets/natix_*/).
+pytest.importorskip("pyproj")
+
 from standard_e2e.caching.src_datasets.natix_edgecase import (
     NatixEdgeCaseDatasetConverter,
     NatixEdgeCaseDatasetProcessor,

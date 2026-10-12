@@ -25,6 +25,7 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
 from PIL import Image
 
 from standard_e2e.caching import SourceDatasetProcessor
@@ -261,10 +262,6 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         if maps_root is None:
             self._map_cache[map_location] = None
             return None
-        # Imported here to keep module import cheap when nuplan-devkit isn't
-        # installed (e.g., docs build).
-        from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
-
         nuplan_map = get_maps_api(str(maps_root), _NUPLAN_MAP_VERSION, map_location)
         self._map_cache[map_location] = nuplan_map
         return nuplan_map

@@ -2,7 +2,7 @@
 
 TruckDrive ships per scene as one zip per modality (``camera.zip``,
 ``lidar.zip``, ``annotations.zip``, ``calibrations.zip``, ``poses.zip``, ...).
-**Extract them first** (``scripts/extract_truckdrive.sh``), expanding each zip
+**Extract them first** (``datasets/truckdrive/extract.sh``), expanding each zip
 into a folder of the same name so the on-disk tree matches the official devkit
 layout::
 
@@ -89,7 +89,7 @@ def discover_scenes(input_path: str) -> list[SceneRef]:
         raise FileNotFoundError(
             f"No extracted TruckDrive scenes under {root} (expected "
             f"<scene>/{_TRAJECTORY_RELPATH}). Extract the per-scene modality "
-            f"zips first, e.g. scripts/extract_truckdrive.sh."
+            f"zips first, e.g. datasets/truckdrive/extract.sh."
         )
     return sorted(scenes, key=lambda r: r.scene_id)
 

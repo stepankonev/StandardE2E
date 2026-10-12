@@ -1,65 +1,47 @@
 import argparse
+import importlib
 import logging
 from typing import Protocol, Type, cast
 
 from standard_e2e.caching.adapters import get_adapters_from_config
-from standard_e2e.caching.src_datasets.av2_lidar import (
-    Av2LidarDatasetConverter,
-    Av2LidarDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.av2_sensor import (
-    Av2SensorDatasetConverter,
-    Av2SensorDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.comma2k19 import (
-    Comma2k19DatasetConverter,
-    Comma2k19DatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.kitscenes_longtail import (
-    KITScenesLongTailDatasetConverter,
-    KITScenesLongTailDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.kitscenes_multimodal import (
-    KITScenesMultimodalDatasetConverter,
-    KITScenesMultimodalDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.natix_edgecase import (
-    NatixEdgeCaseDatasetConverter,
-    NatixEdgeCaseDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.natix_multicam import (
-    NatixMulticamDatasetConverter,
-    NatixMulticamDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.navsim import (
-    NavsimDatasetConverter,
-    NavsimDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.nuscenes import (
-    NuscenesDatasetConverter,
-    NuscenesDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.truckdrive import (
-    TruckDriveDatasetConverter,
-    TruckDriveDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.vod import (
-    VodDatasetConverter,
-    VodDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.waymo_e2e import (
-    WaymoE2EDatasetConverter,
-    WaymoE2EDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.waymo_perception import (
-    WaymoPerceptionDatasetConverter,
-    WaymoPerceptionDatasetProcessor,
-)
-from standard_e2e.caching.src_datasets.wayve_scenes import (
-    WayveScenesDatasetConverter,
-    WayveScenesDatasetProcessor,
-)
 from standard_e2e.utils import load_yaml_config
+
+# Dataset name -> (converter class, processor class), both exported by the
+# package ``standard_e2e.caching.src_datasets.<dataset name>``. Packages are
+# imported on demand because each may need its own SDK (TensorFlow for Waymo,
+# av2, nuplan-devkit, ...), installed only in that dataset's environment under
+# ``datasets/<dataset name>/``.
+DATASETS: dict[str, tuple[str, str]] = {
+    "waymo_e2e": ("WaymoE2EDatasetConverter", "WaymoE2EDatasetProcessor"),
+    "waymo_perception": (
+        "WaymoPerceptionDatasetConverter",
+        "WaymoPerceptionDatasetProcessor",
+    ),
+    "av2_sensor": ("Av2SensorDatasetConverter", "Av2SensorDatasetProcessor"),
+    "av2_lidar": ("Av2LidarDatasetConverter", "Av2LidarDatasetProcessor"),
+    "navsim": ("NavsimDatasetConverter", "NavsimDatasetProcessor"),
+    "nuscenes": ("NuscenesDatasetConverter", "NuscenesDatasetProcessor"),
+    "wayve_scenes": ("WayveScenesDatasetConverter", "WayveScenesDatasetProcessor"),
+    "comma2k19": ("Comma2k19DatasetConverter", "Comma2k19DatasetProcessor"),
+    "truckdrive": ("TruckDriveDatasetConverter", "TruckDriveDatasetProcessor"),
+    "vod": ("VodDatasetConverter", "VodDatasetProcessor"),
+    "kitscenes_multimodal": (
+        "KITScenesMultimodalDatasetConverter",
+        "KITScenesMultimodalDatasetProcessor",
+    ),
+    "kitscenes_longtail": (
+        "KITScenesLongTailDatasetConverter",
+        "KITScenesLongTailDatasetProcessor",
+    ),
+    "natix_multicam": (
+        "NatixMulticamDatasetConverter",
+        "NatixMulticamDatasetProcessor",
+    ),
+    "natix_edgecase": (
+        "NatixEdgeCaseDatasetConverter",
+        "NatixEdgeCaseDatasetProcessor",
+    ),
+}
 
 
 class _HasArgParser(Protocol):  # pylint: disable=too-few-public-methods
@@ -76,44 +58,34 @@ def get_dataset_arg_name(argv=None):
     return ns.dataset_name, rest
 
 
+def load_dataset_classes(dataset_name: str) -> tuple[type, type]:
+    """Import a dataset's package and return its (converter, processor) classes.
+
+    A missing third-party module means the dataset's SDK is not installed in
+    the running environment; the error then names the environment to use.
+    """
+    if dataset_name not in DATASETS:
+        raise ValueError(f"Unknown dataset name: {dataset_name}")
+    converter_name, processor_name = DATASETS[dataset_name]
+    package = f"standard_e2e.caching.src_datasets.{dataset_name}"
+    try:
+        module = importlib.import_module(package)
+    except ModuleNotFoundError as error:
+        if error.name is None or error.name.split(".")[0] == "standard_e2e":
+            raise
+        raise ModuleNotFoundError(
+            f"Dataset {dataset_name!r} needs {error.name!r}, which is not "
+            f"installed in this environment. Run it in the dataset's own "
+            f"environment: `uvx stepix run datasets/{dataset_name}/README.md`, "
+            f"or prefix the command with `uv run --project datasets/{dataset_name}`.",
+            name=error.name,
+        ) from error
+    return getattr(module, converter_name), getattr(module, processor_name)
+
+
 def main(argv=None):
     dataset_name, rest = get_dataset_arg_name(argv)
-    dataset_converter_cls = {
-        "waymo_e2e": WaymoE2EDatasetConverter,
-        "waymo_perception": WaymoPerceptionDatasetConverter,
-        "av2_sensor": Av2SensorDatasetConverter,
-        "av2_lidar": Av2LidarDatasetConverter,
-        "navsim": NavsimDatasetConverter,
-        "nuscenes": NuscenesDatasetConverter,
-        "wayve_scenes": WayveScenesDatasetConverter,
-        "comma2k19": Comma2k19DatasetConverter,
-        "truckdrive": TruckDriveDatasetConverter,
-        "vod": VodDatasetConverter,
-        "kitscenes_multimodal": KITScenesMultimodalDatasetConverter,
-        "kitscenes_longtail": KITScenesLongTailDatasetConverter,
-        "natix_multicam": NatixMulticamDatasetConverter,
-        "natix_edgecase": NatixEdgeCaseDatasetConverter,
-    }.get(dataset_name)
-    if dataset_converter_cls is None:
-        raise ValueError(f"Unknown dataset name: {dataset_name}")
-    dataset_processor_cls = {
-        "waymo_e2e": WaymoE2EDatasetProcessor,
-        "waymo_perception": WaymoPerceptionDatasetProcessor,
-        "av2_sensor": Av2SensorDatasetProcessor,
-        "av2_lidar": Av2LidarDatasetProcessor,
-        "navsim": NavsimDatasetProcessor,
-        "nuscenes": NuscenesDatasetProcessor,
-        "wayve_scenes": WayveScenesDatasetProcessor,
-        "comma2k19": Comma2k19DatasetProcessor,
-        "truckdrive": TruckDriveDatasetProcessor,
-        "vod": VodDatasetProcessor,
-        "kitscenes_multimodal": KITScenesMultimodalDatasetProcessor,
-        "kitscenes_longtail": KITScenesLongTailDatasetProcessor,
-        "natix_multicam": NatixMulticamDatasetProcessor,
-        "natix_edgecase": NatixEdgeCaseDatasetProcessor,
-    }.get(dataset_name)
-    if dataset_processor_cls is None:
-        raise ValueError(f"Unknown dataset name: {dataset_name}")
+    dataset_converter_cls, dataset_processor_cls = load_dataset_classes(dataset_name)
 
     # Help mypy: assert dataset_converter_cls implements get_arg_parser
     converter_cls_typed = cast(Type[_HasArgParser], dataset_converter_cls)

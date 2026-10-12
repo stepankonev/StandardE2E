@@ -1,0 +1,27 @@
+[project]
+name = "standard-e2e-waymo-e2e"
+version = "0.0.0"
+description = "Isolated preprocessing environment for Waymo Open E2E (StandardE2E)."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "standard-e2e",
+    # TensorFlow reads the TFRecords and decodes the camera JPEGs. tensorflow-cpu
+    # ships wheels for linux-x86_64 and Windows only; elsewhere use tensorflow.
+    "tensorflow-cpu; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
+    "tensorflow; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
+
+[tool.uv]
+package = false
+# Preprocessing never imports PyTorch (only standard_e2e.training does), so
+# StandardE2E's training-only dependencies stay out of this environment.
+override-dependencies = [
+    "torch; sys_platform == 'never'",
+    "torchvision; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+standard-e2e = { path = "../..", editable = true }

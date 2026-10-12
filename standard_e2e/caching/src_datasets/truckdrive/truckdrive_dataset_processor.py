@@ -5,7 +5,7 @@ dataset: per scene a ~15-25 s synchronized stream from an 11-camera 8 MP
 surround rig, seven long-range Aeva FMCW LiDARs (delivered as one joint cloud),
 short-range Ousters, 4D radars, PPK+SLAM ego poses and densely tracked 3D
 boxes. Scenes ship as per-modality zips and must be extracted first (see
-``_truckdrive_io`` / ``scripts/extract_truckdrive.sh``).
+``_truckdrive_io`` / ``datasets/truckdrive/extract.sh``).
 
 Mapping to ``StandardFrameData`` (this first release covers cameras, the ego
 trajectory, the Aeva LiDAR and 3D detections; radar, accumulated-depth and lane

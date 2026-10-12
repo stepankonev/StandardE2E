@@ -8,7 +8,7 @@
 # ~20-minute dataset-sample/; the full 100 h release is pulled from a
 # Cloudflare R2 bucket with credentials provided on access approval (see the
 # dataset card). --input_path points at the downloaded root (or its
-# dataset-sample/ folder) -- see scripts/prepare_dataset_natix_multicam.sh.
+# dataset-sample/ folder) -- see the datasets/natix_multicam/README.md pipeline.
 #
 # NATIX has no canonical train/val/test split; --split is a passthrough
 # output label (all / train / val / test), as for comma2k19.

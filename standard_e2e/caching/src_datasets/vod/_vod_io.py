@@ -1,7 +1,7 @@
 """On-disk access helpers for View-of-Delft (extracted detection release).
 
 VoD ships as password-protected zips that **must be extracted first**
-(``scripts/extract_vod.sh``), reproducing the official KITTI-style layout::
+(``datasets/vod/extract.sh``), reproducing the official KITTI-style layout::
 
     <root>/lidar/
         ImageSets/{train,val,test}.txt
@@ -112,7 +112,7 @@ def resolve_root(input_path: str) -> str:
     raise FileNotFoundError(
         f"No VoD 'lidar/' tree under {root} (expected "
         f"lidar/training/velodyne or lidar/testing/velodyne). Extract the "
-        f"detection zip first, e.g. scripts/extract_vod.sh."
+        f"detection zip first, e.g. datasets/vod/extract.sh."
     )
 
 

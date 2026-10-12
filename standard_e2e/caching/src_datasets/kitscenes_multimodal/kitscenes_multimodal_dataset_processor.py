@@ -7,7 +7,7 @@ is a large European urban dataset whose distinctive feature is a dense,
 georeferenced **Lanelet2 HD map** alongside a rich sensor suite (9 cameras, 7
 LiDARs, 3 imaging radars, dual GNSS/INS) captured at 10 Hz over ~1000 scenes. The
 release ships per-split tarballs on Hugging Face and must be extracted first (see
-``scripts/prepare_dataset_kitscenes_multimodal.sh`` / :mod:`._kitscenes_io`).
+``datasets/kitscenes_multimodal/README.md`` / :mod:`._kitscenes_io`).
 
 Mapping to ``StandardFrameData`` (this integration covers the surround cameras,
 the top LiDAR, the ego trajectory and the HD map):

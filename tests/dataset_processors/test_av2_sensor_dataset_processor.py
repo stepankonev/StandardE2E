@@ -30,6 +30,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+
+# av2 is installed in the AV2 environments only (datasets/av2_*/).
+pytest.importorskip("av2")
+
 from av2.map.map_api import ArgoverseStaticMap
 from scipy.spatial.transform import Rotation
 

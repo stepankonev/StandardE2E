@@ -17,9 +17,9 @@ samples carry on disk.
 
 Prerequisites:
     - Both Waymo E2E and Waymo Perception preprocessed under a common
-      output root using this YAML's adapter list.
-      ``scripts/prepare_datasets_waymo_e2e_perception.sh`` is the easy
-      way to produce both.
+      output root using this YAML's adapter list. The
+      ``datasets/waymo_e2e`` and ``datasets/waymo_perception`` pipelines
+      produce both (set their ``config`` param to this file).
 
 Run from the repo root::
 

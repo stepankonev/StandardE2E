@@ -6,7 +6,8 @@
 # data/<split>/<scene_uuid>.tar). Download a split, extract the tarballs so each
 # <scene_uuid>/ directory exists, then --input_path points at the directory that
 # holds the scenes (the per-split folder, or any parent of the <scene_uuid>/
-# dirs). The easiest path is scripts/prepare_dataset_kitscenes_multimodal.sh.
+# dirs). The easiest path is the datasets/kitscenes_multimodal/README.md
+# pipeline, which extracts and converts in one go.
 #
 # --split is one of train / val / test / test_e2e / overlap_train_val / all. When
 # the tree is organised by split folder (the HF layout) only that split's scenes

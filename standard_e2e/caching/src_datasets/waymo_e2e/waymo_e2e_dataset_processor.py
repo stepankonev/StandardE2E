@@ -26,7 +26,7 @@ from standard_e2e.enums import (
 from standard_e2e.third_party.waymo_open_dataset.protos import (
     end_to_end_driving_data_pb2 as wod_e2ed_pb2,
 )
-from standard_e2e.utils.image_utils import waymo_fetch_images_from_frame
+from standard_e2e.utils.waymo_image_utils import waymo_fetch_images_from_frame
 
 
 class WaymoE2EDatasetProcessor(SourceDatasetProcessor):
