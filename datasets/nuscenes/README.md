@@ -35,6 +35,20 @@ The `split` param is an official nuScenes label that also picks the metadata ver
 partially downloaded trainval converts cleanly: scenes whose sensor files are not on disk
 are skipped.
 
+## Known issues
+
+- **Polygon holes are filled** (StandardE2E limitation). 30 map-expansion polygons have
+  holes, most of them drivable areas (20 in Boston, 5 in Singapore One-North). A
+  `MapElement` holds a single ring, so StandardE2E keeps each exterior and the BEV raster
+  paints the holes in: an island inside a drivable area comes out drivable.
+- **A polygon with a null token** (source data). In `singapore-hollandvillage` and
+  `singapore-queenstown`, two `drivable_area` records each reference a polygon whose
+  token is null, so those maps' HD map holds that polygon twice, both times with the id
+  `drivable_None`.
+- **Self-intersecting polygons** (source data). A few polygon exteriors are invalid
+  (Boston: one walkway and four road segments; Singapore One-North: two road segments).
+  They are passed through and rasterised as drawn.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

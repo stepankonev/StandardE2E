@@ -29,6 +29,20 @@ protos per segment.
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator` after all frames are written.
 
+## Known issues
+
+- **`FRONT_RIGHT` and `SIDE_LEFT` have each other's calibration** (StandardE2E bug, not
+  fixed yet). The frames list their images as `FRONT`, `FRONT_LEFT`, `SIDE_LEFT`,
+  `FRONT_RIGHT`, `SIDE_RIGHT` but their calibrations in name order, and StandardE2E pairs
+  the two lists by position, so these two cameras get each other's intrinsics,
+  extrinsics and distortion. Waymo Open E2E lists both in the same order and is not
+  affected.
+- **The HD map is not corrected for pose drift** (StandardE2E bug, not fixed yet). Each
+  frame carries a `map_pose_offset` that, per Waymo, must be added to align the frame
+  with the map features. StandardE2E ignores it, so the ego-frame map is off by up to
+  about 0.3 m horizontally and 0.8 m vertically (the offset is zero on a segment's first
+  frame and drifts along it).
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

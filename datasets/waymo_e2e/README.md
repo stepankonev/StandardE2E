@@ -23,6 +23,13 @@ split, rater-scored preference trajectories. It ships as sharded TFRecords of
 - **preference_trajectory**: the rater-scored trajectories with their scores, where the
   frame has any (scores sum to more than zero).
 
+The `test` split withholds the challenge's ground truth: its frames have no
+`future_states` and no rater-scored trajectories.
+
+## Known issues
+
+None known.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

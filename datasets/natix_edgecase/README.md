@@ -34,11 +34,20 @@ validation, final detected event).
 
 Windows map onto the frame timeline through each clip's front CSV (the epoch of video
 frame 1, extrapolated when the CSV's leading rows are missing, as seen in the release).
-The annotations are VLM-generated best effort (integer-second windows, model-written
-descriptions): treat them as guidance, not ground truth. One further GPS degradation is
-passed through as shipped: a trip's fixes can **freeze** (lat/lon stuck, speed 0) for
-tens of seconds while the footage keeps moving, leaving the pose-derived past/future
-trajectories degenerate over that stretch.
+
+## Known issues
+
+Everything listed for
+[NATIX Multi-Camera](../natix_multicam/README.md#known-issues) applies here too.
+In addition:
+
+- **Machine-generated annotations** (source data). The events are VLM-generated best
+  effort, with integer-second windows and model-written descriptions: treat them as
+  guidance, not ground truth. Some events ship an empty `label`; the index summary then
+  uses the VLM's `EVENT CLASSIFICATION`.
+- **A GPS freeze overlaps an event** (source data). In trip
+  `4d4cfb50-69a3-45fc-aae3-8fec19120366_7` the fixes are frozen for the first ~27 s,
+  across its overtake event, so the trajectories there show no motion.
 
 ## Environment
 

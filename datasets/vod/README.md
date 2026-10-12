@@ -32,6 +32,14 @@ yet and is not ingested. The detection release ships no per-frame timestamps, so
 are synthesised at the 10 Hz lidar rate. The `test` split has sensor data but no labels
 (no detections).
 
+## Known issues
+
+- **Three frames have no map pose** (source data). `pose/00544.json` and
+  `pose/04652.json` hold only `odomToCamera`, and `pose/01312.json` is empty, so these
+  frames, the first of `delft_2`, `delft_3` and `delft_14`, cannot be placed on their
+  scene's trajectory. StandardE2E skips them with a warning (the official devkit's pose
+  reader fails on them).
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

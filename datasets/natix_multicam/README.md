@@ -35,9 +35,23 @@ trip metadata. Its curated edge-case sibling has its own folder,
 - **extra_index_data**: trip, country, region and camera count, for filtering.
 
 No lidar, HD map, 3D boxes or driving command, and no canonical split (`all` is a
-passthrough label). Source-data quality bounds, documented and not corrected: GPS
-accuracy is tens of metres, video/GPS sync error 0-1 s (extremes to 3 s), and
-calibrations are nominal per vehicle model.
+passthrough label).
+
+## Known issues
+
+- **Coarse GPS, sync and calibration** (source data). As the release documents, GPS
+  accuracy is tens of metres, the video/GPS sync error 0–1 s (up to 3 s), and the
+  calibrations are nominal per vehicle model. StandardE2E does not correct them.
+- **GPS fixes can freeze** (source data). A trip's fixes can stay put (lat/lon constant,
+  speed 0) for tens of seconds while the footage keeps moving, which flattens the
+  pose-derived trajectories over that stretch (seen in the
+  [Edge Case](../natix_edgecase/README.md#known-issues) release). GPS alone cannot tell
+  this from a real stop, so it is passed through.
+- **The right pillar camera's nominal translation has the wrong sign** (source data).
+  In the 6-camera trips checked, `camera_right_pillar` ships `ty` = +74.9 cm, the same
+  as the left pillar, which puts it on the left of the car; passed through as shipped.
+- **CSVs can list frames past the end of the video** (source data). A clip's CSV can
+  number 1–2 more frames than its MP4 decodes; those fixes get the last decoded frame.
 
 ## Environment
 

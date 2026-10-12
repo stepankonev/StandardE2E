@@ -33,6 +33,15 @@ frame (`1` = full 20 Hz, `4` ≈ 5 Hz), and the `cameras_identity_adapter`'s
 downscales each frame so its longest side is at most that many pixels
 (intrinsics scaled to match).
 
+## Known issues
+
+- **The orientation quaternion reads the wrong way round in the dataset README**
+  (source data). The README describes `frame_orientations` as the orientation "from ECEF
+  to local frame [forward, right, down]", but the rotation matrix comma's own
+  `rotations_from_quats` builds from it maps device-frame vectors into ECEF, and only
+  that reading gives physically sane trajectories. StandardE2E uses it, as
+  `tests/dataset_processors/test_comma2k19_dataset_processor.py` checks against the data.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project:

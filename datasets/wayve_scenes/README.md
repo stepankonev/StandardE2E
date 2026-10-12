@@ -25,6 +25,17 @@ cloud). It ships no sensor lidar, HD map or boxes.
 The dataset has no perception split, so `split` is a passthrough label for the output
 folder.
 
+## Known issues
+
+- **Timestamps are 1000× too small** (StandardE2E bug, not fixed yet). The image file
+  names are microsecond timestamps, but StandardE2E reads them as nanoseconds, so frame
+  timestamps and the trajectories' `TIMESTAMP` deltas come out 1000× too small (0.0001 s
+  between frames instead of 0.1 s). Positions are unaffected.
+- **The SfM cloud keeps points the SDK drops** (StandardE2E, differs from the SDK). The
+  official SDK also discards the points outside the reconstruction's 1st–99th
+  percentile bounding box (`compute_bounding_box(0.01, 0.99)`); StandardE2E does not, so
+  its cloud has about 5% more points (7,812 of 144,005 in `scene_001`).
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

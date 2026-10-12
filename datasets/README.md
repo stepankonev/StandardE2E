@@ -3,8 +3,10 @@
 Each supported dataset has a folder here with everything needed to turn its raw
 download into StandardE2E's processed format:
 
-- `README.md`: what the dataset is, what StandardE2E extracts from it, and the
-  preprocessing **pipeline**, as [stepix](https://github.com/stepankonev/stepix) steps;
+- `README.md`: what the dataset is, what StandardE2E extracts from it, its **known
+  issues** (problems in the source data or its SDK, and StandardE2E bugs not fixed yet)
+  and the preprocessing **pipeline**, as [stepix](https://github.com/stepankonev/stepix)
+  steps;
 - `pyproject.toml`, `uv.lock` and `.python-version`: the dataset's own isolated
   [uv](https://docs.astral.sh/uv/) environment, with StandardE2E (this checkout) plus
   only the SDK that dataset needs, so no two datasets' dependencies ever meet;

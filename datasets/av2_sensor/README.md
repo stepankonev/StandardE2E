@@ -19,10 +19,16 @@ lidars merged into one 10 Hz sweep, 3D cuboid annotations and a per-log vector H
 - **hd_map**: the log's vector map, loaded with av2's `ArgoverseStaticMap` (lane
   segments with their boundaries and paint, drivable areas, pedestrian crossings) and
   translated to the unified `MapElementType` taxonomy. Map geometry is moved into the
-  ego frame in 2D, because some logs store NaN heights in the map JSON.
+  ego frame in 2D (see [Known issues](#known-issues)).
 - **past/future ego trajectories and future detections**: from the per-sweep poses and
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator`.
+
+## Known issues
+
+- **NaN heights in the vector maps** (source data). Some logs' map JSON stores NaN
+  heights for part of the geometry, so StandardE2E moves map geometry into the ego frame
+  in 2D, as av2's own rasteriser does: map elements carry no height.
 
 ## Environment
 

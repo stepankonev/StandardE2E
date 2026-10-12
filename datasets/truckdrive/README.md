@@ -30,6 +30,18 @@ lane lines have no StandardE2E target yet and are not ingested. 8 MP frames are 
 the `cameras_identity_adapter`'s `max_size` in
 [`configs/truckdrive.yaml`](../../configs/truckdrive.yaml) downscales them.
 
+## Known issues
+
+- **2D-only placeholder boxes** (source data; StandardE2E does not filter them yet). The
+  box files also list objects annotated only in 2D, with sentinel geometry (x = y = z =
+  −1000, l = w = h = −1, yaw = −1000, `Tracking_ID` −9999): 5,220 of the 13,733 boxes in
+  `scene_28_1`. StandardE2E passes them on in `detections_3d` as 1 m boxes about 1.7 km
+  away, all with the agent id `-9999`.
+- **`Tracking_ID` is unique only within a class** (source data; StandardE2E does not
+  account for it yet). Objects of different classes share `Tracking_ID` values (the box
+  files' `object-id` is `<class>:<Tracking_ID>`), but StandardE2E uses `Tracking_ID` alone
+  as the agent id, so the future-detection tracks can mix objects of different classes.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

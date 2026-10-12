@@ -37,7 +37,13 @@ frames over the 4 s observation window).
 It ships no lidar, HD map or 3D boxes. The released `test` split withholds the futures
 (eval ground truth, encoded as a `[[-100, -100]]` sentinel); only `train` and
 `train_raw` carry real expert and counterfactual futures. The `_raw` splits hold the
-native-resolution frames; the camera intrinsics match the non-raw (processed) frames.
+native-resolution frames.
+
+## Known issues
+
+- **The intrinsics do not fit the `_raw` frames** (source data). The fixed-rig `K` from
+  the dataset README, which StandardE2E attaches to every frame, matches the processed
+  frames, not the native-resolution `_raw` ones.
 
 ## Environment
 

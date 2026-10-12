@@ -31,6 +31,17 @@ StandardE2E reads the pickles and JPEGs itself, and nuplan-devkit's `PointCloud`
 the PCDs. The `navsim` package is not a dependency: it pins NumPy 1.23 and PyTorch 2.0,
 which have no Python 3.12 wheels.
 
+## Known issues
+
+- **nuplan-devkit writes into the maps root** (nuplan-devkit). Its map database
+  creates `<maps root>/.maplocks/` on start-up, which fails on a read-only dataset mount;
+  step 2 builds a writable mirror for it.
+- **Ego poses are rounded to a 0.25–0.5 m grid** (StandardE2E bug, not fixed yet). The
+  pose matrix is built in float32 from nuPlan's UTM coordinates, whose northings are
+  around 4 × 10⁶ m in Las Vegas, Boston and Pittsburgh. There float32 resolves 0.25 m,
+  or 0.5 m above 4,194,304 m, so `global_position` and the past/future trajectories
+  derived from the poses are off by up to a few tenths of a metre.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

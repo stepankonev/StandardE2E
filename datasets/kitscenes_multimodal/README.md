@@ -41,6 +41,10 @@ Splits follow the official geo-disjoint folders (`train`, `val`, `test`, `test_e
 sample, or what step 1 produces) every scene is processed and `split` is only the output
 label.
 
+## Known issues
+
+None known.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.

@@ -25,6 +25,12 @@ exactly as there:
 The missing cameras and boxes surface as defaults at training time (`ModalityDefaults`),
 so AV2 Lidar frames batch together with camera datasets.
 
+## Known issues
+
+- **NaN heights in the vector maps** (source data), handled as for
+  [Argoverse 2 Sensor](../av2_sensor/README.md#known-issues): map elements carry no
+  height.
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.
