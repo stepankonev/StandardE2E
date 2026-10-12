@@ -27,7 +27,7 @@ Preprocessing (required before training)
 
 Convert raw data into the unified format before any training or loading. This
 Waymo End-to-End example (training split) builds scene files containing
-:class:`~standard_e2e.data_structures.frame_data.TransformedFrameData` and the index used by the :class:`~standard_e2e.unified_dataset.UnifiedE2EDataset`.
+:class:`~standard_e2e.data_structures.frame_data.TransformedFrameData` and the index used by the :class:`~standard_e2e.training.UnifiedE2EDataset`.
 
 .. code-block:: bash
 
@@ -170,7 +170,7 @@ frames selectable without opening any ``.npz``:
    print(events[0]["ai_analysis"]["EVENT CLASSIFICATION"])
 
 The same ``aux_data`` dict is available on every frame loaded through
-:class:`~standard_e2e.unified_dataset.UnifiedE2EDataset` (as
+:class:`~standard_e2e.training.UnifiedE2EDataset` (as
 ``frame.aux_data``), so the annotations ride along into training
 pipelines with no extra plumbing.
 

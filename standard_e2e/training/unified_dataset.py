@@ -4,10 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from standard_e2e.data_structures import (
-    TransformedFrameData,
-    TransformedFrameDataBatch,
-)
+from standard_e2e.data_structures import TransformedFrameData
 from standard_e2e.dataset_utils.augmentation import (
     FrameAugmentation,
     IdentityFrameAugmentation,
@@ -22,6 +19,7 @@ from standard_e2e.dataset_utils.modality_defaults import (
 )
 from standard_e2e.enums import Modality
 from standard_e2e.indexing.filters import IndexFilter
+from standard_e2e.training.batching import TransformedFrameDataBatch
 
 
 class UnifiedE2EDataset(Dataset):

@@ -13,7 +13,6 @@ Frame data
    StandardFrameData
    FrameIndexData
    TransformedFrameData
-   TransformedFrameDataBatch
 
 
 Trajectories
@@ -24,7 +23,6 @@ Trajectories
    :nosignatures:
 
    Trajectory
-   BatchedTrajectory
 
 Modality containers
 -------------------
@@ -36,10 +34,8 @@ Modality containers
    CameraData
    LidarData
    LidarPointCloud
-   BatchedLidarPointCloud
    Detection3D
    FrameDetections3D
-   BatchedFrameDetections3D
 
 HD map
 ------

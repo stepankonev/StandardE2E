@@ -2,11 +2,9 @@ import numpy as np
 import pytest
 import torch
 
-from standard_e2e.data_structures.containers import (
-    BatchedLidarPointCloud,
-    LidarPointCloud,
-)
+from standard_e2e.data_structures.containers import LidarPointCloud
 from standard_e2e.enums import LidarComponent
+from standard_e2e.training import BatchedLidarPointCloud
 
 XYZ = [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
 

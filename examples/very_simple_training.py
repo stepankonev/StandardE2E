@@ -11,14 +11,13 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from standard_e2e import UnifiedE2EDataset
-from standard_e2e.dataset_utils.augmentation import MultipleFramesImageAugmentation
 from standard_e2e.dataset_utils.modality_defaults import (
     ModalityDefaults,
     PreferredTrajectoryDefaults,
 )
 from standard_e2e.enums import Modality, TrajectoryComponent
 from standard_e2e.indexing.filters import FrameFilterByBooleanColumn, IndexFilter
+from standard_e2e.training import MultipleFramesImageAugmentation, UnifiedE2EDataset
 from standard_e2e.utils import load_yaml_config
 
 XY_COMPONENTS = [TrajectoryComponent.X, TrajectoryComponent.Y]
@@ -56,7 +55,8 @@ class VerySimpleE2EModel(nn.Module):
     def __init__(self, out_dim: int = 40):
         super(VerySimpleE2EModel, self).__init__()
         self._cnn_backbone = torchvision.models.resnet18(
-            weights="ResNet18_Weights.IMAGENET1K_V1")
+            weights="ResNet18_Weights.IMAGENET1K_V1"
+        )
         self._cnn_backbone.fc = nn.Identity()
         self._out_dim = out_dim
         self._fusion_layer = nn.Sequential(

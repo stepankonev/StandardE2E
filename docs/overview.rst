@@ -72,14 +72,14 @@ Training
 --------
 
 Training is where you load the preprocessed data for model training or evaluation.
-The main entry point is :class:`~standard_e2e.unified_dataset.UnifiedE2EDataset`,
+The main entry point is :class:`~standard_e2e.training.UnifiedE2EDataset`,
 which accepts an index table from ``index.parquet`` (or from multiple files for combined dataset) and loads frames from
 disk. It also handles the following functionalities:
 
 - Filtering the dataset with :class:`~standard_e2e.indexing.filters.index_filter.IndexFilter`,
    eg filtering the frames by some boolean column with :class:`~standard_e2e.indexing.filters.FrameFilterByBooleanColumn`.
 - Applying regime-aware augmentations via :class:`~standard_e2e.dataset_utils.augmentation.FrameAugmentation`,
-   eg image augmentations with :class:`~standard_e2e.dataset_utils.augmentation.MultipleFramesImageAugmentation`.
+   eg image augmentations with :class:`~standard_e2e.training.MultipleFramesImageAugmentation`.
 - Enforcing modality defaults via :class:`~standard_e2e.dataset_utils.modality_defaults.ModalityDefaults`,
    eg providing :class:`~standard_e2e.enums.Intent.UNKNOWN` intent when intent labels are missing with
    :class:`~standard_e2e.dataset_utils.modality_defaults.IntentDefaults`.

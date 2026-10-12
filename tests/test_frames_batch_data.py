@@ -2,14 +2,10 @@ import numpy as np
 import pytest
 import torch
 
-from standard_e2e.data_structures import (
-    BatchedTrajectory,
-    Trajectory,
-    TransformedFrameData,
-    TransformedFrameDataBatch,
-)
+from standard_e2e.data_structures import Trajectory, TransformedFrameData
 from standard_e2e.dataset_utils.modality_defaults import IntentDefaults
 from standard_e2e.enums import Intent, Modality, TrajectoryComponent
+from standard_e2e.training import BatchedTrajectory, TransformedFrameDataBatch
 
 
 def make_frame(idx: int = 0, **overrides) -> TransformedFrameData:

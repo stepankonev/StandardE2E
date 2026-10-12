@@ -1,6 +1,4 @@
 from standard_e2e.data_structures.containers import (
-    BatchedFrameDetections3D,
-    BatchedLidarPointCloud,
     CameraData,
     Detection3D,
     FrameDetections3D,
@@ -13,29 +11,20 @@ from standard_e2e.data_structures.frame_data import (
     FrameIndexData,
     StandardFrameData,
     TransformedFrameData,
-    TransformedFrameDataBatch,
 )
-from standard_e2e.data_structures.trajectory_data import (
-    Array1DNP,
-    BatchedTrajectory,
-    Trajectory,
-)
+from standard_e2e.data_structures.trajectory_data import Array1DNP, Trajectory
 
 __all__ = [
     "CameraData",
     "Detection3D",
     "FrameDetections3D",
-    "BatchedFrameDetections3D",
     "HDMap",
     "MapElement",
     "LidarData",
     "LidarPointCloud",
-    "BatchedLidarPointCloud",
     "FrameIndexData",
     "StandardFrameData",
     "TransformedFrameData",
-    "TransformedFrameDataBatch",
-    "BatchedTrajectory",
     "Trajectory",
     "Array1DNP",
 ]

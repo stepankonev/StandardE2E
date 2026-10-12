@@ -20,13 +20,13 @@ import numpy as np
 import torch
 
 from standard_e2e.data_structures.trajectory_data import (
-    BatchedTrajectory,
     Trajectory,
     TrajectoryComponent,
     _pad_numpy_1d,
     _to_numpy_1d_float32,
     _validate_components_arg,
 )
+from standard_e2e.training import BatchedTrajectory
 
 
 class TestTrajectoryComponent(unittest.TestCase):
