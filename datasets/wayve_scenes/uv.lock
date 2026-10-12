@@ -717,6 +717,25 @@ wheels = [
 ]
 
 [[package]]
+name = "pycolmap"
+version = "4.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/1c/a3a80bb2a2b705b2e94074498fcd8a9de031f16a14fedaeb9a3628e7abb0/pycolmap-4.2.1-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:1cacb57103909bb0adec666b06122add8ea8024682d83fc5903145e01297f243", size = 20785309, upload-time = "2026-09-29T17:04:33.333Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/9a/a76e54e33730eceecb5da7eca38ad939cd6c69633339b3a53cf7299f7ea9/pycolmap-4.2.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:711cef7bd0d30326a5d75967043371c98667f24db305b8cd5cd19339d02a7073", size = 38191187, upload-time = "2026-09-29T17:04:38.813Z" },
+    { url = "https://files.pythonhosted.org/packages/80/ab/bc60b841c8be56354bfad1b4c7b1f9b15ba92e4f2285f394b3a5dbaa27c7/pycolmap-4.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:b6a562b33bcbf0757c7b28c33b9166e095fa5451f9a4b38236018cf8a8d49380", size = 23973043, upload-time = "2026-09-29T17:04:42.469Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/33/37c56b31f8678e12453f82f661f587d62c7d1dd14884a75afc2026194ac4/pycolmap-4.2.1-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:a9bcc24a5980f34293f899d5bff2c0abfe4e33d9a73c54b7d2c748c224d20659", size = 20785214, upload-time = "2026-09-29T17:04:46.01Z" },
+    { url = "https://files.pythonhosted.org/packages/93/e0/80777090908de12600f6179cde9f52e246e07fa6223a2efe1d890a2ae69a/pycolmap-4.2.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:e5cc476b6cf787b49b644b802a1790db3cb074039e903eb91197740e60f296c9", size = 38190144, upload-time = "2026-09-29T17:04:50.373Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/bb/f3c05e127281989ca7bb792a1acdbe788757d8cf2b029caad14288c001b4/pycolmap-4.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:2aa586acd21154ed92c1d674d5da9b1b05e1dd9e2156627caf0ae42278423f02", size = 23974670, upload-time = "2026-09-29T17:04:54.394Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/af/d4595d1551ddb15b34180205fa2b2ffa77007de15114a7354ec41bc78da7/pycolmap-4.2.1-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:19a07d12d0e8a08f072d61161abed3898c96d618c3806c748b9e90c0f134e7bd", size = 20801481, upload-time = "2026-09-29T17:04:58.587Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/98/4dfb5f6a977376fa409d557d9c8df4c44c3e6398666a1dd9586a529068cf/pycolmap-4.2.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:7fe254ce4d810d3dfc1602fcf6773fc588778e44c54dfa9886266cfecf10d8c1", size = 38201358, upload-time = "2026-09-29T17:05:04.077Z" },
+    { url = "https://files.pythonhosted.org/packages/26/ed/c6dc48fc07fdbb83e78d2a659c8f97417def4b2e922a064078aa5a2b0428/pycolmap-4.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:db0f5d7f3a90869bbaf798a726a9fac5850e114a3cc317c2ae915698c52316ce", size = 24685176, upload-time = "2026-09-29T17:05:08.477Z" },
+]
+
+[[package]]
 name = "pydantic"
 version = "2.12.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1128,6 +1147,7 @@ name = "standard-e2e-wayve-scenes"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "pycolmap" },
     { name = "standard-e2e" },
 ]
 
@@ -1138,7 +1158,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "standard-e2e", editable = "../../" }]
+requires-dist = [
+    { name = "pycolmap", specifier = ">=4.2" },
+    { name = "standard-e2e", editable = "../../" },
+]
 
 [package.metadata.requires-dev]
 dev = [

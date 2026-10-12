@@ -7,7 +7,8 @@ SfM point cloud). It ships **no** lidar, HD map, 3D boxes, or driving command.
 
 Mapping to ``StandardFrameData``:
 
-* One frame = one timestamp of a scene; one scene = one segment.
+* One frame = one timestamp of a scene; one scene = one segment. The
+  reconstruction is read with ``pycolmap``, as the official SDK does.
 * **cameras**: the (up to) 5 images at that timestamp, with intrinsics and
   ego-relative extrinsics.
 * **global_position** / ``aux_data["pose_matrix"]``: the ego pose in a world
@@ -34,6 +35,7 @@ from typing import Optional
 import cv2
 import numpy as np
 import pandas as pd
+import pycolmap
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
@@ -44,11 +46,6 @@ from standard_e2e.caching.adapters import (
 from standard_e2e.caching.segment_context import (
     FuturePastStatesFromMatricesAggregator,
     SegmentContextAggregator,
-)
-from standard_e2e.caching.src_datasets.wayve_scenes._colmap import (
-    read_cameras_bin,
-    read_images_bin,
-    read_points3D_bin,
 )
 from standard_e2e.data_structures import (
     CameraData,
@@ -193,14 +190,14 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
     def _refresh_scene_cache(self, scene_dir: Path) -> None:
         if self._cached_scene_dir == scene_dir:
             return
-        rig = scene_dir / "colmap_sparse" / "rig"
-        cameras = read_cameras_bin(rig / "cameras.bin")
-        images = read_images_bin(rig / "images.bin")
-        xyz, _rgb, error, track_len = read_points3D_bin(rig / "points3D.bin")
+        reconstruction = pycolmap.Reconstruction(
+            str(scene_dir / "colmap_sparse" / "rig")
+        )
+        images = sorted(reconstruction.images.values(), key=lambda img: img.name)
 
         # Camera intrinsics + fisheye distortion per camera_id.
         self._cam_calib = {}
-        for cid, cam in cameras.items():
+        for cid, cam in reconstruction.cameras.items():
             fx, fy, cx, cy = cam.params[:4]
             K = intrinsics_matrix(fx, fy, cx, cy)
             dist = cam.params[4:8].astype(np.float32)  # OPENCV_FISHEYE k1..k4
@@ -213,7 +210,11 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
         for img in images:
             position = Path(img.name).parent.name
             ts = int(Path(img.name).stem)
-            T_world_cam = _world_from_cam_flu(img.qvec_wxyz, img.tvec)
+            cam_from_world = img.cam_from_world()
+            qx, qy, qz, qw = cam_from_world.rotation.quat
+            T_world_cam = _world_from_cam_flu(
+                np.array([qw, qx, qy, qz]), cam_from_world.translation
+            )
             self._frame_cams.setdefault(ts, {})[position] = (
                 scene_dir / "images" / img.name,
                 T_world_cam,
@@ -225,10 +226,16 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
             if _REFERENCE_CAMERA in by_cam:
                 self._ego_pose[ts] = by_cam[_REFERENCE_CAMERA]
 
-        # SfM points: replicate the SDK filter (error <= 6, track length >= 2),
-        # convert to FLU world once for the whole scene.
-        keep = (error <= 6.0) & (track_len >= 2)
-        self._points_world_flu = _opencv_points_to_flu(xyz[keep]).astype(np.float32)
+        # SfM points, in point3D_id order: replicate the SDK filter (error <= 6,
+        # track length >= 2), convert to FLU world once for the whole scene.
+        points = [
+            reconstruction.points3D[pid] for pid in sorted(reconstruction.points3D)
+        ]
+        xyz = np.array(
+            [p.xyz for p in points if p.error <= 6.0 and p.track.length() >= 2],
+            dtype=np.float64,
+        ).reshape(-1, 3)
+        self._points_world_flu = _opencv_points_to_flu(xyz).astype(np.float32)
 
         # Map camera_id per position (constant across the scene) for intrinsics.
         self._position_camera_id: dict[str, int] = {}

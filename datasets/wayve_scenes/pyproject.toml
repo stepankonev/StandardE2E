@@ -5,6 +5,9 @@ description = "Isolated preprocessing environment for WayveScenes101 (StandardE2
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "standard-e2e",
+    # COLMAP's Python bindings, which the official WayveScenes SDK reads the
+    # per-scene reconstructions with (the SDK itself is not packaged).
+    "pycolmap>=4.2",
 ]
 
 [dependency-groups]

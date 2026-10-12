@@ -29,11 +29,15 @@ folder.
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.
 [`pyproject.toml`](pyproject.toml) and [`uv.lock`](uv.lock) pin StandardE2E (this
-checkout, editable), without its training-only dependencies (PyTorch), which
-preprocessing never imports. The COLMAP binaries are parsed by a small reader in
-StandardE2E (`_colmap.py`). [`.python-version`](.python-version) pins Python 3.12
-(`requires-python` allows 3.12–3.14). stepix builds the environment into `.venv/` here
-on first use; to run a command in it yourself:
+checkout, editable) and [pycolmap](https://pypi.org/project/pycolmap/), COLMAP's
+Python bindings, which read the reconstructions as in the official
+[WayveScenes SDK](https://github.com/wayveai/wayve_scenes) (the SDK itself is not
+packaged), without StandardE2E's training-only dependencies (PyTorch), which
+preprocessing never imports. pycolmap publishes wheels for Linux x86-64, macOS on Apple
+silicon (14+) and Windows x64 only, so the environment does not install on other
+platforms. [`.python-version`](.python-version) pins Python 3.12 (`requires-python`
+allows 3.12–3.14). stepix builds the environment into `.venv/` here on first use; to
+run a command in it yourself:
 `uv run --project datasets/wayve_scenes <command>`.
 
 ## Pipeline

@@ -40,7 +40,7 @@ unit (file, log or scene) as a smoke test.
 | Argoverse 2 Lidar | [`av2_lidar`](av2_lidar/README.md) | av2 | 3.12 |
 | NAVSIM | [`navsim`](navsim/README.md) | nuplan-devkit | 3.12 (≤ 3.14) |
 | nuScenes | [`nuscenes`](nuscenes/README.md) | nuscenes-devkit | 3.12 |
-| WayveScenes101 | [`wayve_scenes`](wayve_scenes/README.md) | — | 3.12 (≤ 3.14) |
+| WayveScenes101 | [`wayve_scenes`](wayve_scenes/README.md) | pycolmap | 3.12 (≤ 3.14) |
 | comma2k19 | [`comma2k19`](comma2k19/README.md) | — | 3.12 (≤ 3.14) |
 | TruckDrive | [`truckdrive`](truckdrive/README.md) | — | 3.12 (≤ 3.14) |
 | View-of-Delft | [`vod`](vod/README.md) | — | 3.12 (≤ 3.14) |

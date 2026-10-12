@@ -1,7 +1,7 @@
 # flake8: noqa: E501
 """Tests for the WayveScenes101 processor.
 
-* **Coordinate math** (always runs): the OpenCV->FLU point conversion and the
+* **Coordinate math** (no data needed): the OpenCV->FLU point conversion and the
   ``world_from_cam`` conjugation, on synthetic inputs.
 * **Real-frame checks** (skipped unless an extracted scene is present): a built
   frame has the 5 cameras, an ego-frame range-clipped point cloud, and a finite
@@ -15,6 +15,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
+# pycolmap is installed in the WayveScenes environment only (datasets/wayve_scenes/).
+pytest.importorskip("pycolmap")
 
 from standard_e2e.caching.adapters import LidarAdapter
 from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_processor import (

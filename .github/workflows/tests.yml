@@ -83,7 +83,7 @@ jobs:
           - dataset: nuscenes
             tests: tests/dataset_processors/test_nuscenes_dataset_processor.py
           - dataset: wayve_scenes
-            tests: tests/dataset_processors/test_wayve_scenes_dataset_processor.py tests/test_colmap_io.py
+            tests: tests/dataset_processors/test_wayve_scenes_dataset_processor.py
           - dataset: comma2k19
             tests: tests/dataset_processors/test_comma2k19_dataset_processor.py
           - dataset: truckdrive
