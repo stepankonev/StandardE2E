@@ -2,10 +2,9 @@
 
 The nuScenes **map-expansion** pack ships one ``maps/expansion/<location>.json``
 per map location: a normalized vector map of geometry primitives (``node`` /
-``line`` / ``polygon``) plus semantic layers that reference them. We can't use
-the devkit's ``NuScenesMap`` API (it pins ``numpy<2`` against this project's
-numpy 2.x; see the lane-centerline note in :mod:`._nuscenes_arcline`), so this
-module parses the JSON directly and translates each layer into one or more
+``line`` / ``polygon``) plus semantic layers that reference them. This module
+parses the JSON, discretizes lane centerlines with nuscenes-devkit's
+``arcline_path_utils``, and translates each layer into one or more
 :class:`~standard_e2e.data_structures.MapElement` instances, following the
 cross-dataset taxonomy in ``docs/map_taxonomy.md``:
 
@@ -39,8 +38,8 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
+from nuscenes.map_expansion.arcline_path_utils import discretize_lane
 
-from standard_e2e.caching.src_datasets.nuscenes._nuscenes_arcline import discretize_lane
 from standard_e2e.data_structures import HDMap, MapElement
 from standard_e2e.enums import MapElementType
 

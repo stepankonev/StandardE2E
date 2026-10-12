@@ -28,7 +28,6 @@ import pytest
 # nuscenes-devkit is installed in the nuScenes environment only (datasets/nuscenes/).
 pytest.importorskip("nuscenes")
 
-from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_arcline as arc
 from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_io as io
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_map import NuscMap
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_splits import (
@@ -551,21 +550,6 @@ def test_real_hd_map_present(built):
 # --------------------------------------------------------------------------- #
 # HD-map unit tests (vendored arcline + synthetic vector map; no data required)
 # --------------------------------------------------------------------------- #
-def test_arcline_discretize_straight_segment():
-    # One 10 m straight middle segment ('S'), zero-length end arcs.
-    path = {
-        "start_pose": [0.0, 0.0, 0.0],
-        "shape": "RSR",
-        "radius": 1000.0,
-        "segment_length": [0.0, 10.0, 0.0],
-    }
-    pts = np.array(arc.discretize_lane([path], resolution_meters=1.0))
-    assert pts.shape[0] == 11
-    np.testing.assert_allclose(pts[0], [0.0, 0.0, 0.0], atol=1e-9)
-    np.testing.assert_allclose(pts[-1], [10.0, 0.0, 0.0], atol=1e-6)
-    assert np.all(np.abs(pts[:, 1]) < 1e-6)  # collinear along x
-
-
 def _write_map_json(path: Path) -> None:
     """A minimal but schema-faithful map-expansion location: one straight lane,
     a lane divider, a square polygon reused for crossing / drivable / intersection."""
