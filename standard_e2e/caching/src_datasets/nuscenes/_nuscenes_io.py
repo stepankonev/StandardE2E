@@ -1,22 +1,12 @@
-"""On-disk access for nuScenes -- read the JSON tables directly, no devkit.
+"""On-disk access for nuScenes, through nuscenes-devkit.
 
 nuScenes ships as a normalized set of JSON tables under ``<dataroot>/<version>/``
 joined by ``token``, plus ``samples/`` (the 2 Hz keyframe sensor files) and
 ``sweeps/`` (intermediate frames we don't use). The official ``nuscenes-devkit``
-loads these into a ``NuScenes`` object and builds a handful of reverse indices;
-we can't depend on it (it pins ``numpy<2`` / ``Shapely~=2.0.3`` against this
-project's numpy 2.x), so this module reads the tables and rebuilds exactly the
-indices we need, matching the devkit's ``__make_reverse_index__``:
-
-* ``sample -> {channel: sample_data_token}`` for keyframes and
-  ``sample -> [sample_annotation_token]`` (devkit's ``sample['data']`` /
-  ``sample['anns']``);
-* a ``sample_data``'s sensor ``channel`` / ``modality`` via
-  ``calibrated_sensor -> sensor``;
-* a ``sample_annotation``'s ``category_name`` via ``instance -> category``
-  (it is **not** stored on the annotation record).
-
-The clone under ``se2e_extarnal_apis/nuscenes-devkit`` is the schema reference.
+loads the tables into a :class:`~nuscenes.nuscenes.NuScenes` object and adds the
+reverse indices this module reads: ``sample['data']`` (keyframe channel ->
+``sample_data`` token), ``sample['anns']``, ``sample_data['sensor_modality']``
+and ``sample_annotation['category_name']``.
 
 A **frame** is one ``sample`` (keyframe); a **segment** is one ``scene``. Frames
 are resolved into a compact, picklable :class:`NuscFrame` (paths + calibration
@@ -32,30 +22,15 @@ single lidar-time ego pose for all sensors is the standard nuScenes approximatio
 
 from __future__ import annotations
 
-import json
 import os
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional, cast
+from typing import Any, Iterator, Optional
 
 import cv2
 import numpy as np
+from nuscenes.nuscenes import NuScenes
 
 from standard_e2e.utils import quat_wxyz_to_rotmat, se3
-
-# Tables we read (a subset of the full schema -- enough to rebuild the frame).
-_REQUIRED_TABLES = (
-    "scene",
-    "sample",
-    "sample_data",
-    "sample_annotation",
-    "calibrated_sensor",
-    "ego_pose",
-    "sensor",
-    "instance",
-    "category",
-    "log",
-)
 
 
 @dataclass(frozen=True)
@@ -107,210 +82,144 @@ class NuscFrame:
     map_expansion_path: Optional[str]
 
 
-def _load_table(meta_dir: str, name: str) -> list[dict[str, Any]]:
-    with open(os.path.join(meta_dir, f"{name}.json"), encoding="utf-8") as fh:
-        return cast("list[dict[str, Any]]", json.load(fh))
+def load_nuscenes(dataroot: str, version: str) -> NuScenes:
+    """Load the ``version`` metadata tables under ``dataroot`` with the devkit.
 
-
-class NuscTables:
-    """Loads the nuScenes JSON tables for one ``version`` and resolves frames.
-
-    Instantiated **once in the parent process** (the converter): for the full
-    ``v1.0-trainval`` the ``sample_annotation`` table is ~1.1 M rows, so this
-    holds a few GB. Worker processes never build this -- they receive resolved
-    :class:`NuscFrame` objects -- so that cost is paid once, not per worker.
+    The devkit holds every table in memory -- for ``v1.0-trainval`` that is
+    ~2.6 M ``sample_data`` and ~1.2 M ``sample_annotation`` rows, several GB --
+    so the converter loads it **once, in the parent process**. Worker processes
+    never see it: they receive resolved :class:`NuscFrame` objects.
     """
-
-    def __init__(self, dataroot: str, version: str) -> None:
-        self.dataroot = dataroot
-        self.version = version
-        meta_dir = os.path.join(dataroot, version)
-        if not os.path.isfile(os.path.join(meta_dir, "sample.json")):
-            raise FileNotFoundError(
-                f"nuScenes metadata not found at {meta_dir} (expected "
-                f"{version}/sample.json). Download and extract the '{version}' "
-                f"metadata + sensor blobs so <dataroot>/{version}/*.json and "
-                f"<dataroot>/samples/ exist (e.g. tar -xf v1.0-mini.tgz)."
-            )
-
-        self.scenes = _load_table(meta_dir, "scene")
-        self._scene_name: dict[str, str] = {s["token"]: s["name"] for s in self.scenes}
-        logs = {log["token"]: log for log in _load_table(meta_dir, "log")}
-        # scene_token -> map location (via its log), used to find the vector map.
-        self._scene_location: dict[str, str] = {
-            s["token"]: logs[s["log_token"]]["location"] for s in self.scenes
-        }
-        self._map_path_cache: dict[str, Optional[str]] = {}
-        self._sample = {r["token"]: r for r in _load_table(meta_dir, "sample")}
-        self._calib = {
-            r["token"]: r for r in _load_table(meta_dir, "calibrated_sensor")
-        }
-        self._ego = {r["token"]: r for r in _load_table(meta_dir, "ego_pose")}
-        self._sensor = {r["token"]: r for r in _load_table(meta_dir, "sensor")}
-        self._instance = {r["token"]: r for r in _load_table(meta_dir, "instance")}
-        self._category = {r["token"]: r for r in _load_table(meta_dir, "category")}
-
-        # Only keyframe sample_data are ever looked up (the ~2.2 M intermediate
-        # sweep records are unused), so keep just those -- on v1.0-trainval that
-        # is ~410 k of 2.6 M rows, cutting the parent's peak RAM and load time.
-        self._sd: dict[str, dict[str, Any]] = {}
-        # sample_token -> {channel: sample_data_token} (devkit's ``sample['data']``).
-        self._keyframe_data: dict[str, dict[str, str]] = defaultdict(dict)
-        for record in _load_table(meta_dir, "sample_data"):
-            if not record["is_key_frame"]:
-                continue
-            self._sd[record["token"]] = record
-            channel = self._channel_of(record)
-            self._keyframe_data[record["sample_token"]][channel] = record["token"]
-
-        annotations = _load_table(meta_dir, "sample_annotation")
-        self._ann = {r["token"]: r for r in annotations}
-        # sample_token -> [annotation_token] (devkit's ``sample['anns']``).
-        self._sample_anns: dict[str, list[str]] = defaultdict(list)
-        for record in annotations:
-            self._sample_anns[record["sample_token"]].append(record["token"])
-
-    # --- reverse-index helpers (mirror the devkit) -------------------------
-
-    def _sensor_of(self, sd_record: dict[str, Any]) -> dict[str, Any]:
-        calib = self._calib[sd_record["calibrated_sensor_token"]]
-        return self._sensor[calib["sensor_token"]]
-
-    def _channel_of(self, sd_record: dict[str, Any]) -> str:
-        return str(self._sensor_of(sd_record)["channel"])
-
-    def _category_name(self, instance_token: str) -> str:
-        category_token = self._instance[instance_token]["category_token"]
-        return str(self._category[category_token]["name"])
-
-    def map_expansion_path(self, location: str) -> Optional[str]:
-        """Path to ``maps/expansion/<location>.json`` (the vector map) for
-        ``location``, or ``None`` if the map-expansion pack is not present."""
-        if location not in self._map_path_cache:
-            path = os.path.join(self.dataroot, "maps", "expansion", f"{location}.json")
-            self._map_path_cache[location] = path if os.path.isfile(path) else None
-        return self._map_path_cache[location]
-
-    # --- enumeration -------------------------------------------------------
-
-    def scene_sample_tokens(self, scene: dict[str, Any]) -> list[str]:
-        """Sample tokens of ``scene`` in capture order (the ``next`` chain)."""
-        tokens: list[str] = []
-        token = scene["first_sample_token"]
-        while token:
-            tokens.append(token)
-            token = self._sample[token]["next"]
-        return tokens
-
-    def scene_has_sensor_data(self, scene: dict[str, Any]) -> bool:
-        """Whether the scene's first keyframe ``LIDAR_TOP`` file exists on disk.
-
-        A cheap proxy for "has this scene's sensor blob been downloaded?": the
-        trainval ``*_blobs.tgz`` arrive one at a time, so the metadata lists all
-        700 scenes long before most of their ``samples/`` files exist. The
-        converter uses this to convert a partial download cleanly.
-        """
-        data = self._keyframe_data.get(scene["first_sample_token"], {})
-        sd_token = data.get("LIDAR_TOP") or (
-            next(iter(data.values())) if data else None
+    meta_dir = os.path.join(dataroot, version)
+    if not os.path.isfile(os.path.join(meta_dir, "sample.json")):
+        raise FileNotFoundError(
+            f"nuScenes metadata not found at {meta_dir} (expected "
+            f"{version}/sample.json). Download and extract the '{version}' "
+            f"metadata + sensor blobs so <dataroot>/{version}/*.json and "
+            f"<dataroot>/samples/ exist (e.g. tar -xf v1.0-mini.tgz)."
         )
-        if sd_token is None:
-            return False
-        return os.path.isfile(
-            os.path.join(self.dataroot, self._sd[sd_token]["filename"])
-        )
+    return NuScenes(version=version, dataroot=dataroot, verbose=False)
 
-    # --- per-frame resolution ----------------------------------------------
 
-    def _ego_pose_matrix(self, ego_pose_token: str) -> np.ndarray:
-        ego = self._ego[ego_pose_token]
-        return se3(
-            quat_wxyz_to_rotmat(ego["rotation"]), ego["translation"], dtype=np.float64
-        )
+def map_expansion_path(dataroot: str, location: str) -> Optional[str]:
+    """Path to ``maps/expansion/<location>.json`` (the vector map) for
+    ``location``, or ``None`` if the map-expansion pack is not present."""
+    path = os.path.join(dataroot, "maps", "expansion", f"{location}.json")
+    return path if os.path.isfile(path) else None
 
-    def _sensor_extrinsics(self, sd_record: dict[str, Any]) -> np.ndarray:
-        """``T_ego_from_sensor`` for a sample_data, from its calibrated_sensor."""
-        calib = self._calib[sd_record["calibrated_sensor_token"]]
-        return se3(
-            quat_wxyz_to_rotmat(calib["rotation"]),
-            calib["translation"],
-            dtype=np.float32,
-        )
 
-    def resolve_frame(self, sample_token: str) -> NuscFrame:
-        """Build the compact :class:`NuscFrame` for one keyframe sample."""
-        sample = self._sample[sample_token]
-        data = self._keyframe_data[sample_token]
+def scene_sample_tokens(nusc: NuScenes, scene: dict[str, Any]) -> list[str]:
+    """Sample tokens of ``scene`` in capture order (the ``next`` chain)."""
+    tokens: list[str] = []
+    token = scene["first_sample_token"]
+    while token:
+        tokens.append(token)
+        token = nusc.get("sample", token)["next"]
+    return tokens
 
-        # The ego pose at the lidar capture is the canonical frame pose; fall
-        # back to any present sensor if a scene somehow lacks LIDAR_TOP.
-        lidar_sd_token = data.get("LIDAR_TOP")
-        ref_sd_token = lidar_sd_token or next(iter(data.values()))
-        pose = self._ego_pose_matrix(self._sd[ref_sd_token]["ego_pose_token"])
 
-        cameras: list[NuscCamera] = []
-        lidar_path: Optional[str] = None
-        lidar_extrinsics: Optional[np.ndarray] = None
-        for channel, sd_token in sorted(data.items()):
-            sd_record = self._sd[sd_token]
-            modality = str(self._sensor_of(sd_record)["modality"])
-            if modality == "camera":
-                calib = self._calib[sd_record["calibrated_sensor_token"]]
-                cameras.append(
-                    NuscCamera(
-                        channel=channel,
-                        image_path=os.path.join(self.dataroot, sd_record["filename"]),
-                        intrinsics=np.asarray(
-                            calib["camera_intrinsic"], dtype=np.float32
-                        ).reshape(3, 3),
-                        extrinsics=self._sensor_extrinsics(sd_record),
-                    )
-                )
-            elif modality == "lidar":
-                lidar_path = os.path.join(self.dataroot, sd_record["filename"])
-                lidar_extrinsics = self._sensor_extrinsics(sd_record)
-            # radar (and anything else) has no StandardE2E target -> skipped.
+def scene_has_sensor_data(nusc: NuScenes, scene: dict[str, Any]) -> bool:
+    """Whether the scene's first keyframe ``LIDAR_TOP`` file exists on disk.
 
-        detections: list[NuscBox] = []
-        for ann_token in self._sample_anns.get(sample_token, []):
-            ann = self._ann[ann_token]
-            detections.append(
-                NuscBox(
-                    category_name=self._category_name(ann["instance_token"]),
-                    instance_token=str(ann["instance_token"]),
-                    center_global=np.asarray(ann["translation"], dtype=np.float64),
-                    wlh=np.asarray(ann["size"], dtype=np.float64),
-                    rotation_wxyz=np.asarray(ann["rotation"], dtype=np.float64),
+    A cheap proxy for "has this scene's sensor blob been downloaded?": the
+    trainval ``*_blobs.tgz`` arrive one at a time, so the metadata lists all
+    700 scenes long before most of their ``samples/`` files exist. The
+    converter uses this to convert a partial download cleanly.
+    """
+    data = nusc.get("sample", scene["first_sample_token"])["data"]
+    sd_token = data.get("LIDAR_TOP") or next(iter(data.values()), None)
+    if sd_token is None:
+        return False
+    return os.path.isfile(nusc.get_sample_data_path(sd_token))
+
+
+def _ego_pose_matrix(ego_pose: dict[str, Any]) -> np.ndarray:
+    """``T_global_from_ego`` for an ``ego_pose`` record."""
+    return se3(
+        quat_wxyz_to_rotmat(ego_pose["rotation"]),
+        ego_pose["translation"],
+        dtype=np.float64,
+    )
+
+
+def _sensor_extrinsics(calib: dict[str, Any]) -> np.ndarray:
+    """``T_ego_from_sensor`` for a ``calibrated_sensor`` record."""
+    return se3(
+        quat_wxyz_to_rotmat(calib["rotation"]), calib["translation"], dtype=np.float32
+    )
+
+
+def resolve_frame(nusc: NuScenes, sample_token: str) -> NuscFrame:
+    """Build the compact :class:`NuscFrame` for one keyframe sample."""
+    sample = nusc.get("sample", sample_token)
+    data = sample["data"]
+
+    # The ego pose at the lidar capture is the canonical frame pose; fall
+    # back to any present sensor if a scene somehow lacks LIDAR_TOP.
+    ref_sd_token = data.get("LIDAR_TOP") or next(iter(data.values()))
+    ref_sd = nusc.get("sample_data", ref_sd_token)
+    pose = _ego_pose_matrix(nusc.get("ego_pose", ref_sd["ego_pose_token"]))
+
+    cameras: list[NuscCamera] = []
+    lidar_path: Optional[str] = None
+    lidar_extrinsics: Optional[np.ndarray] = None
+    for channel, sd_token in sorted(data.items()):
+        sd_record = nusc.get("sample_data", sd_token)
+        calib = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
+        if sd_record["sensor_modality"] == "camera":
+            cameras.append(
+                NuscCamera(
+                    channel=channel,
+                    image_path=nusc.get_sample_data_path(sd_token),
+                    intrinsics=np.asarray(
+                        calib["camera_intrinsic"], dtype=np.float32
+                    ).reshape(3, 3),
+                    extrinsics=_sensor_extrinsics(calib),
                 )
             )
+        elif sd_record["sensor_modality"] == "lidar":
+            lidar_path = nusc.get_sample_data_path(sd_token)
+            lidar_extrinsics = _sensor_extrinsics(calib)
+        # radar (and anything else) has no StandardE2E target -> skipped.
 
-        location = self._scene_location.get(sample["scene_token"])
-        map_path = self.map_expansion_path(location) if location else None
-        return NuscFrame(
-            scene_name=self._scene_name[sample["scene_token"]],
-            sample_token=sample_token,
-            timestamp_s=float(sample["timestamp"]) * 1e-6,
-            frame_id=int(sample["timestamp"]),
-            pose_global_from_ego=pose,
-            cameras=tuple(cameras),
-            lidar_path=lidar_path,
-            lidar_extrinsics=lidar_extrinsics,
-            detections=tuple(detections),
-            location=location,
-            map_expansion_path=map_path,
+    detections: list[NuscBox] = []
+    for ann_token in sample["anns"]:
+        ann = nusc.get("sample_annotation", ann_token)
+        detections.append(
+            NuscBox(
+                category_name=ann["category_name"],
+                instance_token=str(ann["instance_token"]),
+                center_global=np.asarray(ann["translation"], dtype=np.float64),
+                wlh=np.asarray(ann["size"], dtype=np.float64),
+                rotation_wxyz=np.asarray(ann["rotation"], dtype=np.float64),
+            )
         )
 
+    scene = nusc.get("scene", sample["scene_token"])
+    location = nusc.get("log", scene["log_token"])["location"]
+    return NuscFrame(
+        scene_name=scene["name"],
+        sample_token=sample_token,
+        timestamp_s=float(sample["timestamp"]) * 1e-6,
+        frame_id=int(sample["timestamp"]),
+        pose_global_from_ego=pose,
+        cameras=tuple(cameras),
+        lidar_path=lidar_path,
+        lidar_extrinsics=lidar_extrinsics,
+        detections=tuple(detections),
+        location=location,
+        map_expansion_path=map_expansion_path(nusc.dataroot, location),
+    )
 
-def iter_resolved_frames(
-    tables: NuscTables, scene_names: set[str]
-) -> Iterator[NuscFrame]:
+
+def iter_resolved_frames(nusc: NuScenes, scene_names: set[str]) -> Iterator[NuscFrame]:
     """Yield resolved frames for the scenes in ``scene_names``, scene-major and
     sample-time-ascending. Scenes absent from this ``version`` are skipped."""
-    for scene in tables.scenes:
+    for scene in nusc.scene:
         if scene["name"] not in scene_names:
             continue
-        for sample_token in tables.scene_sample_tokens(scene):
-            yield tables.resolve_frame(sample_token)
+        for sample_token in scene_sample_tokens(nusc, scene):
+            yield resolve_frame(nusc, sample_token)
 
 
 def read_image(path: str) -> np.ndarray:
