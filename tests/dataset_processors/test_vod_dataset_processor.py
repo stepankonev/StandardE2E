@@ -290,12 +290,20 @@ def test_scenes_for_split_rejects_unknown_split():
 # --------------------------------------------------------------------------- #
 # Root resolution + frame enumeration (synthetic layout)
 # --------------------------------------------------------------------------- #
-def _make_layout(root: Path, training_ids=(), testing_ids=()) -> None:
+def _make_layout(
+    root: Path, training_ids=(), testing_ids=(), without_map_pose=()
+) -> None:
     for subdir, ids in (("training", training_ids), ("testing", testing_ids)):
         velodyne = root / "lidar" / subdir / "velodyne"
         velodyne.mkdir(parents=True, exist_ok=True)
+        pose = root / "lidar" / subdir / "pose"
+        pose.mkdir(parents=True, exist_ok=True)
         for frame_id in ids:
             (velodyne / f"{frame_id:05d}.bin").write_bytes(b"")
+            transforms = {"odomToCamera": np.eye(4).ravel().tolist()}
+            if frame_id not in without_map_pose:
+                transforms["mapToCamera"] = np.eye(4).ravel().tolist()
+            (pose / f"{frame_id:05d}.json").write_text(json.dumps(transforms))
 
 
 def test_resolve_root_variants(tmp_path):
@@ -333,6 +341,14 @@ def test_iter_frame_refs_groups_by_scene_and_split(tmp_path):
 
     # val scenes have no present frames in this layout.
     assert list(io.iter_frame_refs(resolved, "val")) == []
+
+
+def test_iter_frame_refs_skips_frames_without_map_pose(tmp_path):
+    # Like 00544 (the first delft_2 frame), whose pose has only odomToCamera.
+    root = tmp_path / "view_of_delft_PUBLIC"
+    _make_layout(root, training_ids=(544, 545), without_map_pose=(544,))
+    train = list(io.iter_frame_refs(str(root), "train"))
+    assert [r.frame_id for r in train] == [545]
 
 
 def test_frame_ref_paths():
