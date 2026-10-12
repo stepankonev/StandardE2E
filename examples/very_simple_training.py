@@ -11,7 +11,10 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from standard_e2e.caching.adapters import HDMapBEVAdapter, get_adapters_from_config
 from standard_e2e.dataset_utils.modality_defaults import (
+    HDMapBEVDefaults,
+    LidarPointCloudDefaults,
     ModalityDefaults,
     PreferredTrajectoryDefaults,
 )
@@ -138,6 +141,19 @@ def main():
     val_index_df_path = os.path.join(processed_data_path, "waymo_e2e/val/index.parquet")
     config_path = args.config_file
     config = load_yaml_config(config_path)
+    # The config's loaders also ask for lidar and the HD map, which Waymo E2E does
+    # not have, and only some frames carry preference trajectories: fill the gaps
+    # with empty placeholders (the HD map shaped like the config's BEV adapter
+    # output) so every frame batches.
+    modality_defaults: dict[Modality, ModalityDefaults] = {
+        Modality.LIDAR_PC: LidarPointCloudDefaults(),
+        Modality.PREFERENCE_TRAJECTORY: PreferredTrajectoryDefaults(),
+    }
+    for adapter in get_adapters_from_config(config["preprocessing"]["adapters"]):
+        if isinstance(adapter, HDMapBEVAdapter):
+            modality_defaults[Modality.HD_MAP_BEV] = HDMapBEVDefaults.from_adapter(
+                adapter
+            )
     train_index_data = pd.read_parquet(train_index_df_path)
     val_index_data = pd.read_parquet(val_index_df_path)
     train_dataloader = create_dataloader(
@@ -145,18 +161,14 @@ def main():
         processed_data_path=processed_data_path,
         index_df=train_index_data,
         regime="train",
-        modality_defaults={
-            Modality.PREFERENCE_TRAJECTORY: PreferredTrajectoryDefaults()
-        },
+        modality_defaults=modality_defaults,
     )
     val_dataloader = create_dataloader(
         config=config,
         processed_data_path=processed_data_path,
         index_df=val_index_data,
         regime="val",
-        modality_defaults={
-            Modality.PREFERENCE_TRAJECTORY: PreferredTrajectoryDefaults()
-        },
+        modality_defaults=modality_defaults,
     )
     filter_only_with_preference_trajectory = FrameFilterByBooleanColumn(
         boolean_column="extra_has_preference_trajectories"
@@ -167,6 +179,7 @@ def main():
         index_df=val_index_data,
         regime="val",
         index_filters=[filter_only_with_preference_trajectory],
+        modality_defaults=modality_defaults,
     )
     model = VerySimpleE2EModel()
     model.cuda()

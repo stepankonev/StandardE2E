@@ -1,6 +1,8 @@
-# For processing the Waymo E2E dataset with default settings,
-# you can use the following script.
-# python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+# For processing the Waymo E2E dataset with default settings, run its pipeline
+# (uvx stepix run datasets/waymo_e2e/README.md), or this command in its
+# environment, which has TensorFlow:
+# uv run --project datasets/waymo_e2e \
+#     python -m standard_e2e.caching.process_source_dataset waymo_e2e \
 #     --input_path=path/to/input \
 #     --output_path=path/to/output \
 #     --split=training \
