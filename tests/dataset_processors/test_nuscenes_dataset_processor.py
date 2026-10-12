@@ -5,10 +5,10 @@
   taxonomy (incl. the two-wheeler split and the unknown fallback), the
   ``CAM_*`` -> ``CameraDirection`` mapping, the global -> ego box transform
   (translation, +90 deg rotation, ``size`` -> length/width/height reorder), the
-  lidar ``float32 x 5`` -> xyz decode, the devkit's split lists, and -- on a
-  synthetic JSON tree -- the reverse-index reconstruction
-  (``sample['data']``/``anns``, keyframe filtering, channel + category joins)
-  plus a full hermetic processor build with tiny on-disk image / lidar files.
+  devkit's split lists, and -- on a synthetic JSON tree -- the reverse-index
+  reconstruction (``sample['data']``/``anns``, keyframe filtering, channel +
+  category joins) plus a full hermetic processor build with tiny on-disk image /
+  lidar files.
 * **Real-frame checks** (skipped unless ``NUSCENES_DATAROOT`` points at an
   extracted dataroot): a built frame exposes the 6 surround cameras under their
   canonical ``CameraDirection`` with pinhole intrinsics and 4x4 extrinsics,
@@ -141,28 +141,6 @@ def test_box_to_ego_rotation_maps_axes_and_heading():
     np.testing.assert_allclose([x, y], [0.0, -10.0], atol=1e-9)
     # ...and a globally-axis-aligned box has ego heading -90 deg.
     np.testing.assert_allclose(heading, -np.pi / 2, atol=1e-9)
-
-
-# --------------------------------------------------------------------------- #
-# IO unit tests (synthetic files)
-# --------------------------------------------------------------------------- #
-def test_read_lidar_xyz_keeps_first_three_columns(tmp_path):
-    points = np.arange(2 * 5, dtype=np.float32).reshape(2, 5)
-    path = tmp_path / "a.pcd.bin"
-    points.tofile(path)
-    xyz = io.read_lidar_xyz(str(path))
-    assert xyz.shape == (2, 3) and xyz.dtype == np.float32
-    np.testing.assert_allclose(xyz, points[:, :3])
-
-
-def test_read_lidar_xyz_empty_and_bad_size(tmp_path):
-    empty = tmp_path / "empty.pcd.bin"
-    empty.write_bytes(b"")
-    assert io.read_lidar_xyz(str(empty)).shape == (0, 3)
-    bad = tmp_path / "bad.pcd.bin"
-    np.arange(7, dtype=np.float32).tofile(bad)  # 7 not divisible by 5
-    with pytest.raises(ValueError):
-        io.read_lidar_xyz(str(bad))
 
 
 # --------------------------------------------------------------------------- #

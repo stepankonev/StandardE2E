@@ -43,10 +43,6 @@ import numpy as np
 
 from standard_e2e.utils import quat_wxyz_to_rotmat, se3
 
-# nuScenes raw lidar is packed float32 with five columns per point
-# (x, y, z, intensity, ring_index); StandardE2E keeps xyz.
-_LIDAR_NUM_COLS = 5
-
 # Tables we read (a subset of the full schema -- enough to rebuild the frame).
 _REQUIRED_TABLES = (
     "scene",
@@ -323,21 +319,3 @@ def read_image(path: str) -> np.ndarray:
     if bgr is None:
         raise RuntimeError(f"failed to read nuScenes image {path}")
     return np.ascontiguousarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), dtype=np.uint8)
-
-
-def read_lidar_xyz(path: str) -> np.ndarray:
-    """Read a LIDAR_TOP ``.pcd.bin`` and return its ``(N, 3)`` float32 xyz.
-
-    The file is packed ``float32`` with five columns per point
-    (x, y, z, intensity, ring_index); StandardE2E keeps xyz. Points are in the
-    LIDAR_TOP sensor frame and must be moved into the ego frame by the caller.
-    """
-    raw = np.fromfile(path, dtype=np.float32)
-    if raw.size == 0:
-        return np.zeros((0, 3), dtype=np.float32)
-    if raw.size % _LIDAR_NUM_COLS != 0:
-        raise ValueError(
-            f"{path}: {raw.size} float32 values not divisible by "
-            f"{_LIDAR_NUM_COLS} lidar columns"
-        )
-    return np.ascontiguousarray(raw.reshape(-1, _LIDAR_NUM_COLS)[:, :3])
