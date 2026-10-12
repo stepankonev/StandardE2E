@@ -39,12 +39,14 @@ are skipped.
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.
 [`pyproject.toml`](pyproject.toml) and [`uv.lock`](uv.lock) pin StandardE2E (this
-checkout, editable), without its training-only dependencies (PyTorch), which
-preprocessing never imports. nuScenes is read straight from its JSON tables, with the
-official split scene lists and the lane-arcline discretization vendored from
-[nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit) (Apache-2.0).
-[`.python-version`](.python-version) pins Python 3.12 (`requires-python` allows
-3.12–3.14). stepix builds the environment into `.venv/` here on first use; to run a
+checkout, editable) and the official
+[nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit), which provides the
+split scene lists, without StandardE2E's training-only dependencies (PyTorch), which
+preprocessing never imports. The devkit pins `numpy<2`, so this environment runs
+NumPy 1.26. The JSON tables are read by StandardE2E itself, and the lane-arcline
+discretization is vendored from the devkit (Apache-2.0).
+[`.python-version`](.python-version) pins Python 3.12, the newest version NumPy 1.26
+ships wheels for. stepix builds the environment into `.venv/` here on first use; to run a
 command in it yourself: `uv run --project datasets/nuscenes <command>`.
 
 ## Pipeline

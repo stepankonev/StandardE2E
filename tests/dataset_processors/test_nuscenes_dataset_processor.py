@@ -5,7 +5,7 @@
   taxonomy (incl. the two-wheeler split and the unknown fallback), the
   ``CAM_*`` -> ``CameraDirection`` mapping, the global -> ego box transform
   (translation, +90 deg rotation, ``size`` -> length/width/height reorder), the
-  lidar ``float32 x 5`` -> xyz decode, the vendored split lists, and -- on a
+  lidar ``float32 x 5`` -> xyz decode, the devkit's split lists, and -- on a
   synthetic JSON tree -- the reverse-index reconstruction
   (``sample['data']``/``anns``, keyframe filtering, channel + category joins)
   plus a full hermetic processor build with tiny on-disk image / lidar files.
@@ -25,11 +25,13 @@ import cv2
 import numpy as np
 import pytest
 
+# nuscenes-devkit is installed in the nuScenes environment only (datasets/nuscenes/).
+pytest.importorskip("nuscenes")
+
 from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_arcline as arc
 from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_io as io
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_map import NuscMap
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_splits import (
-    SPLITS,
     VERSION_FOR_SPLIT,
     scenes_for_split,
 )
@@ -167,8 +169,8 @@ def test_read_lidar_xyz_empty_and_bad_size(tmp_path):
 # --------------------------------------------------------------------------- #
 # Split unit tests (no data required)
 # --------------------------------------------------------------------------- #
-def test_vendored_splits_counts_and_versions():
-    assert {k: len(v) for k, v in SPLITS.items()} == {
+def test_splits_counts_and_versions():
+    assert {split: len(scenes_for_split(split)) for split in VERSION_FOR_SPLIT} == {
         "train": 700,
         "val": 150,
         "test": 150,
@@ -180,7 +182,7 @@ def test_vendored_splits_counts_and_versions():
     assert VERSION_FOR_SPLIT["train"] == "v1.0-trainval"
     assert VERSION_FOR_SPLIT["test"] == "v1.0-test"
     # train and val are disjoint within the trainval version.
-    assert not (set(SPLITS["train"]) & set(SPLITS["val"]))
+    assert not (scenes_for_split("train") & scenes_for_split("val"))
 
 
 # --------------------------------------------------------------------------- #

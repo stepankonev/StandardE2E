@@ -2,9 +2,12 @@
 name = "standard-e2e-nuscenes"
 version = "0.0.0"
 description = "Isolated preprocessing environment for nuScenes (StandardE2E)."
-requires-python = ">=3.12,<3.15"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "standard-e2e",
+    # The official devkit; it pins numpy<2, so this environment runs NumPy 1.26
+    # (whose newest wheels are for Python 3.12).
+    "nuscenes-devkit>=1.2.0",
 ]
 
 [dependency-groups]

@@ -3,8 +3,8 @@
 nuScenes (Motional, CVPR 2020) is the de-facto end-to-end / BEV benchmark: 1000
 ~20 s scenes from a 6-camera surround rig, a 32-beam ``LIDAR_TOP``, 5 radars and
 densely annotated 3D boxes at 2 Hz keyframes. StandardE2E reads the JSON tables
-directly (see :mod:`._nuscenes_io`; the ``nuscenes-devkit`` is reference-only --
-it pins ``numpy<2`` against this project's numpy 2.x).
+itself (see :mod:`._nuscenes_io`) and takes the official split lists from
+``nuscenes-devkit``, installed in the nuScenes environment.
 
 Mapping to ``StandardFrameData`` (this release covers cameras, the ego
 trajectory, ``LIDAR_TOP``, 3D detections and -- when the separate map-expansion
