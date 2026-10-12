@@ -246,10 +246,15 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
             for timestamp_ns, city_SE3_ego in read_city_SE3_ego(log_dir).items()
         }
 
-        ann_df = read_feather(log_dir / "annotations.feather")
-        self._annotations_by_ts = {
-            int(cast(Any, ts)): group for ts, group in ann_df.groupby("timestamp_ns")
-        }
+        # The test split ships without annotations: its frames carry no boxes.
+        self._annotations_by_ts = {}
+        annotations_path = log_dir / "annotations.feather"
+        if annotations_path.is_file():
+            ann_df = read_feather(annotations_path)
+            self._annotations_by_ts = {
+                int(cast(Any, ts)): group
+                for ts, group in ann_df.groupby("timestamp_ns")
+            }
 
         self._map = ArgoverseStaticMap.from_map_dir(log_dir / "map", build_raster=False)
         self._cached_log_dir = log_dir
