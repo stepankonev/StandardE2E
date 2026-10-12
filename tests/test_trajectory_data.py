@@ -1470,6 +1470,21 @@ class TestBatchedTrajectoryEdgeCases(unittest.TestCase):
         self.assertIn("sequence_length=3", repr_str)
         self.assertIn("device=", repr_str)
 
+    def test_strict_mode_all_empty_keeps_only_is_valid(self):
+        """Strict mode on all-empty trajectories has no components to agree on."""
+        batch = BatchedTrajectory([Trajectory(), Trajectory()], strict=True)
+        self.assertEqual(batch.batch_size, 2)
+        with self.assertRaises(KeyError):
+            batch.get(TrajectoryComponent.X, strict=True)
+
+    def test_pad_to_shorter_length_is_a_no_op(self):
+        """Padding to at most the current length returns the batch unchanged."""
+        batch = BatchedTrajectory(
+            [Trajectory({TrajectoryComponent.X: [1, 2, 3]})], strict=False
+        )
+        self.assertIs(batch.pad(2), batch)
+        self.assertEqual(batch.length, 3)
+
 
 class TestBatchedTrajectoryResample(unittest.TestCase):
     """Tests for BatchedTrajectory.resample functionality."""

@@ -123,3 +123,30 @@ def test_batched_lidar_point_cloud_to_same_device_noop():
     batched = BatchedLidarPointCloud(pcs)
     same = batched.to(torch.device("cpu"))
     assert same is batched
+
+
+def test_batched_lidar_point_cloud_rejects_other_types():
+    with pytest.raises(TypeError):
+        BatchedLidarPointCloud([np.zeros((1, 3), dtype=np.float32)])
+
+
+def test_batched_lidar_point_cloud_get_single_component_and_errors():
+    batched = BatchedLidarPointCloud([_pc(2), _pc(3)])
+    x = batched.get(LidarComponent.X)
+    assert tuple(x.shape) == (5, 1)
+    assert x[:, 0].tolist() == [0.0, 3.0, 0.0, 3.0, 6.0]
+    with pytest.raises(TypeError):
+        batched.get(["x"])
+    xy_only = BatchedLidarPointCloud(
+        [LidarPointCloud(np.zeros((1, 2), dtype=np.float32), XYZ[:2])]
+    )
+    with pytest.raises(KeyError):
+        xy_only.get([LidarComponent.X, LidarComponent.Z])
+
+
+def test_batched_lidar_point_cloud_to_other_device_moves_everything():
+    batched = BatchedLidarPointCloud([_pc(2), _pc(1)])
+    meta = torch.device("meta")
+    assert batched.to(meta) is batched
+    assert batched.device == meta
+    assert batched.get(LidarComponent.X).device == meta

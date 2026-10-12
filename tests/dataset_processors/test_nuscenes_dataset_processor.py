@@ -34,6 +34,9 @@ from standard_e2e.caching.src_datasets.nuscenes._nuscenes_splits import (
     VERSION_FOR_SPLIT,
     scenes_for_split,
 )
+from standard_e2e.caching.src_datasets.nuscenes.nuscenes_dataset_converter import (
+    NuscenesDatasetConverter,
+)
 from standard_e2e.caching.src_datasets.nuscenes.nuscenes_dataset_processor import (
     _CHANNEL_TO_DIRECTION,
     NuscenesDatasetProcessor,
@@ -417,6 +420,53 @@ def test_scene_has_sensor_data_detects_partial_download(tmp_path):
     (root / "samples/LIDAR_TOP").mkdir(parents=True)
     (root / "samples/LIDAR_TOP/a.pcd.bin").write_bytes(b"\x00" * 20)
     assert io.scene_has_sensor_data(nusc, scene) is True
+
+
+def test_load_nuscenes_requires_the_metadata(tmp_path):
+    with pytest.raises(FileNotFoundError, match="v1.0-mini/sample.json"):
+        io.load_nuscenes(str(tmp_path), "v1.0-mini")
+
+
+def test_scenes_for_split_rejects_unknown_split():
+    with pytest.raises(KeyError):
+        scenes_for_split("trainval")
+
+
+def _converter(root: Path, split: str = "mini_val") -> NuscenesDatasetConverter:
+    # The converter checks its own split, so the processor keeps a valid one.
+    proc = NuscenesDatasetProcessor(
+        common_output_path=str(root / "out"), split="mini_val", context_aggregators=[]
+    )
+    return NuscenesDatasetConverter(
+        source_processor=proc,
+        input_path=str(root),
+        split=split,
+        num_workers=1,
+        do_parallel_processing=False,
+    )
+
+
+def test_converter_yields_the_split_frames_with_sensor_data(tmp_path, monkeypatch):
+    root = _write_tree(tmp_path)
+    (root / "samples/LIDAR_TOP").mkdir(parents=True)
+    (root / "samples/LIDAR_TOP/a.pcd.bin").write_bytes(b"\x00" * 20)
+    for debug in ("false", "true"):  # debug keeps the first scene: the only one
+        monkeypatch.setenv("STANDARD_E2E_DEBUG", debug)
+        frames = list(_converter(root)._source_dataset_iterator)
+        assert [f.sample_token for f in frames] == ["samp_0", "samp_1"]
+        assert {f.scene_name for f in frames} == {"scene-0103"}
+
+
+def test_converter_rejects_unusable_inputs(tmp_path):
+    root = _write_tree(tmp_path)
+    with pytest.raises(ValueError, match="Unknown nuScenes split"):
+        _converter(root, split="trainval")
+    # The tree's only scene belongs to mini_val, not mini_train.
+    with pytest.raises(FileNotFoundError, match="No 'mini_train' scenes"):
+        _converter(root, split="mini_train")
+    # Metadata lists the scene, but its sensor files are not on disk.
+    with pytest.raises(FileNotFoundError, match="none have sensor data"):
+        _converter(root)
 
 
 def test_processor_builds_frame_hermetically(tmp_path):
