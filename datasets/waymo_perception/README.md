@@ -23,8 +23,7 @@ protos per segment.
   converter pre-scans every segment's first record before the worker pool starts,
   caches the world-frame features (in `/dev/shm` when it has 500 MB free, else the
   output directory or the system temp directory), and every frame applies its inverse
-  pose. See [`docs/map_element_translation.md`](../../docs/map_element_translation.md)
-  for the per-feature translation.
+  pose.
 - **past/future ego trajectories and future detections**: from the per-frame poses and
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator` after all frames are written.
