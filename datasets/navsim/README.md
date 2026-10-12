@@ -27,8 +27,9 @@ Only the `trainval` split is published; train/val/test subsets are sampled from 
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator`.
 
-StandardE2E reads the pickles, JPEGs and PCDs itself. The `navsim` package is not a
-dependency: it pins NumPy 1.23 and PyTorch 2.0, which have no Python 3.12 wheels.
+StandardE2E reads the pickles and JPEGs itself, and nuplan-devkit's `PointCloud` parses
+the PCDs. The `navsim` package is not a dependency: it pins NumPy 1.23 and PyTorch 2.0,
+which have no Python 3.12 wheels.
 
 ## Environment
 
