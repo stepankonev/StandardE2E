@@ -63,6 +63,7 @@ uvx stepix run datasets/comma2k19/README.md
 ```
 
 `debug = true` processes only the first segment, as a smoke test.
+`download = true` fetches the archives from Hugging Face first (step 1).
 
 ```stepix
 [params]
@@ -72,10 +73,36 @@ output_path = "/path/to/standard_e2e_data"
 config = "../../configs/comma2k19.yaml"
 frame_stride = 1
 num_workers = 8
+download = false                              # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Extract the archives
+### 1. Download (optional)
+
+With `download = true`, this step fetches the ten `Chunk_*.zip` archives (95 GB) from
+comma's [Hugging Face repo](https://huggingface.co/datasets/commaai/comma2k19) into
+`zip_dir/raw_data/` with the `hf` CLI (run through `uvx`); step 2 then extracts them.
+No account is needed, and an interrupted download resumes.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+if [ -z {params.zip_dir} ]; then
+    echo "download = true needs zip_dir: the folder to download into." >&2
+    exit 1
+fi
+uvx --from 'huggingface_hub>=0.34' hf download commaai/comma2k19 --repo-type dataset \
+    --include 'raw_data/Chunk_*.zip' --local-dir {params.zip_dir}
+'''
+cache = true
+```
+
+### 2. Extract the archives
 
 [`extract.sh`](extract.sh) unzips every chunk into `extracted_path`; files that
 already exist are skipped. Extract only the chunks you intend to process, and set
@@ -85,10 +112,11 @@ already exist are skipped. Extract only the chunks you intend to process, and se
 [steps.extract]
 env = "."
 run = "bash extract.sh {params.zip_dir} {params.extracted_path}"
+requires = ["download"]
 cache = true
 ```
 
-### 2. Check the input
+### 3. Check the input
 
 Each extracted segment holds its pose files in `global_pose/` next to `video.hevc`.
 
@@ -107,7 +135,7 @@ requires = ["extract"]
 cache = true
 ```
 
-### 3. Preprocess
+### 4. Preprocess
 
 Writes `<output_path>/comma2k19/all/` (one `.npz` per frame plus
 `index.parquet`). comma2k19 has no official split, so the split is the

@@ -75,6 +75,7 @@ uvx stepix run datasets/natix_edgecase/README.md
 ```
 
 `debug = true` processes only the first trip, as a smoke test.
+`download = true` fetches the release from Hugging Face first (step 1).
 
 ```stepix
 [params]
@@ -83,10 +84,37 @@ output_path = "/path/to/standard_e2e_data"
 config = "../../configs/natix_edgecase.yaml"
 frame_stride = 1
 num_workers = 8
+download = false  # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Check the input
+### 1. Download (optional)
+
+With `download = true`, this step fetches the release (3.6 GB) from the gated
+[Hugging Face repo](https://huggingface.co/datasets/natix-network-org/natix-edge-case-driving-dataset)
+into `input_path` with the `hf` CLI (run through `uvx`). Accept the dataset's terms on
+Hugging Face and log in first (`hf auth login`, or set `HF_TOKEN`); otherwise the
+download is refused. An interrupted download resumes.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+uvx --from 'huggingface_hub>=0.34' hf download natix-network-org/natix-edge-case-driving-dataset --repo-type dataset \
+    --local-dir {params.input_path} || {
+    echo "Download failed. If access was denied, accept the terms at" >&2
+    echo "https://huggingface.co/datasets/natix-network-org/natix-edge-case-driving-dataset and log in with \'hf auth login\' (or set HF_TOKEN)." >&2
+    exit 1
+}
+'''
+cache = true
+```
+
+### 2. Check the input
 
 Trips are found by their `fixed_metadata.json`; the events by walking up from each trip
 to `edge-case.json`.
@@ -106,10 +134,11 @@ if [ -z "$(find {params.input_path} -maxdepth 2 -name edge-case.json)" ]; then
 fi
 echo "Found $n trip(s) and the edge-case annotations."
 '''
+requires = ["download"]
 cache = true
 ```
 
-### 2. Preprocess
+### 3. Preprocess
 
 Writes `<output_path>/natix_edgecase/all/` (one `.npz` per frame plus `index.parquet`).
 

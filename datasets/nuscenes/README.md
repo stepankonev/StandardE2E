@@ -23,7 +23,7 @@ a separate vector HD map ("map expansion").
   road dividers, crossings, walkways, stop lines, drivable area, intersections),
   translated to the unified `MapElementType` taxonomy and rasterised by
   `HDMapBEVAdapter`. It needs the separate `nuScenes-map-expansion-v1.3` pack in
-  `<dataroot>/maps/` (step 1 unzips it from `archives`); without it the HD map is
+  `<dataroot>/maps/` (step 2 unzips it from `archives`); without it the HD map is
   skipped.
 - **past/future ego trajectories and future detections**: from the per-sample poses
   and boxes, via the `FuturePastStatesFromMatricesAggregator` and
@@ -76,19 +76,59 @@ uvx stepix run datasets/nuscenes/README.md
 ```
 
 `debug = true` processes only the first scene of the split, as a smoke test.
+With a `mini_*` split, `download = true` fetches `v1.0-mini.tgz` first (step 1).
 
 ```stepix
 [params]
 archives = "/path/to/nuscenes_archives"     # "" when dataroot is already extracted
-dataroot = "/path/to/nuscenes"              # extracted dataset (written by step 1)
+dataroot = "/path/to/nuscenes"              # extracted dataset (written by step 2)
 output_path = "/path/to/standard_e2e_data"
 split = "mini_val"                          # mini_train, mini_val, train, val or test
 config = "../../configs/nuscenes.yaml"
 num_workers = 8
+download = false                            # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Extract the archives
+### 1. Download (optional)
+
+With `download = true` and a `mini_*` split, this step fetches `v1.0-mini.tgz` (4.2 GB)
+into `archives` from nuScenes' public URL; step 2 then extracts it. The other splits'
+archives and the map expansion are behind the nuScenes login, so for them the step
+stops and says where to get them. Without the map expansion the HD map is skipped.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+case {params.split} in
+    mini_*) ;;
+    *)
+        echo "Only v1.0-mini downloads without a login. Get the" {params.split} "archives from" >&2
+        echo "https://www.nuscenes.org/download into archives, then set download = false." >&2
+        exit 1
+        ;;
+esac
+if [ -z {params.archives} ]; then
+    echo "download = true needs archives: the folder to download into." >&2
+    exit 1
+fi
+mkdir -p {params.archives}
+dest={params.archives}/v1.0-mini.tgz
+if [ ! -f "$dest" ]; then
+    curl -fL --retry 3 -C - -o "$dest.part" https://www.nuscenes.org/data/v1.0-mini.tgz
+    mv "$dest.part" "$dest"
+fi
+echo "Downloaded $dest."
+'''
+cache = true
+```
+
+### 2. Extract the archives
 
 [`extract.sh`](extract.sh) extracts every archive into `dataroot` (existing files are
 kept, so re-runs are cheap) and unzips the map expansion into `<dataroot>/maps/`. The
@@ -99,10 +139,11 @@ read-only dataset mount. Set `archives = ""` if `dataroot` is already extracted.
 [steps.extract]
 env = "."
 run = "bash extract.sh {params.archives} {params.dataroot}"
+requires = ["download"]
 cache = true
 ```
 
-### 2. Check the input
+### 3. Check the input
 
 ```stepix
 [steps.check]
@@ -128,7 +169,7 @@ requires = ["extract"]
 cache = true
 ```
 
-### 3. Preprocess
+### 4. Preprocess
 
 Writes `<output_path>/nuscenes/<split>/` (one `.npz` per frame plus `index.parquet`).
 

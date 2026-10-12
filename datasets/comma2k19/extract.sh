@@ -7,7 +7,8 @@
 # idempotent: unzip -n skips files that already exist.
 #
 # Usage: extract.sh <ZIP_DIR> <EXTRACTED_PATH>
-#   ZIP_DIR         directory holding the downloaded Chunk_*.zip files;
+#   ZIP_DIR         directory holding the downloaded Chunk_*.zip files (directly,
+#                   or in raw_data/ as the Hugging Face download leaves them);
 #                   "" when EXTRACTED_PATH is already extracted (nothing to do)
 #   EXTRACTED_PATH  output directory
 set -euo pipefail
@@ -20,7 +21,7 @@ if [[ -z "$ZIP_DIR" ]]; then
 fi
 
 shopt -s nullglob
-zips=("$ZIP_DIR"/Chunk_*.zip)
+zips=("$ZIP_DIR"/Chunk_*.zip "$ZIP_DIR"/raw_data/Chunk_*.zip)
 if [[ ${#zips[@]} -eq 0 ]]; then
     echo "No Chunk_*.zip found in $ZIP_DIR" >&2
     exit 1

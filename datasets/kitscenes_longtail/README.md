@@ -71,6 +71,7 @@ uvx stepix run datasets/kitscenes_longtail/README.md
 ```
 
 `debug = true` processes only the first scenario of the split, as a smoke test.
+`download = true` fetches the split from Hugging Face first (step 1).
 
 ```stepix
 [params]
@@ -79,10 +80,38 @@ output_path = "/path/to/standard_e2e_data"
 split = "train"                               # train, test, train_raw, test_raw or val
 config = "../../configs/kitscenes_longtail.yaml"
 num_workers = 8
+download = false                             # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Check the input
+### 1. Download (optional)
+
+With `download = true`, this step fetches the `split`'s parquet shards
+(`data/<split>-*`, e.g. 34 GB for `test`) from the gated
+[Hugging Face repo](https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail) into
+`input_path` with the `hf` CLI (run through `uvx`). Accept the dataset's terms on
+Hugging Face and log in first (`hf auth login`, or set `HF_TOKEN`); otherwise the
+download is refused. An interrupted download resumes.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+uvx --from 'huggingface_hub>=0.34' hf download KIT-MRT/KITScenes-LongTail --repo-type dataset \
+    --include data/{params.split}'-*' --local-dir {params.input_path} || {
+    echo "Download failed. If access was denied, accept the terms at" >&2
+    echo "https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail and log in with \'hf auth login\' (or set HF_TOKEN)." >&2
+    exit 1
+}
+'''
+cache = true
+```
+
+### 2. Check the input
 
 A split is the `<split>-*.parquet` shards in `data/` (or directly in `input_path`).
 
@@ -99,10 +128,11 @@ if [ "$n" -eq 0 ]; then
 fi
 echo "Found $n {params.split} shard(s)."
 '''
+requires = ["download"]
 cache = true
 ```
 
-### 2. Preprocess
+### 3. Preprocess
 
 Writes `<output_path>/kitscenes_longtail/<split>/` (one `.npz` per frame plus
 `index.parquet`).

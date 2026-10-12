@@ -34,25 +34,32 @@ them, and `--step NAME` / `--from NAME` select steps. Logs and state go to
 `datasets/<name>/.stepix/`. Every README has a `debug` param that processes a single
 unit (file, log or scene) as a smoke test.
 
-| Dataset | Folder | SDK in the environment | Python |
-|---|---|---|---|
-| Waymo Open E2E | [`waymo_e2e`](waymo_e2e/README.md) | TensorFlow | 3.12 (≤ 3.13) |
-| Waymo Open Perception | [`waymo_perception`](waymo_perception/README.md) | TensorFlow | 3.12 (≤ 3.13) |
-| Argoverse 2 Sensor | [`av2_sensor`](av2_sensor/README.md) | av2 | 3.12 |
-| Argoverse 2 Lidar | [`av2_lidar`](av2_lidar/README.md) | av2 | 3.12 |
-| NAVSIM | [`navsim`](navsim/README.md) | nuplan-devkit | 3.12 (≤ 3.14) |
-| nuScenes | [`nuscenes`](nuscenes/README.md) | nuscenes-devkit | 3.12 |
-| WayveScenes101 | [`wayve_scenes`](wayve_scenes/README.md) | pycolmap | 3.12 (≤ 3.14) |
-| comma2k19 | [`comma2k19`](comma2k19/README.md) | — | 3.12 (≤ 3.14) |
-| TruckDrive | [`truckdrive`](truckdrive/README.md) | — | 3.12 (≤ 3.14) |
-| View-of-Delft | [`vod`](vod/README.md) | — | 3.12 (≤ 3.14) |
-| KITScenes Multimodal | [`kitscenes_multimodal`](kitscenes_multimodal/README.md) | pyproj | 3.12 (≤ 3.14) |
-| KITScenes LongTail | [`kitscenes_longtail`](kitscenes_longtail/README.md) | — | 3.12 (≤ 3.14) |
-| NATIX Multi-Camera | [`natix_multicam`](natix_multicam/README.md) | pyproj | 3.12 (≤ 3.14) |
-| NATIX Edge Case | [`natix_edgecase`](natix_edgecase/README.md) | pyproj | 3.12 (≤ 3.14) |
+Where the data can be fetched by a script, the README also has a `download` param (off by
+default). With `download = true`, step 1 fetches the selected split with the dataset's own
+tool before anything else, and fails with what to do when the tool or your access is
+missing. The other datasets are downloaded by hand, as their READMEs describe.
+
+| Dataset | Folder | SDK in the environment | Python | `download = true` |
+|---|---|---|---|---|
+| Waymo Open E2E | [`waymo_e2e`](waymo_e2e/README.md) | TensorFlow | 3.12 (≤ 3.13) | `gcloud` (Waymo account) |
+| Waymo Open Perception | [`waymo_perception`](waymo_perception/README.md) | TensorFlow | 3.12 (≤ 3.13) | `gcloud` (Waymo account) |
+| Argoverse 2 Sensor | [`av2_sensor`](av2_sensor/README.md) | av2 | 3.12 | `s5cmd` |
+| Argoverse 2 Lidar | [`av2_lidar`](av2_lidar/README.md) | av2 | 3.12 | `s5cmd` |
+| NAVSIM | [`navsim`](navsim/README.md) | nuplan-devkit | 3.12 (≤ 3.14) | — |
+| nuScenes | [`nuscenes`](nuscenes/README.md) | nuscenes-devkit | 3.12 | `curl` (mini only) |
+| WayveScenes101 | [`wayve_scenes`](wayve_scenes/README.md) | pycolmap | 3.12 (≤ 3.14) | — |
+| comma2k19 | [`comma2k19`](comma2k19/README.md) | — | 3.12 (≤ 3.14) | `hf` |
+| TruckDrive | [`truckdrive`](truckdrive/README.md) | — | 3.12 (≤ 3.14) | — |
+| View-of-Delft | [`vod`](vod/README.md) | — | 3.12 (≤ 3.14) | — |
+| KITScenes Multimodal | [`kitscenes_multimodal`](kitscenes_multimodal/README.md) | pyproj | 3.12 (≤ 3.14) | `hf` (gated) |
+| KITScenes LongTail | [`kitscenes_longtail`](kitscenes_longtail/README.md) | — | 3.12 (≤ 3.14) | `hf` (gated) |
+| NATIX Multi-Camera | [`natix_multicam`](natix_multicam/README.md) | pyproj | 3.12 (≤ 3.14) | — |
+| NATIX Edge Case | [`natix_edgecase`](natix_edgecase/README.md) | pyproj | 3.12 (≤ 3.14) | `hf` (gated) |
 
 The Python column is the version `.python-version` pins, with the newest one the
-environment's `requires-python` allows in parentheses.
+environment's `requires-python` allows in parentheses. The last column is the tool the
+download step uses (`s5cmd` and `hf` run through `uvx`; `gcloud` must be installed), and
+what access it needs.
 
 ## Working with an environment
 

@@ -55,6 +55,7 @@ uvx stepix run datasets/av2_lidar/README.md
 ```
 
 `debug = true` processes only the first log, as a smoke test.
+`download = true` copies the split from the public Argoverse bucket first (step 1).
 
 ```stepix
 [params]
@@ -63,10 +64,34 @@ output_path = "/path/to/standard_e2e_data"
 split = "train"                              # train, val or test
 config = "../../configs/base.yaml"
 num_workers = 8
+download = false                            # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Check the input
+### 1. Download (optional)
+
+With `download = true`, this step copies the `split`'s logs from the public Argoverse
+bucket into `input_path/<split>/` with [s5cmd](https://github.com/peak/s5cmd) (run
+through `uvx`), as the
+[Argoverse User Guide](https://argoverse.github.io/user-guide/getting_started.html)
+suggests, skipping files already there. No account is needed.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+uvx s5cmd --no-sign-request cp --no-clobber \
+    "s3://argoverse/datasets/av2/lidar/"{params.split}"/*" \
+    {params.input_path}/{params.split}/
+'''
+cache = true
+```
+
+### 2. Check the input
 
 Each split folder holds one directory per log, with its sweeps in `sensors/lidar/`
 (only the first log is inspected, so the check stays quick on a full split).
@@ -84,10 +109,11 @@ if [ "$n" -eq 0 ] || [ ! -d "$first/sensors/lidar" ]; then
 fi
 echo "Found $n {params.split} log(s)."
 '''
+requires = ["download"]
 cache = true
 ```
 
-### 2. Preprocess
+### 3. Preprocess
 
 Writes `<output_path>/av2_lidar/<split>/` (one `.npz` per frame plus `index.parquet`).
 

@@ -68,6 +68,10 @@ README, then:
 uvx stepix run datasets/waymo_e2e/README.md
 ```
 
+Where the data can be fetched by a script (Waymo, Argoverse 2, nuScenes mini, comma2k19,
+KITScenes, NATIX Edge Case), setting `download = true` in the README makes the pipeline
+download the split first, with the dataset's own tool and your access.
+
 ## Supported datasets
 
 

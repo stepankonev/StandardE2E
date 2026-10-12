@@ -38,7 +38,7 @@ the other six lidars, the three imaging radars and the GNSS/INS streams.
 
 Splits follow the official geo-disjoint folders (`train`, `val`, `test`, `test_e2e`,
 `overlap_train_val`). With a flat layout (one folder of scenes, like the single-scene
-sample, or what step 1 produces) every scene is processed and `split` is only the output
+sample, or what step 2 produces) every scene is processed and `split` is only the output
 label.
 
 ## Known issues
@@ -73,6 +73,7 @@ uvx stepix run datasets/kitscenes_multimodal/README.md
 ```
 
 `debug = true` processes only the first scene of the split, as a smoke test.
+`download = true` fetches the split from Hugging Face first (step 1).
 
 ```stepix
 [params]
@@ -82,10 +83,46 @@ output_path = "/path/to/standard_e2e_data"
 split = "val"                    # train, val, test, test_e2e, overlap_train_val or all
 config = "../../configs/kitscenes_multimodal.yaml"
 num_workers = 8
+download = false                                  # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Extract the archives
+### 1. Download (optional)
+
+With `download = true`, this step fetches the `split`'s scene tars (`data/<split>/`,
+e.g. 117 scenes / 508 GB for `val`; everything for `split = "all"`) from the gated
+[Hugging Face repo](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) into
+`archives` with the `hf` CLI (run through `uvx`); step 2 then extracts them. Accept the
+dataset's terms on Hugging Face and log in first (`hf auth login`, or set `HF_TOKEN`);
+otherwise the download is refused. An interrupted download resumes.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+if [ -z {params.archives} ]; then
+    echo "download = true needs archives: the folder to download into." >&2
+    exit 1
+fi
+case {params.split} in
+    all) pattern='data/*' ;;
+    *) pattern=data/{params.split}/'*' ;;
+esac
+uvx --from 'huggingface_hub>=0.34' hf download KIT-MRT/KITScenes-Multimodal --repo-type dataset \
+    --include "$pattern" --local-dir {params.archives} || {
+    echo "Download failed. If access was denied, accept the terms at" >&2
+    echo "https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal and log in with \'hf auth login\' (or set HF_TOKEN)." >&2
+    exit 1
+}
+'''
+cache = true
+```
+
+### 2. Extract the archives
 
 [`extract.sh`](extract.sh) extracts every scene tar found under `archives` into
 `scenes_path/<scene_uuid>/`, skipping scenes already extracted. Set `archives = ""` if
@@ -95,10 +132,11 @@ debug = false
 [steps.extract]
 env = "."
 run = "bash extract.sh {params.archives} {params.scenes_path}"
+requires = ["download"]
 cache = true
 ```
 
-### 2. Check the input
+### 3. Check the input
 
 Each scene folder holds its calibration in `calibration/calib.json`.
 
@@ -117,7 +155,7 @@ requires = ["extract"]
 cache = true
 ```
 
-### 3. Preprocess
+### 4. Preprocess
 
 Writes `<output_path>/kitscenes_multimodal/<split>/` (one `.npz` per frame plus
 `index.parquet`).

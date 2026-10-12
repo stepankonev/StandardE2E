@@ -67,6 +67,8 @@ uvx stepix run datasets/waymo_perception/README.md
 ```
 
 `debug = true` processes only the first segment, as a smoke test.
+`download = true` copies the split from Waymo's bucket first (step 1), with your Google
+account.
 
 ```stepix
 [params]
@@ -75,10 +77,44 @@ output_path = "/path/to/standard_e2e_data"
 split = "training"                      # training, validation, testing, ...
 config = "../../configs/base.yaml"
 num_workers = 8
+download = false                        # true: fetch the data first (step 1)
 debug = false
 ```
 
-### 1. Check the input
+### 1. Download (optional)
+
+With `download = true`, this step copies the `split` folder of v1.4.3's
+`individual_files/` from Waymo's Cloud Storage bucket into `input_path` with the
+[Google Cloud CLI](https://cloud.google.com/sdk/docs/install), skipping files already
+there. It needs `gcloud` logged in (`gcloud auth login`) with a Google account
+registered for the [Waymo Open Dataset](https://waymo.com/open/); otherwise the copy
+is denied.
+
+```stepix
+[steps.download]
+env = "."
+run = '''
+if [ {params.download} != true ]; then
+    echo "download = false: nothing to download."
+    exit 0
+fi
+if ! command -v gcloud >/dev/null; then
+    echo "download = true needs the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" >&2
+    exit 1
+fi
+mkdir -p {params.input_path}
+gcloud storage cp -r --no-clobber \
+    "gs://waymo_open_dataset_v_1_4_3/individual_files/"{params.split} \
+    {params.input_path}/ || {
+    echo "Copy failed. If access was denied, register this Google account at" >&2
+    echo "https://waymo.com/open/ and log in with 'gcloud auth login'." >&2
+    exit 1
+}
+'''
+cache = true
+```
+
+### 2. Check the input
 
 Each split is a folder of `*.tfrecord` segments inside `input_path`.
 
@@ -93,10 +129,11 @@ if [ "$n" -eq 0 ]; then
 fi
 echo "Found $n {params.split} segment(s)."
 '''
+requires = ["download"]
 cache = true
 ```
 
-### 2. Preprocess
+### 3. Preprocess
 
 Writes `<output_path>/waymo_perception/<split>/` (one `.npz` per frame plus
 `index.parquet`).
