@@ -86,4 +86,7 @@ A new dataset needs its processor and converter in
 `DATASETS` registry of `standard_e2e/caching/process_source_dataset.py`, and a folder
 here shaped like the others. The SDK it needs goes into its `pyproject.toml` only; the
 modules that import that SDK live in its package, and its tests skip themselves
-(`pytest.importorskip`) where the SDK is missing.
+(`pytest.importorskip`) where the SDK is missing. CI runs those tests in the dataset's
+environment: add an entry to the `datasets` matrix in `.github/workflows/tests.yml`, and
+raise `after_n_builds` in [`codecov.yml`](../codecov.yml) by one, since each job uploads
+coverage once.
