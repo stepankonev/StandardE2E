@@ -34,10 +34,22 @@ frames over the 4 s observation window).
 - **aux_data**: the English reasoning trace (situational awareness plus per-phase
   acceleration and steering rationale).
 
-It ships no lidar, HD map or 3D boxes. The released `test` split withholds the futures
-(eval ground truth, encoded as a `[[-100, -100]]` sentinel); only `train` and
-`train_raw` carry real expert and counterfactual futures. The `_raw` splits hold the
-native-resolution frames.
+It ships no lidar, HD map or 3D boxes.
+
+## Splits
+
+Each split is a set of parquet shards `data/<split>-*.parquet`.
+
+| Split | What it holds | Default |
+|---|---|---|
+| `train` | 50.6 GB; the expert and counterfactual futures | on |
+| `val` | 8.5 GB; no real futures | on |
+| `test` | 34.0 GB; futures withheld (eval ground truth, a `[[-100, -100]]` sentinel) | on |
+| `train_raw` | 43.1 GB; `train` at the native resolution | off |
+| `test_raw` | 28.1 GB; `test` at the native resolution | off |
+
+The repository also holds `val_raw`, `train_future`, `val_future`, `train_few_shot`
+and `train_raw_few_shot`, which the processor does not accept.
 
 ## Known issues
 
@@ -70,26 +82,30 @@ then set the paths below and run, from the repository root:
 uvx stepix run datasets/kitscenes_longtail/README.md
 ```
 
-`debug = true` processes only the first scenario of the split, as a smoke test.
-`download = true` fetches the split from Hugging Face first (step 1).
+`debug = true` processes only the first scenario of each split, as a smoke test.
+`download = true` fetches the enabled splits from Hugging Face first (step 1).
 
 ```stepix
 [params]
 input_path = "/path/to/KITScenes-LongTail"   # the dataset root (holds data/) or data/ itself
 output_path = "/path/to/standard_e2e_data"
-split = "train"                               # train, test, train_raw, test_raw or val
 config = "../../configs/kitscenes_longtail.yaml"
 num_workers = 8
 download = false                             # true: fetch the data first (step 1)
 debug = false
+# Splits to preprocess, one step each (see Splits):
+train = true
+val = true
+test = true
+train_raw = false
+test_raw = false
 ```
 
 ### 1. Download (optional)
 
-With `download = true`, this step fetches the `split`'s parquet shards
-(`data/<split>-*`, e.g. 34 GB for `test`) from the gated
-[Hugging Face repo](https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail) into
-`input_path` with the `hf` CLI (run through `uvx`). Accept the dataset's terms on
+With `download = true`, this step fetches the enabled splits' parquet shards from the
+gated [Hugging Face repo](https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail)
+into `input_path` with the `hf` CLI (run through `uvx`). Accept the dataset's terms on
 Hugging Face and log in first (`hf auth login`, or set `HF_TOKEN`); otherwise the
 download is refused. An interrupted download resumes.
 
@@ -101,10 +117,24 @@ if [ {params.download} != true ]; then
     echo "download = false: nothing to download."
     exit 0
 fi
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ {params.train_raw} = true ]; then splits="$splits train_raw"; fi
+if [ {params.test_raw} = true ]; then splits="$splits test_raw"; fi
+set --
+for split in $splits; do
+    set -- "$@" --include "data/$split-*"
+done
+if [ $# -eq 0 ]; then
+    echo "No split is set to true: nothing to download."
+    exit 0
+fi
 uvx --from 'huggingface_hub>=0.34' hf download KIT-MRT/KITScenes-LongTail --repo-type dataset \
-    --include data/{params.split}'-*' --local-dir {params.input_path} || {
+    "$@" --local-dir {params.input_path} || {
     echo "Download failed. If access was denied, accept the terms at" >&2
-    echo "https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail and log in with \'hf auth login\' (or set HF_TOKEN)." >&2
+    echo "https://huggingface.co/datasets/KIT-MRT/KITScenes-LongTail and log in with 'hf auth login' (or set HF_TOKEN)." >&2
     exit 1
 }
 '''
@@ -119,14 +149,26 @@ A split is the `<split>-*.parquet` shards in `data/` (or directly in `input_path
 [steps.check]
 env = "."
 run = '''
-data={params.input_path}/data
-[ -d "$data" ] || data={params.input_path}
-n=$(find "$data" -maxdepth 1 -name {params.split}'-*.parquet' | wc -l)
-if [ "$n" -eq 0 ]; then
-    echo "No {params.split}-*.parquet shards in" "$data" >&2
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ {params.train_raw} = true ]; then splits="$splits train_raw"; fi
+if [ {params.test_raw} = true ]; then splits="$splits test_raw"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true." >&2
     exit 1
 fi
-echo "Found $n {params.split} shard(s)."
+data={params.input_path}/data
+[ -d "$data" ] || data={params.input_path}
+for split in $splits; do
+    n=$(find "$data" -maxdepth 1 -name "$split-*.parquet" | wc -l)
+    if [ "$n" -eq 0 ]; then
+        echo "No $split-*.parquet shards in" "$data" >&2
+        exit 1
+    fi
+    echo "Found $n $split shard(s)."
+done
 '''
 requires = ["download"]
 cache = true
@@ -134,21 +176,101 @@ cache = true
 
 ### 3. Preprocess
 
-Writes `<output_path>/kitscenes_longtail/<split>/` (one `.npz` per frame plus
-`index.parquet`).
+One step per split: each writes `<output_path>/kitscenes_longtail/<split>/` (one `.npz` per frame
+plus `index.parquet`) when its split's param is `true`. stepix caches each split's step
+on its own, so turning a split on or off, or a failure in one, leaves the others alone.
 
 ```stepix
-[steps.preprocess]
+[steps.preprocess_train]
 env = "."
 run = '''
+if [ {params.train} != true ]; then
+    echo "train = false: skipped."
+    exit 0
+fi
 STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset kitscenes_longtail \
     --input_path={params.input_path} \
     --output_path={params.output_path} \
-    --split={params.split} \
+    --split=train \
     --num_workers={params.num_workers} \
     --config_file={params.config} \
     --do_parallel_processing
 '''
-requires = ["check"]
+cache = true
+```
+
+```stepix
+[steps.preprocess_val]
+env = "."
+run = '''
+if [ {params.val} != true ]; then
+    echo "val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset kitscenes_longtail \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test]
+env = "."
+run = '''
+if [ {params.test} != true ]; then
+    echo "test = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset kitscenes_longtail \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=test \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_train_raw]
+env = "."
+run = '''
+if [ {params.train_raw} != true ]; then
+    echo "train_raw = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset kitscenes_longtail \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=train_raw \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test_raw]
+env = "."
+run = '''
+if [ {params.test_raw} != true ]; then
+    echo "test_raw = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset kitscenes_longtail \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=test_raw \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
 cache = true
 ```

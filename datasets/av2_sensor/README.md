@@ -24,6 +24,16 @@ lidars merged into one 10 Hz sweep, 3D cuboid annotations and a per-log vector H
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator`.
 
+## Splits
+
+The dataset ships three splits, one folder each under `input_path`.
+
+| Split | What it holds | Default |
+|---|---|---|
+| `train` | 700 logs with 3D cuboid annotations | on |
+| `val` | 150 logs with 3D cuboid annotations | on |
+| `test` | 150 logs; annotations withheld, so the frames carry no boxes | on |
+
 ## Known issues
 
 - **NaN heights in the vector maps** (source data). Some logs' map JSON stores NaN
@@ -53,25 +63,28 @@ set the paths below, then run, from the repository root:
 uvx stepix run datasets/av2_sensor/README.md
 ```
 
-`debug = true` processes only the first log, as a smoke test.
-`download = true` copies the split from the public Argoverse bucket first (step 1).
+`debug = true` processes only the first log of each split, as a smoke test.
+`download = true` copies the enabled splits from the public Argoverse bucket first (step 1).
 
 ```stepix
 [params]
 input_path = "/path/to/argoverse2/sensor"   # holds train/, val/, test/
 output_path = "/path/to/standard_e2e_data"
-split = "train"                              # train, val or test
 config = "../../configs/base.yaml"
 num_workers = 8
 download = false                            # true: fetch the data first (step 1)
 debug = false
+# Splits to preprocess, one step each (see Splits):
+train = true
+val = true
+test = true
 ```
 
 ### 1. Download (optional)
 
-With `download = true`, this step copies the `split`'s logs from the public Argoverse
-bucket into `input_path/<split>/` with [s5cmd](https://github.com/peak/s5cmd) (run
-through `uvx`), as the
+With `download = true`, this step copies the enabled splits' logs from the public
+Argoverse bucket into `input_path/<split>/` with [s5cmd](https://github.com/peak/s5cmd)
+(run through `uvx`), as the
 [Argoverse User Guide](https://argoverse.github.io/user-guide/getting_started.html)
 suggests, skipping files already there. No account is needed.
 
@@ -83,30 +96,49 @@ if [ {params.download} != true ]; then
     echo "download = false: nothing to download."
     exit 0
 fi
-uvx s5cmd --no-sign-request cp --no-clobber \
-    "s3://argoverse/datasets/av2/sensor/"{params.split}"/*" \
-    {params.input_path}/{params.split}/
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true: nothing to download."
+    exit 0
+fi
+for split in $splits; do
+    uvx s5cmd --no-sign-request cp --no-clobber \
+        "s3://argoverse/datasets/av2/sensor/$split/*" {params.input_path}/"$split"/ || exit 1
+done
 '''
 cache = true
 ```
 
 ### 2. Check the input
 
-Each split folder holds one directory per log, with its sweeps in `sensors/lidar/`
-(only the first log is inspected, so the check stays quick on a full split).
+Each enabled split folder holds one directory per log, with its sweeps in
+`sensors/lidar/` (only the first log is inspected, so the check stays quick).
 
 ```stepix
 [steps.check]
 env = "."
 run = '''
-logs={params.input_path}/{params.split}
-n=$(find "$logs" -mindepth 1 -maxdepth 1 -type d | wc -l)
-first=$(find "$logs" -mindepth 1 -maxdepth 1 -type d | sort | head -n 1)
-if [ "$n" -eq 0 ] || [ ! -d "$first/sensors/lidar" ]; then
-    echo "No <log>/sensors/lidar/ directories in" "$logs" >&2
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true." >&2
     exit 1
 fi
-echo "Found $n {params.split} log(s)."
+for split in $splits; do
+    logs={params.input_path}/"$split"
+    n=$(find "$logs" -mindepth 1 -maxdepth 1 -type d | wc -l)
+    first=$(find "$logs" -mindepth 1 -maxdepth 1 -type d | sort | head -n 1)
+    if [ "$n" -eq 0 ] || [ ! -d "$first/sensors/lidar" ]; then
+        echo "No <log>/sensors/lidar/ directories in" "$logs" >&2
+        exit 1
+    fi
+    echo "Found $n $split log(s)."
+done
 '''
 requires = ["download"]
 cache = true
@@ -114,20 +146,63 @@ cache = true
 
 ### 3. Preprocess
 
-Writes `<output_path>/av2_sensor/<split>/` (one `.npz` per frame plus `index.parquet`).
+One step per split: each writes `<output_path>/av2_sensor/<split>/` (one `.npz` per frame
+plus `index.parquet`) when its split's param is `true`. stepix caches each split's step
+on its own, so turning a split on or off, or a failure in one, leaves the others alone.
 
 ```stepix
-[steps.preprocess]
+[steps.preprocess_train]
 env = "."
 run = '''
+if [ {params.train} != true ]; then
+    echo "train = false: skipped."
+    exit 0
+fi
 STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset av2_sensor \
     --input_path={params.input_path} \
     --output_path={params.output_path} \
-    --split={params.split} \
+    --split=train \
     --num_workers={params.num_workers} \
     --config_file={params.config} \
     --do_parallel_processing
 '''
-requires = ["check"]
+cache = true
+```
+
+```stepix
+[steps.preprocess_val]
+env = "."
+run = '''
+if [ {params.val} != true ]; then
+    echo "val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset av2_sensor \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test]
+env = "."
+run = '''
+if [ {params.test} != true ]; then
+    echo "test = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset av2_sensor \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=test \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
 cache = true
 ```

@@ -29,11 +29,25 @@ a separate vector HD map ("map expansion").
   and boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator`.
 
-The `split` param is an official nuScenes label that also picks the metadata version:
-`mini_train` / `mini_val` → `v1.0-mini`, `train` / `val` → `v1.0-trainval`, `test` →
-`v1.0-test` (no annotations). The five radars have no StandardE2E target yet. A
-partially downloaded trainval converts cleanly: scenes whose sensor files are not on disk
-are skipped.
+The five radars have no StandardE2E target yet. A partially downloaded trainval
+converts cleanly: scenes whose sensor files are not on disk are skipped.
+
+## Splits
+
+Each split is an official nuScenes label, read from the metadata version it lives in
+under `dataroot`.
+
+| Split | What it holds | Default |
+|---|---|---|
+| `train` | 700 annotated scenes of `v1.0-trainval` | on |
+| `val` | 150 annotated scenes of `v1.0-trainval` | on |
+| `test` | 150 scenes of `v1.0-test`; annotations withheld | on |
+| `mini_train` | 8 scenes of `v1.0-mini`, the separate small release | off |
+| `mini_val` | 2 scenes of `v1.0-mini` | off |
+
+The mini scenes are a subset of `train` / `val`. With only `v1.0-mini` (e.g. from
+`download = true`), set `train`, `val` and `test` to `false` and the mini splits to
+`true`.
 
 ## Known issues
 
@@ -75,27 +89,33 @@ below, then run, from the repository root:
 uvx stepix run datasets/nuscenes/README.md
 ```
 
-`debug = true` processes only the first scene of the split, as a smoke test.
-With a `mini_*` split, `download = true` fetches `v1.0-mini.tgz` first (step 1).
+`debug = true` processes only the first scene of each split, as a smoke test.
+With only mini splits enabled, `download = true` fetches `v1.0-mini.tgz` first (step 1).
 
 ```stepix
 [params]
 archives = "/path/to/nuscenes_archives"     # "" when dataroot is already extracted
 dataroot = "/path/to/nuscenes"              # extracted dataset (written by step 2)
 output_path = "/path/to/standard_e2e_data"
-split = "mini_val"                          # mini_train, mini_val, train, val or test
 config = "../../configs/nuscenes.yaml"
 num_workers = 8
 download = false                            # true: fetch the data first (step 1)
 debug = false
+# Splits to preprocess, one step each (see Splits):
+train = true
+val = true
+test = true
+mini_train = false
+mini_val = false
 ```
 
 ### 1. Download (optional)
 
-With `download = true` and a `mini_*` split, this step fetches `v1.0-mini.tgz` (4.2 GB)
-into `archives` from nuScenes' public URL; step 2 then extracts it. The other splits'
-archives and the map expansion are behind the nuScenes login, so for them the step
-stops and says where to get them. Without the map expansion the HD map is skipped.
+With `download = true`, this step fetches `v1.0-mini.tgz` (4.2 GB) into `archives`
+from nuScenes' public URL when only mini splits are enabled; step 2 then extracts it.
+The full release's archives and the map expansion are behind the nuScenes login, so
+with `train`, `val` or `test` enabled the step stops and says where to get them.
+Without the map expansion the HD map is skipped.
 
 ```stepix
 [steps.download]
@@ -105,14 +125,27 @@ if [ {params.download} != true ]; then
     echo "download = false: nothing to download."
     exit 0
 fi
-case {params.split} in
-    mini_*) ;;
-    *)
-        echo "Only v1.0-mini downloads without a login. Get the" {params.split} "archives from" >&2
-        echo "https://www.nuscenes.org/download into archives, then set download = false." >&2
-        exit 1
-        ;;
-esac
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ {params.mini_train} = true ]; then splits="$splits mini_train"; fi
+if [ {params.mini_val} = true ]; then splits="$splits mini_val"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true: nothing to download."
+    exit 0
+fi
+for split in $splits; do
+    case $split in
+        mini_*) ;;
+        *)
+            echo "Only v1.0-mini downloads without a login. Get the $split archives from" >&2
+            echo "https://www.nuscenes.org/download into archives and set download = false," >&2
+            echo "or set train, val and test to false and use the mini splits." >&2
+            exit 1
+            ;;
+    esac
+done
 if [ -z {params.archives} ]; then
     echo "download = true needs archives: the folder to download into." >&2
     exit 1
@@ -149,21 +182,33 @@ cache = true
 [steps.check]
 env = "."
 run = '''
-case {params.split} in
-    mini_*) version=v1.0-mini ;;
-    test) version=v1.0-test ;;
-    *) version=v1.0-trainval ;;
-esac
-for p in "$version/scene.json" "$version/sample_data.json" samples; do
-    if [ ! -e {params.dataroot}/"$p" ]; then
-        echo "Missing" {params.dataroot}/"$p" >&2
-        exit 1
-    fi
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ {params.mini_train} = true ]; then splits="$splits mini_train"; fi
+if [ {params.mini_val} = true ]; then splits="$splits mini_val"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true." >&2
+    exit 1
+fi
+for split in $splits; do
+    case $split in
+        mini_*) version=v1.0-mini ;;
+        test) version=v1.0-test ;;
+        *) version=v1.0-trainval ;;
+    esac
+    for p in "$version/scene.json" "$version/sample_data.json" samples; do
+        if [ ! -e {params.dataroot}/"$p" ]; then
+            echo "Missing" {params.dataroot}/"$p" "(needed by $split)" >&2
+            exit 1
+        fi
+    done
+    echo "Found nuScenes $version for $split."
 done
 if [ ! -d {params.dataroot}/maps/expansion ]; then
     echo "No maps/expansion/ in" {params.dataroot} "- the HD map will be skipped."
 fi
-echo "Found nuScenes $version."
 '''
 requires = ["extract"]
 cache = true
@@ -171,20 +216,101 @@ cache = true
 
 ### 4. Preprocess
 
-Writes `<output_path>/nuscenes/<split>/` (one `.npz` per frame plus `index.parquet`).
+One step per split: each writes `<output_path>/nuscenes/<split>/` (one `.npz` per frame
+plus `index.parquet`) when its split's param is `true`. stepix caches each split's step
+on its own, so turning a split on or off, or a failure in one, leaves the others alone.
 
 ```stepix
-[steps.preprocess]
+[steps.preprocess_train]
 env = "."
 run = '''
+if [ {params.train} != true ]; then
+    echo "train = false: skipped."
+    exit 0
+fi
 STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset nuscenes \
     --input_path={params.dataroot} \
     --output_path={params.output_path} \
-    --split={params.split} \
+    --split=train \
     --num_workers={params.num_workers} \
     --config_file={params.config} \
     --do_parallel_processing
 '''
-requires = ["check"]
+cache = true
+```
+
+```stepix
+[steps.preprocess_val]
+env = "."
+run = '''
+if [ {params.val} != true ]; then
+    echo "val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset nuscenes \
+    --input_path={params.dataroot} \
+    --output_path={params.output_path} \
+    --split=val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test]
+env = "."
+run = '''
+if [ {params.test} != true ]; then
+    echo "test = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset nuscenes \
+    --input_path={params.dataroot} \
+    --output_path={params.output_path} \
+    --split=test \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_mini_train]
+env = "."
+run = '''
+if [ {params.mini_train} != true ]; then
+    echo "mini_train = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset nuscenes \
+    --input_path={params.dataroot} \
+    --output_path={params.output_path} \
+    --split=mini_train \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_mini_val]
+env = "."
+run = '''
+if [ {params.mini_val} != true ]; then
+    echo "mini_val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset nuscenes \
+    --input_path={params.dataroot} \
+    --output_path={params.output_path} \
+    --split=mini_val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
 cache = true
 ```

@@ -23,8 +23,16 @@ split, rater-scored preference trajectories. It ships as sharded TFRecords of
 - **preference_trajectory**: the rater-scored trajectories with their scores, where the
   frame has any (scores sum to more than zero).
 
-The `test` split withholds the challenge's ground truth: its frames have no
-`future_states` and no rater-scored trajectories.
+## Splits
+
+The release ships three splits, all in `input_path`'s top folder as
+`<split>_*.tfrecord-*` shards.
+
+| Split | What it holds | Default |
+|---|---|---|
+| `training` | 263 TFRecord shards with the past and future ego trajectories | on |
+| `val` | 93 shards; also the rater-scored preference trajectories | on |
+| `test` | 266 shards; the challenge's ground truth is withheld: no `future_states` and no rater-scored trajectories | on |
 
 ## Known issues
 
@@ -53,30 +61,33 @@ page, set the paths below, then run, from the repository root:
 uvx stepix run datasets/waymo_e2e/README.md
 ```
 
-`debug = true` processes only the first TFRecord file, as a smoke test (it cuts runs
-at the file boundary, so use it only to check the setup).
-`download = true` copies the split from Waymo's bucket first (step 1), with your Google
-account.
+`debug = true` processes only the first TFRecord file of each split, as a smoke test (it
+cuts runs at the file boundary, so use it only to check the setup).
+`download = true` copies the enabled splits from Waymo's bucket first (step 1), with your
+Google account.
 
 ```stepix
 [params]
 input_path = "/path/to/waymo_open_dataset_end_to_end_camera_v_1_0_0"
 output_path = "/path/to/standard_e2e_data"
-split = "training"                      # training, val or test
 config = "../../configs/base.yaml"
 num_workers = 8
 download = false                        # true: fetch the data first (step 1)
 debug = false
+# Splits to preprocess, one step each (see Splits):
+training = true
+val = true
+test = true
 ```
 
 ### 1. Download (optional)
 
-With `download = true`, this step copies the `split`'s TFRecords from Waymo's Cloud
-Storage bucket into `input_path` with the
+With `download = true`, this step copies the enabled splits' TFRecords from Waymo's
+Cloud Storage bucket into `input_path` with the
 [Google Cloud CLI](https://cloud.google.com/sdk/docs/install), skipping files already
-there (263 `training`, 93 `val` and 266 `test` files). It needs `gcloud` logged in
-(`gcloud auth login`) with a Google account registered for the
-[Waymo Open Dataset](https://waymo.com/open/); otherwise the copy is denied.
+there. It needs `gcloud` logged in (`gcloud auth login`) with a Google account
+registered for the [Waymo Open Dataset](https://waymo.com/open/); otherwise the copy is
+denied.
 
 ```stepix
 [steps.download]
@@ -90,32 +101,53 @@ if ! command -v gcloud >/dev/null; then
     echo "download = true needs the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" >&2
     exit 1
 fi
+splits=""
+if [ {params.training} = true ]; then splits="$splits training"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true: nothing to download."
+    exit 0
+fi
 mkdir -p {params.input_path}
-gcloud storage cp --no-clobber \
-    "gs://waymo_open_dataset_end_to_end_camera_v_1_0_0/"{params.split}"_*.tfrecord-*" \
-    {params.input_path}/ || {
-    echo "Copy failed. If access was denied, register this Google account at" >&2
-    echo "https://waymo.com/open/ and log in with 'gcloud auth login'." >&2
-    exit 1
-}
+for split in $splits; do
+    gcloud storage cp --no-clobber \
+        "gs://waymo_open_dataset_end_to_end_camera_v_1_0_0/${split}_*.tfrecord-*" \
+        {params.input_path}/ || {
+        echo "Copy failed. If access was denied, register this Google account at" >&2
+        echo "https://waymo.com/open/ and log in with 'gcloud auth login'." >&2
+        exit 1
+    }
+done
 '''
 cache = true
 ```
 
 ### 2. Check the input
 
-The split's shards are the `<split>*.tfrecord*` files directly inside `input_path`.
+Each enabled split's shards are the `<split>*.tfrecord*` files directly inside
+`input_path`.
 
 ```stepix
 [steps.check]
 env = "."
 run = '''
-n=$(find {params.input_path} -maxdepth 1 -name {params.split}'*.tfrecord*' | wc -l)
-if [ "$n" -eq 0 ]; then
-    echo "No {params.split}*.tfrecord* files in" {params.input_path} >&2
+splits=""
+if [ {params.training} = true ]; then splits="$splits training"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true." >&2
     exit 1
 fi
-echo "Found $n {params.split} TFRecord file(s)."
+for split in $splits; do
+    n=$(find {params.input_path} -maxdepth 1 -name "${split}*.tfrecord*" | wc -l)
+    if [ "$n" -eq 0 ]; then
+        echo "No ${split}*.tfrecord* files in" {params.input_path} >&2
+        exit 1
+    fi
+    echo "Found $n $split TFRecord file(s)."
+done
 '''
 requires = ["download"]
 cache = true
@@ -123,21 +155,64 @@ cache = true
 
 ### 3. Preprocess
 
-Writes `<output_path>/waymo_e2e/<split>/` (one `.npz` per frame plus `index.parquet`).
+One step per split: each writes `<output_path>/waymo_e2e/<split>/` (one `.npz` per frame
+plus `index.parquet`) when its split's param is `true`. stepix caches each split's step
+on its own, so turning a split on or off, or a failure in one, leaves the others alone.
 
 ```stepix
-[steps.preprocess]
+[steps.preprocess_training]
 env = "."
 run = '''
+if [ {params.training} != true ]; then
+    echo "training = false: skipped."
+    exit 0
+fi
 STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset waymo_e2e \
     --input_path={params.input_path} \
     --output_path={params.output_path} \
-    --split={params.split} \
+    --split=training \
     --num_workers={params.num_workers} \
     --config_file={params.config} \
     --do_parallel_processing
 '''
-requires = ["check"]
+cache = true
+```
+
+```stepix
+[steps.preprocess_val]
+env = "."
+run = '''
+if [ {params.val} != true ]; then
+    echo "val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test]
+env = "."
+run = '''
+if [ {params.test} != true ]; then
+    echo "test = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset waymo_e2e \
+    --input_path={params.input_path} \
+    --output_path={params.output_path} \
+    --split=test \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
 cache = true
 ```
 

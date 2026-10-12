@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Extract KITScenes Multimodal scene tarballs into a flat scenes directory.
+# Extract KITScenes Multimodal scene tarballs, keeping their split folders.
 #
 # KITScenes Multimodal ships on Hugging Face as data/<split>/<scene_uuid>.tar;
 # each tar unpacks to a <scene_uuid>/ directory. This script extracts every *.tar
-# found under SRC into DEST/<scene_uuid>/ (idempotent: a scene whose calibration
-# is already present is skipped).
+# found under SRC into DEST/<split>/<scene_uuid>/, so the processor can select
+# scenes by split; a tar outside a split folder goes to DEST/<scene_uuid>/.
+# Re-runs are idempotent: a scene whose calibration is already present is skipped.
 #
 # Usage: extract.sh <SRC_dir_with_tars> <DEST_scenes_dir>
 #   SRC_dir_with_tars  "" when DEST_scenes_dir is already extracted (nothing to do)
@@ -27,11 +28,17 @@ fi
 
 for tar_path in "${tars[@]}"; do
     uuid="$(basename "$tar_path" .tar)"
-    if [ -f "$DEST/$uuid/calibration/calib.json" ]; then
+    folder="$(basename "$(dirname "$tar_path")")"
+    case "$folder" in
+        train|val|validation|test|test_e2e|test-e2e|overlap_train_val) out="$DEST/$folder" ;;
+        *) out="$DEST" ;;
+    esac
+    if [ -f "$out/$uuid/calibration/calib.json" ]; then
         echo "skip $uuid (already extracted)"
         continue
     fi
-    echo "extracting $uuid"
-    tar -xf "$tar_path" -C "$DEST"
+    echo "extracting $uuid into $out"
+    mkdir -p "$out"
+    tar -xf "$tar_path" -C "$out"
 done
 echo "Extracted ${#tars[@]} tar(s) into $DEST"

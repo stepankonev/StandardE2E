@@ -3,8 +3,8 @@
 [NAVSIM](https://github.com/autonomousvision/navsim) builds on OpenScene-v1.1, a
 redistribution of nuPlan: per-log pickles of frame dicts, a `sensor_blobs` tree with
 eight camera JPEGs and a merged lidar point cloud per frame, and the nuPlan HD maps.
-Only the `trainval` split is published; train/val/test subsets are sampled from it
-(NAVSIM's `SceneFilter`, or filters on the produced `index.parquet`).
+Its train and test subsets are scene filters (NAVSIM's `SceneFilter`, or filters on the
+produced `index.parquet`) over OpenScene's splits.
 
 | Cameras | LiDAR | HD map | 3D detections | Driving command | Preference trajectories |
 |---|---|---|---|---|---|
@@ -30,6 +30,12 @@ Only the `trainval` split is published; train/val/test subsets are sampled from 
 StandardE2E reads the pickles and JPEGs itself, and nuplan-devkit's `PointCloud` parses
 the PCDs. The `navsim` package is not a dependency: it pins NumPy 1.23 and PyTorch 2.0,
 which have no Python 3.12 wheels.
+
+## Splits
+
+OpenScene-v1.1 publishes `trainval`, `test` and `mini` (NAVSIM's download scripts fetch
+each). The NAVSIM processor accepts `trainval` only, so the pipeline preprocesses that
+split; `test` and `mini` are not supported yet.
 
 ## Known issues
 

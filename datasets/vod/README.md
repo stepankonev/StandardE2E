@@ -29,8 +29,18 @@ KITTI-format 3D labels.
 
 The 3+1D radar (`radar` / `radar_3frames` / `radar_5frames`) has no StandardE2E modality
 yet and is not ingested. The detection release ships no per-frame timestamps, so they
-are synthesised at the 10 Hz lidar rate. The `test` split has sensor data but no labels
-(no detections).
+are synthesised at the 10 Hz lidar rate.
+
+## Splits
+
+The detection release ships three splits as official scene assignments; the pipeline
+groups frames into scenes with the scene table from the devkit's documentation.
+
+| Split | What it holds | Default |
+|---|---|---|
+| `train` | 13 labelled recording scenes (`lidar/training/`) | on |
+| `val` | 4 labelled scenes (`lidar/training/`) | on |
+| `test` | 7 scenes (`lidar/testing/`); labels withheld, so the frames carry no boxes | on |
 
 ## Known issues
 
@@ -63,7 +73,7 @@ below, then run, from the repository root:
 uvx stepix run datasets/vod/README.md
 ```
 
-`debug = true` processes only the first scene of the split, as a smoke test.
+`debug = true` processes only the first scene of each split, as a smoke test.
 
 ```stepix
 [params]
@@ -71,10 +81,13 @@ detection_zip = "/path/to/view_of_delft_detection_PUBLIC.zip"   # "" if already 
 track_ids_zip = "/path/to/label_2_with_track_ids.zip"           # "" to keep the base labels
 extracted_path = "/path/to/vod_extracted"
 output_path = "/path/to/standard_e2e_data"
-split = "train"                                                  # train, val or test
 config = "../../configs/vod.yaml"
 num_workers = 8
 debug = false
+# Splits to preprocess, one step each (see Splits):
+train = true
+val = true
+test = true
 ```
 
 ### 1. Extract the archives
@@ -97,12 +110,26 @@ cache = true
 [steps.check]
 env = "."
 run = '''
-root={params.extracted_path}/view_of_delft_PUBLIC/lidar
-if [ ! -d "$root/training/velodyne" ] && [ ! -d "$root/testing/velodyne" ]; then
-    echo "No lidar/training/velodyne/ or lidar/testing/velodyne/ in" "$root" >&2
+splits=""
+if [ {params.train} = true ]; then splits="$splits train"; fi
+if [ {params.val} = true ]; then splits="$splits val"; fi
+if [ {params.test} = true ]; then splits="$splits test"; fi
+if [ -z "$splits" ]; then
+    echo "No split is set to true." >&2
     exit 1
 fi
-echo "Found the VoD lidar tree in $root."
+root={params.extracted_path}/view_of_delft_PUBLIC/lidar
+for split in $splits; do
+    case $split in
+        test) subdir=testing ;;
+        *) subdir=training ;;
+    esac
+    if [ ! -d "$root/$subdir/velodyne" ]; then
+        echo "No lidar/$subdir/velodyne/ (needed by $split) in" "$root" >&2
+        exit 1
+    fi
+    echo "Found lidar/$subdir/ for $split."
+done
 '''
 requires = ["extract"]
 cache = true
@@ -110,20 +137,63 @@ cache = true
 
 ### 3. Preprocess
 
-Writes `<output_path>/vod/<split>/` (one `.npz` per frame plus `index.parquet`).
+One step per split: each writes `<output_path>/vod/<split>/` (one `.npz` per frame
+plus `index.parquet`) when its split's param is `true`. stepix caches each split's step
+on its own, so turning a split on or off, or a failure in one, leaves the others alone.
 
 ```stepix
-[steps.preprocess]
+[steps.preprocess_train]
 env = "."
 run = '''
+if [ {params.train} != true ]; then
+    echo "train = false: skipped."
+    exit 0
+fi
 STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset vod \
     --input_path={params.extracted_path}/view_of_delft_PUBLIC \
     --output_path={params.output_path} \
-    --split={params.split} \
+    --split=train \
     --num_workers={params.num_workers} \
     --config_file={params.config} \
     --do_parallel_processing
 '''
-requires = ["check"]
+cache = true
+```
+
+```stepix
+[steps.preprocess_val]
+env = "."
+run = '''
+if [ {params.val} != true ]; then
+    echo "val = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset vod \
+    --input_path={params.extracted_path}/view_of_delft_PUBLIC \
+    --output_path={params.output_path} \
+    --split=val \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
+cache = true
+```
+
+```stepix
+[steps.preprocess_test]
+env = "."
+run = '''
+if [ {params.test} != true ]; then
+    echo "test = false: skipped."
+    exit 0
+fi
+STANDARD_E2E_DEBUG={params.debug} python -m standard_e2e.caching.process_source_dataset vod \
+    --input_path={params.extracted_path}/view_of_delft_PUBLIC \
+    --output_path={params.output_path} \
+    --split=test \
+    --num_workers={params.num_workers} \
+    --config_file={params.config} \
+    --do_parallel_processing
+'''
 cache = true
 ```

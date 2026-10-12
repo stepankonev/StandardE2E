@@ -3,9 +3,9 @@
 Each supported dataset has a folder here with everything needed to turn its raw
 download into StandardE2E's processed format:
 
-- `README.md`: what the dataset is, what StandardE2E extracts from it, its **known
-  issues** (problems in the source data or its SDK, and StandardE2E bugs not fixed yet)
-  and the preprocessing **pipeline**, as [stepix](https://github.com/stepankonev/stepix)
+- `README.md`: what the dataset is, what StandardE2E extracts from it, its **splits**, its
+  **known issues** (problems in the source data or its SDK, and StandardE2E bugs not fixed
+  yet) and the preprocessing **pipeline**, as [stepix](https://github.com/stepankonev/stepix)
   steps;
 - `pyproject.toml`, `uv.lock` and `.python-version`: the dataset's own isolated
   [uv](https://docs.astral.sh/uv/) environment, with StandardE2E (this checkout) plus
@@ -27,12 +27,14 @@ uvx stepix run datasets/<name>/README.md
 ```
 
 Each pipeline checks that the input looks right, extracts archives where the dataset
-ships them, and preprocesses one split into `<output_path>/<name>/<split>/`. On the first
-run stepix also builds the dataset's environment in `datasets/<name>/.venv/`. Steps that
-succeeded are skipped on later runs unless a param they use changed; `--no-cache` reruns
-them, and `--step NAME` / `--from NAME` select steps. Logs and state go to
-`datasets/<name>/.stepix/`. Every README has a `debug` param that processes a single
-unit (file, log or scene) as a smoke test.
+ships them, and preprocesses every split it supports, one step per split, into
+`<output_path>/<name>/<split>/`; each README's Splits section lists them, and a param
+per split turns it on or off. On the first run stepix also builds the dataset's
+environment in `datasets/<name>/.venv/`. Steps that succeeded are skipped on later runs
+unless a param they use changed; `--no-cache` reruns them, and `--step NAME` /
+`--from NAME` select steps. Logs and state go to `datasets/<name>/.stepix/`. Every README
+has a `debug` param that processes a single unit (file, log or scene) of each split as a
+smoke test.
 
 Where the data can be fetched by a script, the README also has a `download` param (off by
 default). With `download = true`, step 1 fetches the selected split with the dataset's own
