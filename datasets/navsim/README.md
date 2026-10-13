@@ -42,13 +42,12 @@ split; `test` and `mini` are not supported yet.
 - **nuplan-devkit writes into the maps root** (nuplan-devkit). Its map database
   creates `<maps root>/.maplocks/` on start-up, which fails on a read-only dataset mount;
   step 2 builds a writable mirror for it.
-- **Future detections are off by up to 0.25–0.5 m** (StandardE2E bug, not fixed yet).
-  `global_position` is a float32 `Trajectory` of nuPlan's UTM coordinates, whose
-  northings are around 4 × 10⁶ m in Las Vegas, Boston and Pittsburgh. There float32
-  resolves 0.25 m, or 0.5 m above 4,194,304 m (Boston, Pittsburgh), and
-  `FutureDetectionsAggregator` moves future boxes into the current ego frame with these
-  rounded positions. The ego pose matrix is float64, so the past/future ego trajectories
-  and the HD map are exact.
+- **`global_position` is rounded to a 0.25–0.5 m grid** (StandardE2E limitation). It
+  is a float32 `Trajectory` of nuPlan's UTM coordinates, whose northings are around
+  4 × 10⁶ m in Las Vegas, Boston and Pittsburgh. There float32 resolves 0.25 m, or
+  0.5 m above 4,194,304 m (Boston, Pittsburgh). StandardE2E computes nothing from it:
+  the past/future ego trajectories, future detections and HD map use the float64 ego
+  pose, stored exactly in `aux_data["pose_matrix"]`.
 
 ## Environment
 

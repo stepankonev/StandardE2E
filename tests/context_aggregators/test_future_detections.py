@@ -171,3 +171,43 @@ def test_future_detections_yaw_only_world_translation(tmp_path: Path):
     np.testing.assert_allclose(
         fd.detections[0].trajectory.get([TC.X, TC.Y])[0], expected_xy, atol=1e-5
     )
+
+
+def test_future_detections_use_pose_matrix_at_utm_scale(tmp_path: Path):
+    # NAVSIM-style UTM poses: float32 global_position only resolves 0.5 m above
+    # 4,194,304 m, so the ego motion must come from the float64 pose matrix.
+    ego_C = (588123.4567, 4475123.4567, 0.0)
+    ego_F = (ego_C[0] + 1.1, ego_C[1] + 0.3, 0.0)
+    det_egoF_xy = np.array([10.0, 5.0])
+
+    detection = Detection3D(
+        unique_agent_id="utm",
+        detection_type=DetectionType.VEHICLE,
+        trajectory=Trajectory(
+            {
+                TC.TIMESTAMP: [1.0],
+                TC.X: [det_egoF_xy[0]],
+                TC.Y: [det_egoF_xy[1]],
+                TC.HEADING: [0.0],
+            }
+        ),
+    )
+    frames = [
+        _make_frame("seg3", 0, 0.0, ego_C, detections=[]),
+        _make_frame("seg3", 1, 1.0, ego_F, detections=[detection]),
+    ]
+    for frame, (x, y, _) in zip(frames, (ego_C, ego_F)):
+        pose = np.eye(4)
+        pose[0, 3], pose[1, 3] = x, y
+        frame.aux_data = {"pose_matrix": pose}
+        _save(frame, tmp_path)
+
+    FutureDetectionsAggregator(str(tmp_path)).process(_index(frames))
+
+    reloaded = TransformedFrameData.from_npz(os.path.join(tmp_path, frames[0].filename))
+    fd: FrameDetections3D = reloaded.get_modality_data(Modality.DETECTIONS_3D)
+    np.testing.assert_allclose(
+        fd.detections[0].trajectory.get([TC.X, TC.Y])[0],
+        det_egoF_xy + np.array([1.1, 0.3]),
+        atol=1e-5,
+    )
