@@ -85,6 +85,8 @@ _WAYVE_CAM_TO_DIRECTION: dict[str, CameraDirection] = {
     "left-backward": CameraDirection.REAR_LEFT,
     "right-backward": CameraDirection.REAR_RIGHT,
 }
+# Image file stems are integer timestamps in microseconds (10 Hz -> 100000 apart).
+_US_PER_SECOND = 1e6
 # Reference camera that defines the ego frame for each timestamp.
 _REFERENCE_CAMERA = "front-forward"
 
@@ -319,11 +321,11 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
             dataset_name=self.dataset_name,
             segment_id=scene_dir.name,
             frame_id=ts,
-            timestamp=ts / 1e9,
+            timestamp=ts / _US_PER_SECOND,
             split=self._split,
             global_position=Trajectory(
                 {
-                    TC.TIMESTAMP: [ts / 1e9],
+                    TC.TIMESTAMP: [ts / _US_PER_SECOND],
                     TC.X: [x],
                     TC.Y: [y],
                     TC.Z: [z],

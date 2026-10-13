@@ -27,6 +27,7 @@ from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_process
     _world_from_cam_flu,
 )
 from standard_e2e.enums import CameraDirection
+from standard_e2e.enums import TrajectoryComponent as TC
 
 # Real-frame checks read an extracted scene only from this env var; no
 # machine-specific path is hard-coded. They skip when it is unset.
@@ -104,6 +105,37 @@ def test_lidar_uses_world_to_ego_not_ego_to_world(tmp_path):
     np.testing.assert_allclose(at_car, [0, 0, 0], atol=1e-4)  # car -> origin
     np.testing.assert_allclose(ahead, [10, 0, 0], atol=1e-4)  # forward -> +x
     np.testing.assert_allclose(behind, [-10, 0, 0], atol=1e-4)  # behind  -> -x
+
+
+def test_timestamps_are_microseconds(tmp_path):
+    """Image stems are 16-digit microsecond stamps, 100000 apart at 10 Hz.
+
+    Regression guard for reading them as nanoseconds, which made every frame
+    timestamp (and the trajectory delta_t derived from it) 1000x too small.
+    Synthetic, so it always runs (no dataset needed).
+    """
+    proc = WayveScenesDatasetProcessor(
+        common_output_path=str(tmp_path),
+        split="test",
+        adapters=[],
+        context_aggregators=[],
+    )
+    ts0 = 1_620_000_000_000_000  # 2021-05-03, in microseconds
+    ts1 = ts0 + 100_000  # next frame at 10 Hz
+    scene = tmp_path / "scene_synth"
+    proc._ego_pose = {ts0: np.eye(4), ts1: np.eye(4)}
+    proc._frame_cams = {ts0: {}, ts1: {}}
+    proc._cached_scene_dir = scene  # makes _refresh_scene_cache a no-op
+
+    fd0 = proc._prepare_standardized_frame_data((str(scene), ts0))
+    fd1 = proc._prepare_standardized_frame_data((str(scene), ts1))
+    assert fd0.timestamp == pytest.approx(1_620_000_000.0)
+    assert fd1.timestamp - fd0.timestamp == pytest.approx(0.1)
+    # Trajectories store float32, so only the unit (not 0.1 s) is pinned here.
+    assert fd0.global_position is not None
+    np.testing.assert_allclose(
+        fd0.global_position.get(TC.TIMESTAMP), [[fd0.timestamp]], rtol=1e-6
+    )
 
 
 def test_lidar_round_trips_to_world_via_pose_matrix(built_frame):
