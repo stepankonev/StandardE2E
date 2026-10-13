@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 # pycolmap is installed in the WayveScenes environment only (datasets/wayve_scenes/).
-pytest.importorskip("pycolmap")
+pycolmap = pytest.importorskip("pycolmap")
 
 from standard_e2e.caching.adapters import LidarAdapter
 from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_processor import (
@@ -218,3 +218,27 @@ def test_ego_pose_and_global_position_finite(built_frame):
     assert T.shape == (4, 4)
     assert np.isfinite(T).all()
     assert fd.global_position is not None
+
+
+def test_sfm_cloud_matches_sdk_filter(built_frame):
+    """The scene cloud is exactly the SDK's: inside the 1st-99th percentile
+    bounding box, reprojection error <= 6 px, track length >= 2."""
+    proc, _fd = built_frame
+    reconstruction = pycolmap.Reconstruction(
+        str(proc._cached_scene_dir / "colmap_sparse" / "rig")
+    )
+    bbox = reconstruction.compute_bounding_box(0.01, 0.99)
+    expected = sum(
+        1
+        for p in reconstruction.points3D.values()
+        if (p.xyz >= bbox.min).all()
+        and (p.xyz <= bbox.max).all()
+        and p.error <= 6.0
+        and p.track.length() >= 2
+    )
+    assert len(proc._points_world_flu) == expected
+    # FLU (z, -x, -y) back to OpenCV: every kept point lies inside the box.
+    flu = proc._points_world_flu.astype(np.float64)
+    opencv = np.c_[-flu[:, 1], -flu[:, 2], flu[:, 0]]
+    tol = 1e-4  # float32 storage
+    assert (opencv >= bbox.min - tol).all() and (opencv <= bbox.max + tol).all()

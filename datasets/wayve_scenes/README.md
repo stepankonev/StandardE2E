@@ -15,9 +15,10 @@ cloud). It ships no sensor lidar, HD map or boxes.
 - **cameras**: the five fisheye cameras with their COLMAP intrinsics and distortion, and
   `T_ego_from_camera` extrinsics in the OpenCV optical frame (x right, y down, z forward).
 - **lidar_pc**: no sensor lidar exists, so the scene's **COLMAP SfM** point cloud is
-  used instead. It is filtered (reprojection error ≤ 6, track length ≥ 2), converted
-  from OpenCV to FLU axes, moved into each frame's ego frame and clipped to 50 m, so it
-  flows through the lidar adapters. It is photogrammetric (sparse, up to scale), not a
+  used instead. It is filtered as in the official SDK (inside the 1st–99th percentile
+  bounding box, reprojection error ≤ 6, track length ≥ 2), converted from OpenCV to
+  FLU axes, moved into each frame's ego frame and clipped to 50 m, so it flows through
+  the lidar adapters. It is photogrammetric (sparse, up to scale), not a
   sensor measurement; a frame's cloud lifted by `aux_data["pose_matrix"]` reproduces the
   source SfM cloud.
 - **past/future ego trajectories**: from the COLMAP poses, via the
@@ -25,13 +26,6 @@ cloud). It ships no sensor lidar, HD map or boxes.
 
 The dataset has no perception split, so `split` is a passthrough label for the output
 folder.
-
-## Known issues
-
-- **The SfM cloud keeps points the SDK drops** (StandardE2E, differs from the SDK). The
-  official SDK also discards the points outside the reconstruction's 1st–99th
-  percentile bounding box (`compute_bounding_box(0.01, 0.99)`); StandardE2E does not, so
-  its cloud has about 5% more points (7,812 of 144,005 in `scene_001`).
 
 ## Environment
 
