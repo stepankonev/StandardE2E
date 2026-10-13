@@ -12,6 +12,7 @@ from standard_e2e.data_structures import (
 )
 from standard_e2e.enums import Modality
 from standard_e2e.enums import TrajectoryComponent as TC
+from standard_e2e.utils import matrix_to_xyz_heading
 
 from .segment_context_aggregator import SegmentContextAggregator
 
@@ -27,15 +28,19 @@ class FutureDetectionsAggregator(SegmentContextAggregator):
     def _fetch_value_from_transformed_frame(
         self, transformed_frame: TransformedFrameData
     ) -> Any:
-        # global_position is set to default zeroes if missing
-        return (
-            transformed_frame.get_modality_data(Modality.DETECTIONS_3D),
-            (
-                transformed_frame.global_position.get(  # type: ignore[union-attr]
-                    [TC.X, TC.Y, TC.HEADING]
-                )[-1]
-            ),
-        )
+        # Take the ego pose from the pose matrix when the frame has one:
+        # global_position is a float32 Trajectory, which rounds large world
+        # coordinates (to 0.25-0.5 m at NAVSIM's UTM northings).
+        pose = (transformed_frame.aux_data or {}).get("pose_matrix")
+        if pose is not None:
+            x, y, _, heading = matrix_to_xyz_heading(pose)
+            ego_xyh = np.array([x, y, heading])
+        else:
+            # global_position is set to default zeroes if missing
+            ego_xyh = transformed_frame.global_position.get(  # type: ignore[union-attr]
+                [TC.X, TC.Y, TC.HEADING]
+            )[-1]
+        return transformed_frame.get_modality_data(Modality.DETECTIONS_3D), ego_xyh
 
     def _update_frame_with_context(
         self,

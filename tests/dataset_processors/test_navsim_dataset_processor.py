@@ -5,7 +5,7 @@ Three layers:
 * **Construction defaults** — adapters / context aggregators / split list
   wired correctly. Always runs.
 * **Pure-Python helpers** — driving-command decoding, the binary-PCD
-  reader. Always runs.
+  reader, the ego-pose precision. Always runs.
 * **End-to-end on a real pickle + sensor blobs** — wires the processor to
   one local NAVSIM frame and confirms the resulting ``StandardFrameData``
   carries the expected modalities. Skipped automatically when the local
@@ -15,6 +15,7 @@ Three layers:
 from __future__ import annotations
 
 import os
+import pickle
 import struct
 from pathlib import Path
 
@@ -143,6 +144,32 @@ def test_build_lidar_reads_pcd_xyz(tmp_path: Path):
             [[1.0, 2.0, 3.0], [4.5, -1.5, 0.25], [-9.0, 0.0, 11.0]], dtype=np.float32
         ),
     )
+
+
+# --- ego pose precision -----------------------------------------------------
+
+
+def test_ego_pose_matrix_keeps_float64_at_utm_scale(tmp_path: Path):
+    """nuPlan poses are UTM metres; above 4,194,304 m float32 only resolves
+    0.5 m, so the pose matrix must carry the pickle's float64 translation."""
+    translation = np.array([588123.4567, 4475123.4567, 199.1234])
+    frame = {
+        "log_name": "log",
+        "token": "frame",
+        "scene_token": "scene",
+        "timestamp": 1629212345000000,
+        "ego2global_translation": translation,
+        "ego2global_rotation": np.array([1.0, 0.0, 0.0, 0.0]),
+    }
+    log_path = tmp_path / "log.pkl"
+    log_path.write_bytes(pickle.dumps([frame]))
+    proc = NavsimDatasetProcessor(str(tmp_path / "out"), split="trainval", adapters=[])
+
+    sfd = proc._prepare_standardized_frame_data((log_path, 0))
+    assert sfd.aux_data is not None
+    pose = sfd.aux_data["pose_matrix"]
+    assert pose.dtype == np.float64
+    np.testing.assert_array_equal(pose[:3, 3], translation)
 
 
 # --- end-to-end on a real local frame ---------------------------------------
