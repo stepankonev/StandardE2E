@@ -112,7 +112,7 @@ _DRIVING_COMMAND_TO_INTENT: tuple[Intent, ...] = (
 
 def _quat_to_rotmat_wxyz(qw: float, qx: float, qy: float, qz: float) -> np.ndarray:
     """NAVSIM (and nuplan) store Hamilton quaternions as (qw, qx, qy, qz)."""
-    return quat_wxyz_to_rotmat((qw, qx, qy, qz)).astype(np.float32)
+    return quat_wxyz_to_rotmat((qw, qx, qy, qz))
 
 
 def _se3_from_rotation_translation(
@@ -425,11 +425,11 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
             else None
         )
 
-        ego_translation = np.asarray(frame["ego2global_translation"], dtype=np.float32)
+        # nuPlan poses are UTM metres: at northings of ~4e6 m float32 only
+        # resolves 0.25-0.5 m, so the ego pose is kept in float64.
+        ego_translation = np.asarray(frame["ego2global_translation"], dtype=np.float64)
         ego_rotation = _quat_to_rotmat_wxyz(*frame["ego2global_rotation"])
-        T_global_from_ego = _se3_from_rotation_translation(
-            ego_rotation, ego_translation
-        )
+        T_global_from_ego = se3(ego_rotation, ego_translation, dtype=np.float64)
         x, y, z, heading = matrix_to_xyz_heading(T_global_from_ego)
         hd_map = (
             self._build_hd_map(log_path, frame, T_global_from_ego)
