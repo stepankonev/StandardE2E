@@ -14,7 +14,12 @@ from av2.geometry.interpolate import (
 )
 from av2.map.map_api import ArgoverseStaticMap
 from av2.structures.sweep import Sweep
-from av2.utils.io import read_img
+from av2.utils.io import (
+    read_city_SE3_ego,
+    read_ego_SE3_sensor,
+    read_feather,
+    read_img,
+)
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
@@ -52,7 +57,6 @@ from standard_e2e.utils import (
     intrinsics_matrix,
     matrix_to_xyz_heading,
     quat_wxyz_to_rotmat,
-    se3,
 )
 
 # AV2 ring cameras → our canonical CameraDirection. Stereo cameras are
@@ -139,12 +143,6 @@ def _quat_wxyz_to_rotmat(qw: float, qx: float, qy: float, qz: float) -> np.ndarr
     return quat_wxyz_to_rotmat((qw, qx, qy, qz)).astype(np.float32)
 
 
-def _se3_from_quat_translation(
-    qw: float, qx: float, qy: float, qz: float, tx: float, ty: float, tz: float
-) -> np.ndarray:
-    return se3(_quat_wxyz_to_rotmat(qw, qx, qy, qz), (tx, ty, tz), dtype=np.float32)
-
-
 class Av2SensorDatasetProcessor(SourceDatasetProcessor):
     """Processor for the Argoverse 2 sensor dataset.
 
@@ -214,10 +212,7 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
             return
         logging.info("Loading per-log AV2 state for %s", log_dir.name)
 
-        intrinsics_df = pd.read_feather(log_dir / "calibration" / "intrinsics.feather")
-        extrinsics_df = pd.read_feather(
-            log_dir / "calibration" / "egovehicle_SE3_sensor.feather"
-        )
+        intrinsics_df = read_feather(log_dir / "calibration" / "intrinsics.feather")
         self._camera_intrinsics.clear()
         self._camera_distortion.clear()
         self._camera_extrinsics.clear()
@@ -230,10 +225,9 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
             self._camera_distortion[row.sensor_name] = np.array(
                 [row.k1, row.k2, row.k3], dtype=np.float32
             )
-        for raw_row in extrinsics_df.itertuples(index=False):
-            row = cast(Any, raw_row)
-            self._camera_extrinsics[row.sensor_name] = _se3_from_quat_translation(
-                row.qw, row.qx, row.qy, row.qz, row.tx_m, row.ty_m, row.tz_m
+        for sensor_name, ego_SE3_sensor in read_ego_SE3_sensor(log_dir).items():
+            self._camera_extrinsics[sensor_name] = (
+                ego_SE3_sensor.transform_matrix.astype(np.float32)
             )
 
         self._camera_image_paths.clear()
@@ -247,18 +241,20 @@ class Av2SensorDatasetProcessor(SourceDatasetProcessor):
             )
             self._camera_image_paths[cam_name] = entries
 
-        ego_df = pd.read_feather(log_dir / "city_SE3_egovehicle.feather")
-        self._ego_pose_by_ts = {}
-        for raw_row in ego_df.itertuples(index=False):
-            row = cast(Any, raw_row)
-            self._ego_pose_by_ts[int(row.timestamp_ns)] = _se3_from_quat_translation(
-                row.qw, row.qx, row.qy, row.qz, row.tx_m, row.ty_m, row.tz_m
-            )
-
-        ann_df = pd.read_feather(log_dir / "annotations.feather")
-        self._annotations_by_ts = {
-            int(cast(Any, ts)): group for ts, group in ann_df.groupby("timestamp_ns")
+        self._ego_pose_by_ts = {
+            int(timestamp_ns): city_SE3_ego.transform_matrix.astype(np.float32)
+            for timestamp_ns, city_SE3_ego in read_city_SE3_ego(log_dir).items()
         }
+
+        # The test split ships without annotations: its frames carry no boxes.
+        self._annotations_by_ts = {}
+        annotations_path = log_dir / "annotations.feather"
+        if annotations_path.is_file():
+            ann_df = read_feather(annotations_path)
+            self._annotations_by_ts = {
+                int(cast(Any, ts)): group
+                for ts, group in ann_df.groupby("timestamp_ns")
+            }
 
         self._map = ArgoverseStaticMap.from_map_dir(log_dir / "map", build_raster=False)
         self._cached_log_dir = log_dir

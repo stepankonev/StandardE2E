@@ -27,8 +27,9 @@ import os
 from pathlib import Path
 from typing import Iterator
 
+import pycolmap
+
 from standard_e2e.caching import SourceDatasetConverter
-from standard_e2e.caching.src_datasets.wayve_scenes._colmap import read_images_bin
 
 
 class WayveScenesDatasetConverter(SourceDatasetConverter):
@@ -63,16 +64,18 @@ class WayveScenesDatasetConverter(SourceDatasetConverter):
             scene_dirs = scene_dirs[:1]
         logging.info("Found %d WayveScenes scene(s).", len(scene_dirs))
 
-        # Pre-list (scene, timestamp) tuples up front. The per-scene images.bin
-        # read here is the cheap (pose-only) parse; it consolidates the scene
-        # scan into one pass rather than interleaving with worker reads.
+        # Pre-list (scene, timestamp) tuples up front, from the images each
+        # scene's reconstruction registers; it consolidates the scene scan into
+        # one pass rather than interleaving with worker reads.
         items: list[tuple[Path, int]] = []
         for scene_dir in scene_dirs:
-            rig = scene_dir / "colmap_sparse" / "rig"
+            reconstruction = pycolmap.Reconstruction(
+                str(scene_dir / "colmap_sparse" / "rig")
+            )
             timestamps = sorted(
                 {
                     int(Path(img.name).stem)
-                    for img in read_images_bin(rig / "images.bin")
+                    for img in reconstruction.images.values()
                     if Path(img.name).parent.name == "front-forward"
                 }
             )

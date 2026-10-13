@@ -9,7 +9,9 @@ from typing import Optional
 import tensorflow as tf
 from tqdm import tqdm
 
-from standard_e2e.caching import TFRecSourceDatasetConverter
+from standard_e2e.caching.tfrec_source_dataset_converter import (
+    TFRecSourceDatasetConverter,
+)
 from standard_e2e.enums import StandardFrameDataField
 
 # pylint: disable=no-name-in-module

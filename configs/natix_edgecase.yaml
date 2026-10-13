@@ -8,7 +8,7 @@
 # (natix-network-org/natix-edge-case-driving-dataset, ~3.3 GB) carries the
 # full first release under data/, including data/edge-case.json.
 # --input_path points at the downloaded root (or its data/ folder) -- see
-# scripts/prepare_dataset_natix_edgecase.sh.
+# the datasets/natix_edgecase/README.md pipeline.
 #
 # NATIX has no canonical train/val/test split; --split is a passthrough
 # output label (all / train / val / test), as for natix_multicam.

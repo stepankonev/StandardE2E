@@ -3,8 +3,8 @@
 # PREREQUISITE -- extract the data first. TruckDrive ships as per-scene,
 # per-modality zips (scene_*/camera.zip, lidar.zip, ...). They must be unzipped
 # into the devkit layout before processing, then ``--input_path`` points at the
-# extracted root. The easiest path is ``scripts/prepare_dataset_truckdrive.sh``,
-# which extracts (via ``scripts/extract_truckdrive.sh``) and converts in one go.
+# extracted root. The easiest path is the ``datasets/truckdrive/README.md``
+# pipeline, which extracts and converts in one go.
 preprocessing:
   # TruckDrive ships an 11-camera 8 MP surround rig, the Aeva joint LiDAR and
   # tracked 3D boxes. The past/future ego trajectories are added by the

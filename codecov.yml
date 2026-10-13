@@ -1,0 +1,9 @@
+# Each CI run uploads coverage 15 times: the core suite (Python 3.12) and the
+# tests of each of the 14 dataset environments (.github/workflows/tests.yml).
+# Report only once all of them have arrived, so a status computed from the
+# first few uploads cannot fail the patch check. Adding a dataset job adds one.
+codecov:
+  notify:
+    after_n_builds: 15
+comment:
+  after_n_builds: 15

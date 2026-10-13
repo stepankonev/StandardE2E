@@ -1,10 +1,9 @@
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import torch
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -13,20 +12,15 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from torch.utils.data._utils.collate import collate as _torch_collate
-from torch.utils.data._utils.collate import default_collate_fn_map
 
 from standard_e2e.constants import INDEX_FILE_NAME
 from standard_e2e.data_structures.containers import (
-    BatchedFrameDetections3D,
-    BatchedLidarPointCloud,
     CameraData,
     FrameDetections3D,
     HDMap,
     LidarData,
-    LidarPointCloud,
 )
-from standard_e2e.data_structures.trajectory_data import BatchedTrajectory, Trajectory
+from standard_e2e.data_structures.trajectory_data import Trajectory
 from standard_e2e.dataset_utils.modality_defaults import ModalityDefaults
 from standard_e2e.enums import (
     CameraDirection,
@@ -148,25 +142,6 @@ class FrameIndexData(BaseModel):
             "Index data saved to %s", os.path.join(output_path, INDEX_FILE_NAME)
         )
         return df
-
-
-def _to_device_recursive(x: Any, device: torch.device) -> Any:
-    """Recursively move tensors/BatchedTrajectory (and nested containers) to device."""
-    if isinstance(x, torch.Tensor):
-        return x.to(device=device, non_blocking=True)
-    if isinstance(x, BatchedTrajectory):
-        x.to(device)  # in-place; returns self
-        return x
-    if isinstance(x, BatchedLidarPointCloud):
-        x.to(device)  # in-place; returns self
-        return x
-    if isinstance(x, dict):
-        return {k: _to_device_recursive(v, device) for k, v in x.items()}
-    if isinstance(x, list):
-        return [_to_device_recursive(v, device) for v in x]
-    if isinstance(x, tuple):
-        return tuple(_to_device_recursive(v, device) for v in x)
-    return x
 
 
 class TransformedFrameData(BaseModel):
@@ -344,155 +319,3 @@ class TransformedFrameData(BaseModel):
             if modality not in required_modalities:
                 del instance._modality_data[modality]
         return instance
-
-
-def collate_trajectory_fn(
-    batch,
-    *,
-    # pylint: disable=unused-argument
-    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
-):
-    """Collate a batch of ``Trajectory`` instances into a ``BatchedTrajectory``."""
-
-    return BatchedTrajectory(batch)
-
-
-def collate_frame_detections_fn(
-    batch,
-    *,
-    # pylint: disable=unused-argument
-    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
-):
-    """Collate a batch of ``FrameDetections3D`` into ``BatchedFrameDetections3D``."""
-
-    return BatchedFrameDetections3D(batch)
-
-
-def collate_lidar_fn(
-    batch,
-    *,
-    # pylint: disable=unused-argument
-    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None,
-):
-    """Collate a batch of ``LidarPointCloud`` into ``BatchedLidarPointCloud``."""
-
-    return BatchedLidarPointCloud(batch)
-
-
-def collate_modalities(
-    batch: List[Any], *, device: Optional[torch.device] = None
-) -> Any:
-    """
-    Exactly like torch's default_collate, except leaves of type `Trajectory`
-    are turned into a `BatchedTrajectory`. Everything else is native behavior.
-    """
-    device = device or torch.device("cpu")
-    # Collate fn map must accept broader key types required by torch's internal typing
-    extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
-        Trajectory: collate_trajectory_fn,
-        FrameDetections3D: collate_frame_detections_fn,
-        LidarPointCloud: collate_lidar_fn,
-    }
-    # default_collate_fn_map has type compatibility, update after copy
-    extended_map.update(default_collate_fn_map)
-    return _torch_collate(batch, collate_fn_map=extended_map)
-
-
-class TransformedFrameDataBatch:
-    """
-    Data structure to hold a batch of frame data (PyTorch-friendly).
-    """
-
-    dataset_name: list[str]
-    segment_id: list[str]
-    frame_id: list[int]
-    timestamp: torch.Tensor
-    split: list[str]
-    filename: list[str]
-    _modality_data: Dict[Modality, Any]
-    aux_data: Optional[Dict[str, Any]] = None
-    timestamp_diff: Optional[torch.Tensor] = None
-
-    def __init__(
-        self,
-        frames: list[TransformedFrameData],
-        *,
-        device: Optional[torch.device] = None,
-    ):
-        """Create a batched view of multiple ``TransformedFrameData`` instances.
-
-        Args:
-            frames: Non-empty list of frames to batch.
-            device: Optional device to place tensor-like fields on during
-                initialization. Defaults to CPU when not provided.
-        """
-
-        if not frames:
-            raise ValueError("TransformedFrameDataBatch requires a non-empty \
-                    list of TransformedFrameData.")
-        device = device or torch.device("cpu")
-
-        self.dataset_name = [frame.dataset_name for frame in frames]
-        self.segment_id = [frame.segment_id for frame in frames]
-        self.frame_id = [frame.frame_id for frame in frames]
-        self.timestamp = torch.tensor(
-            [frame.timestamp for frame in frames], dtype=torch.float32, device=device
-        )
-        self.split = [frame.split for frame in frames]
-        self.filename = []
-        for frame in frames:
-            if frame.filename is None:
-                raise ValueError("All frames must have a filename before batching.")
-            self.filename.append(frame.filename)
-
-        # Union of modality keys across the batch (keeps missing as None)
-        all_modalities = sorted(
-            set().union(*[set(f._modality_data.keys()) for f in frames]),
-            key=lambda m: m.name,
-        )
-        # Collate each modality across frames using PyTorch's
-        # collate + Trajectory override
-        self._modality_data = {
-            modality: collate_modalities(
-                [f.get_modality_data(modality) for f in frames],
-                device=device,
-            )
-            for modality in all_modalities
-        }
-
-        # Aux data: if dict-like across frames,
-        # you may also want to collate it with the same helper.
-        # For now: copy the first if present.
-        self.aux_data = (
-            frames[0].aux_data if frames and frames[0].aux_data is not None else None
-        )
-        # timestamp_diff: keep None if any missing; otherwise stack to tensor
-        if any(f.timestamp_diff is None for f in frames):
-            self.timestamp_diff = None
-        else:
-            self.timestamp_diff = torch.tensor(
-                [f.timestamp_diff for f in frames], dtype=torch.float32, device=device
-            )
-
-    def get_modality_data(self, modality: Modality) -> Any:
-        """Get data for a specific modality."""
-        return self._modality_data.get(modality)
-
-    def cuda(self, device: Optional[int] = None):
-        """Move batched tensors and nested modality payloads to a CUDA device."""
-
-        dev = torch.device(f"cuda:{device}" if device is not None else "cuda")
-        return self.to(dev)
-
-    def to(self, device: torch.device):
-        """Move all tensor-like fields to ``device`` (non-blocking where possible)."""
-
-        self.timestamp = self.timestamp.to(device=device, non_blocking=True)
-        if self.timestamp_diff is not None:
-            self.timestamp_diff = self.timestamp_diff.to(
-                device=device, non_blocking=True
-            )
-        self._modality_data = {
-            k: _to_device_recursive(v, device) for k, v in self._modality_data.items()
-        }
-        return self

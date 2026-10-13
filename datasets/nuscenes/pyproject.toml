@@ -1,0 +1,26 @@
+[project]
+name = "standard-e2e-nuscenes"
+version = "0.0.0"
+description = "Isolated preprocessing environment for nuScenes (StandardE2E)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "standard-e2e",
+    # The official devkit; it pins numpy<2, so this environment runs NumPy 1.26
+    # (whose newest wheels are for Python 3.12).
+    "nuscenes-devkit>=1.2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
+
+[tool.uv]
+package = false
+# Preprocessing never imports PyTorch (only standard_e2e.training does), so
+# StandardE2E's training-only dependencies stay out of this environment.
+override-dependencies = [
+    "torch; sys_platform == 'never'",
+    "torchvision; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+standard-e2e = { path = "../..", editable = true }

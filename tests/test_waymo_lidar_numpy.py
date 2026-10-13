@@ -19,6 +19,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+# protobuf (for the vendored Waymo protos) is installed in the Waymo
+# environments only (datasets/waymo_*/).
+pytest.importorskip("google.protobuf")
+
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import (

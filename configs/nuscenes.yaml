@@ -4,8 +4,8 @@
 # (v1.0-mini.tgz; or v1.0-trainval_meta.tgz + the *_blobs.tgz; or v1.0-test_*).
 # Extract them all into one DATAROOT so <DATAROOT>/<version>/*.json,
 # <DATAROOT>/samples/ and <DATAROOT>/sweeps/ exist, then --input_path points at
-# DATAROOT. The easiest path is scripts/prepare_dataset_nuscenes.sh, which
-# extracts (via scripts/extract_nuscenes.sh) and converts in one go.
+# DATAROOT. The easiest path is the datasets/nuscenes/README.md pipeline, which
+# extracts and converts in one go.
 #
 # --split is an official nuScenes label and also selects the metadata version:
 #   mini_train / mini_val -> v1.0-mini, train / val -> v1.0-trainval,

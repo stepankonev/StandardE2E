@@ -20,13 +20,13 @@ import numpy as np
 import torch
 
 from standard_e2e.data_structures.trajectory_data import (
-    BatchedTrajectory,
     Trajectory,
     TrajectoryComponent,
     _pad_numpy_1d,
     _to_numpy_1d_float32,
     _validate_components_arg,
 )
+from standard_e2e.training import BatchedTrajectory
 
 
 class TestTrajectoryComponent(unittest.TestCase):
@@ -1469,6 +1469,21 @@ class TestBatchedTrajectoryEdgeCases(unittest.TestCase):
         self.assertIn("batch_size=2", repr_str)
         self.assertIn("sequence_length=3", repr_str)
         self.assertIn("device=", repr_str)
+
+    def test_strict_mode_all_empty_keeps_only_is_valid(self):
+        """Strict mode on all-empty trajectories has no components to agree on."""
+        batch = BatchedTrajectory([Trajectory(), Trajectory()], strict=True)
+        self.assertEqual(batch.batch_size, 2)
+        with self.assertRaises(KeyError):
+            batch.get(TrajectoryComponent.X, strict=True)
+
+    def test_pad_to_shorter_length_is_a_no_op(self):
+        """Padding to at most the current length returns the batch unchanged."""
+        batch = BatchedTrajectory(
+            [Trajectory({TrajectoryComponent.X: [1, 2, 3]})], strict=False
+        )
+        self.assertIs(batch.pad(2), batch)
+        self.assertEqual(batch.length, 3)
 
 
 class TestBatchedTrajectoryResample(unittest.TestCase):

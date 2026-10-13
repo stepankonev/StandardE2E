@@ -3,13 +3,26 @@ import pytest
 import torch
 
 from standard_e2e.data_structures import (
-    BatchedTrajectory,
+    Detection3D,
+    FrameDetections3D,
+    LidarPointCloud,
     Trajectory,
     TransformedFrameData,
-    TransformedFrameDataBatch,
 )
 from standard_e2e.dataset_utils.modality_defaults import IntentDefaults
-from standard_e2e.enums import Intent, Modality, TrajectoryComponent
+from standard_e2e.enums import (
+    DetectionType,
+    Intent,
+    LidarComponent,
+    Modality,
+    TrajectoryComponent,
+)
+from standard_e2e.training import (
+    BatchedFrameDetections3D,
+    BatchedLidarPointCloud,
+    BatchedTrajectory,
+    TransformedFrameDataBatch,
+)
 
 
 def make_frame(idx: int = 0, **overrides) -> TransformedFrameData:
@@ -183,3 +196,89 @@ def test_get_modality_data_absent_returns_none():
     f2 = make_frame(2)
     batch = TransformedFrameDataBatch([f1, f2])
     assert batch.get_modality_data(Modality.CAMERAS) is None
+
+
+XYZ = [LidarComponent.X, LidarComponent.Y, LidarComponent.Z]
+
+
+def _detection(agent_id: str, x: float) -> Detection3D:
+    return Detection3D(
+        unique_agent_id=agent_id,
+        detection_type=DetectionType.VEHICLE,
+        trajectory=Trajectory(
+            {
+                TrajectoryComponent.TIMESTAMP: [0.0],
+                TrajectoryComponent.X: [x],
+                TrajectoryComponent.Y: [0.0],
+                TrajectoryComponent.HEADING: [0.0],
+            }
+        ),
+    )
+
+
+def test_batched_frame_detections_rejects_other_types():
+    with pytest.raises(TypeError):
+        BatchedFrameDetections3D([object()])
+
+
+def test_detections_and_lidar_collate_to_batched_types():
+    f1 = make_frame(1)
+    f1.set_modality_data(
+        Modality.DETECTIONS_3D,
+        FrameDetections3D(detections=[_detection("a", 1.0), _detection("b", 2.0)]),
+    )
+    f1.set_modality_data(
+        Modality.LIDAR_PC, LidarPointCloud(np.zeros((3, 3), dtype=np.float32), XYZ)
+    )
+    f2 = make_frame(2)
+    f2.set_modality_data(
+        Modality.DETECTIONS_3D, FrameDetections3D(detections=[_detection("c", 3.0)])
+    )
+    f2.set_modality_data(
+        Modality.LIDAR_PC, LidarPointCloud(np.ones((2, 3), dtype=np.float32), XYZ)
+    )
+
+    batch = TransformedFrameDataBatch([f1, f2])
+
+    detections = batch.get_modality_data(Modality.DETECTIONS_3D)
+    assert isinstance(detections, BatchedFrameDetections3D)
+    # The accessors expose the first frame of the batch.
+    assert detections.unique_agent_ids == ["a", "b"]
+    assert detections.detection_types == [DetectionType.VEHICLE] * 2
+    components = detections.trajectory_components
+    trajectories = detections.trajectories
+    assert tuple(trajectories.shape) == (2, 1, len(components))
+    x = trajectories[:, 0, components.index(TrajectoryComponent.X)]
+    assert x.tolist() == [1.0, 2.0]
+    # Components a detection does not carry are zero-filled.
+    z = trajectories[:, 0, components.index(TrajectoryComponent.Z)]
+    assert z.tolist() == [0.0, 0.0]
+
+    lidar = batch.get_modality_data(Modality.LIDAR_PC)
+    assert isinstance(lidar, BatchedLidarPointCloud)
+    assert lidar.batch_size == 2
+    assert tuple(lidar.get(LidarComponent.X).shape) == (5, 1)
+
+
+def test_to_moves_nested_payloads_and_timestamp_diff():
+    frames = []
+    for idx in (1, 2):
+        frame = make_frame(idx, timestamp_diff=0.1 * idx)
+        frame.set_modality_data(
+            Modality.LIDAR_PC, LidarPointCloud(np.zeros((2, 3), dtype=np.float32), XYZ)
+        )
+        frame.set_modality_data(
+            Modality.HD_MAP_BEV,
+            {"raster": np.zeros((2, 2), dtype=np.float32), "name": f"map{idx}"},
+        )
+        frames.append(frame)
+
+    meta = torch.device("meta")
+    batch = TransformedFrameDataBatch(frames).to(meta)
+
+    assert batch.timestamp.device == meta
+    assert batch.timestamp_diff.device == meta
+    assert batch.get_modality_data(Modality.LIDAR_PC).device == meta
+    hd_map = batch.get_modality_data(Modality.HD_MAP_BEV)
+    assert hd_map["raster"].device == meta
+    assert hd_map["name"] == ["map1", "map2"]

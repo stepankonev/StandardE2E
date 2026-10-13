@@ -21,6 +21,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# nuplan-devkit is installed in the NAVSIM environment only (datasets/navsim/).
+pytest.importorskip("nuplan")
+
 from standard_e2e.caching.adapters import (
     CamerasIdentityAdapter,
     Detections3DIdentityAdapter,
@@ -32,7 +35,6 @@ from standard_e2e.caching.segment_context import (
     FutureDetectionsAggregator,
     FuturePastStatesFromMatricesAggregator,
 )
-from standard_e2e.caching.src_datasets.navsim._pcd import read_navsim_pcd_xyz
 from standard_e2e.caching.src_datasets.navsim.navsim_dataset_processor import (
     NavsimDatasetProcessor,
     _driving_command_to_intent,
@@ -102,11 +104,12 @@ def test_driving_command_malformed_falls_back_to_unknown():
     assert _driving_command_to_intent(np.array([1, 0, 0])) is Intent.UNKNOWN
 
 
-# --- PCD reader on a synthetic file -----------------------------------------
+# --- lidar from a synthetic PCD ---------------------------------------------
 
 
-def test_pcd_reader_round_trips_xyz(tmp_path: Path):
-    """Hand-craft a 3-point PCD with the canonical NAVSIM layout, parse it."""
+def test_build_lidar_reads_pcd_xyz(tmp_path: Path):
+    """Hand-craft a 3-point PCD with the canonical NAVSIM layout; the processor
+    returns its xyz."""
     header = (
         b"# .PCD v0.7 - Point Cloud Data file format\n"
         b"VERSION 0.7\n"
@@ -126,10 +129,12 @@ def test_pcd_reader_round_trips_xyz(tmp_path: Path):
         (-9.0, 0.0, 11.0, 0, 0, 0),
     ]
     body = b"".join(struct.pack("<fffBBB", *p) for p in points)
-    pcd_path = tmp_path / "test.pcd"
-    pcd_path.write_bytes(header + body)
+    (tmp_path / "test.pcd").write_bytes(header + body)
+    proc = NavsimDatasetProcessor(str(tmp_path / "out"), split="trainval")
 
-    xyz = read_navsim_pcd_xyz(pcd_path)
+    lidar = proc._build_lidar(tmp_path, {"lidar_path": "test.pcd"})
+    assert lidar is not None
+    xyz = lidar.points.to_numpy()
     assert xyz.shape == (3, 3)
     assert xyz.dtype == np.float32
     np.testing.assert_allclose(

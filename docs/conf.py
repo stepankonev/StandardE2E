@@ -181,7 +181,9 @@ autodoc_mock_imports = [
     "tensorflow",
     "tensorflow_cpu",
     "tensorflow-cpu",
-    "albumentations",
+    # Dataset SDKs: installed only in their datasets/<name>/ environments.
+    "av2",
+    "nuplan",
 ]
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True

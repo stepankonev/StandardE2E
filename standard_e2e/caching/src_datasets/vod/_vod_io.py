@@ -1,7 +1,7 @@
 """On-disk access helpers for View-of-Delft (extracted detection release).
 
 VoD ships as password-protected zips that **must be extracted first**
-(``scripts/extract_vod.sh``), reproducing the official KITTI-style layout::
+(``datasets/vod/extract.sh``), reproducing the official KITTI-style layout::
 
     <root>/lidar/
         ImageSets/{train,val,test}.txt
@@ -21,6 +21,7 @@ math lives in :mod:`._vod_geometry`.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,7 +113,7 @@ def resolve_root(input_path: str) -> str:
     raise FileNotFoundError(
         f"No VoD 'lidar/' tree under {root} (expected "
         f"lidar/training/velodyne or lidar/testing/velodyne). Extract the "
-        f"detection zip first, e.g. scripts/extract_vod.sh."
+        f"detection zip first, e.g. datasets/vod/extract.sh."
     )
 
 
@@ -133,7 +134,9 @@ def frame_refs_for_scenes(root: str, scenes: list[VodScene]) -> Iterator[FrameRe
 
     Frames are ordered scene-major / frame-ascending so the trajectory aggregator
     sees contiguous per-scene runs. Frames listed in a scene range but absent on
-    disk (dropped from the public release) are silently skipped.
+    disk (dropped from the public release) are silently skipped, and so, with a
+    warning, are the few whose pose file has no ``mapToCamera`` transform: without
+    it a frame cannot be placed on its scene's trajectory.
     """
     present_by_subdir: dict[str, set[int]] = {}
     for scene in scenes:
@@ -142,7 +145,14 @@ def frame_refs_for_scenes(root: str, scenes: list[VodScene]) -> Iterator[FrameRe
             present = _present_frame_ids(root, scene.subdir)
             present_by_subdir[scene.subdir] = present
         for frame_id in sorted(f for f in present if scene.contains(f)):
-            yield FrameRef(root, scene.name, scene.subdir, frame_id)
+            ref = FrameRef(root, scene.name, scene.subdir, frame_id)
+            if "mapToCamera" not in read_pose(ref.pose_path):
+                logging.warning(
+                    "VoD: %s has no 'mapToCamera' transform; frame skipped.",
+                    ref.pose_path,
+                )
+                continue
+            yield ref
 
 
 def iter_frame_refs(root: str, split: str) -> Iterator[FrameRef]:

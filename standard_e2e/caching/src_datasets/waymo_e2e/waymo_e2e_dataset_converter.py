@@ -1,7 +1,9 @@
 import logging
 import os
 
-from standard_e2e.caching import TFRecSourceDatasetConverter
+from standard_e2e.caching.tfrec_source_dataset_converter import (
+    TFRecSourceDatasetConverter,
+)
 
 
 class WaymoE2EDatasetConverter(TFRecSourceDatasetConverter):

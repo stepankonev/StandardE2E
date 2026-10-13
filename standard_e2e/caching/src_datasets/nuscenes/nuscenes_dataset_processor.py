@@ -2,9 +2,10 @@
 
 nuScenes (Motional, CVPR 2020) is the de-facto end-to-end / BEV benchmark: 1000
 ~20 s scenes from a 6-camera surround rig, a 32-beam ``LIDAR_TOP``, 5 radars and
-densely annotated 3D boxes at 2 Hz keyframes. StandardE2E reads the JSON tables
-directly (see :mod:`._nuscenes_io`; the ``nuscenes-devkit`` is reference-only --
-it pins ``numpy<2`` against this project's numpy 2.x).
+densely annotated 3D boxes at 2 Hz keyframes. ``nuscenes-devkit``, installed in
+the nuScenes environment, reads the metadata tables (see :mod:`._nuscenes_io`)
+and the ``LIDAR_TOP`` sweeps, and provides the official split lists and the
+lane-arcline discretization.
 
 Mapping to ``StandardFrameData`` (this release covers cameras, the ego
 trajectory, ``LIDAR_TOP``, 3D detections and -- when the separate map-expansion
@@ -44,6 +45,7 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+from nuscenes.utils.data_classes import LidarPointCloud
 
 from standard_e2e.caching import SourceDatasetProcessor
 from standard_e2e.caching.adapters import (
@@ -234,7 +236,7 @@ class NuscenesDatasetProcessor(SourceDatasetProcessor):
                 frame.lidar_path,
             )
             return None
-        xyz_lidar = io.read_lidar_xyz(frame.lidar_path)
+        xyz_lidar = LidarPointCloud.from_file(frame.lidar_path).points[:3].T
         xyz_ego = transform_points(frame.lidar_extrinsics, xyz_lidar)
         return LidarData(
             points=pd.DataFrame(xyz_ego, columns=[c.value for c in LidarComponent])

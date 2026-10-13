@@ -84,7 +84,7 @@ def iter_frame_refs(input_path: str, split: str) -> Iterator[FrameRef]:
         raise FileNotFoundError(
             f"No KITScenes-LongTail '{split}-*.parquet' shards under "
             f"{_data_dir(input_path)}. Download the split first "
-            f"(see scripts/prepare_dataset_kitscenes_longtail.sh)."
+            f"(see datasets/kitscenes_longtail/README.md)."
         )
     for shard_path in shards:
         parquet_file = pq.ParquetFile(shard_path)

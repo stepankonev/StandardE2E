@@ -11,11 +11,7 @@ import pandas as pd
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from standard_e2e import UnifiedE2EDataset
-from standard_e2e.dataset_utils.augmentation import (
-    MultipleFramesImageAugmentation,
-    TrajectoryResampling,
-)
+from standard_e2e.dataset_utils.augmentation import TrajectoryResampling
 from standard_e2e.dataset_utils.frame_loader import (
     FrameLoader,
 )
@@ -27,6 +23,7 @@ from standard_e2e.dataset_utils.selector import (
 from standard_e2e.enums import Intent, Modality
 from standard_e2e.enums import TrajectoryComponent as TC
 from standard_e2e.indexing import get_multi_dataset_index
+from standard_e2e.training import MultipleFramesImageAugmentation, UnifiedE2EDataset
 
 
 def parse_args():

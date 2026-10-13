@@ -7,6 +7,10 @@ and notebooks can do, e.g.::
 
 The original submodule paths (``standard_e2e.data_structures``,
 ``standard_e2e.enums``, ...) keep working unchanged — these are aliases.
+
+The PyTorch dataset and batching live in :mod:`standard_e2e.training`
+(``from standard_e2e.training import UnifiedE2EDataset``), the only sub-package
+that imports PyTorch, so importing ``standard_e2e`` itself does not.
 """
 
 __version__ = "0.0.7"
@@ -33,13 +37,10 @@ from standard_e2e.enums import (
     Modality,
     TrajectoryComponent,
 )
-from standard_e2e.unified_dataset import UnifiedE2EDataset
 
 __all__ = [
     "__version__",
     "__author__",
-    # training / loading
-    "UnifiedE2EDataset",
     # frame containers
     "StandardFrameData",
     "TransformedFrameData",

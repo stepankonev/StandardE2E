@@ -27,6 +27,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+# pyproj is installed in this dataset's environment only
+# (datasets/kitscenes_multimodal/).
+pytest.importorskip("pyproj")
+
 from standard_e2e.caching.src_datasets.kitscenes_multimodal import _kitscenes_io as io
 from standard_e2e.caching.src_datasets.kitscenes_multimodal._kitscenes_geometry import (
     RING_CAMERA_TO_DIRECTION,

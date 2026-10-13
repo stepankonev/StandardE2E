@@ -33,6 +33,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+# pyproj is installed in the NATIX environments only (datasets/natix_*/).
+pytest.importorskip("pyproj")
+
 from standard_e2e.caching.src_datasets.natix_multicam import _natix_io as io
 from standard_e2e.caching.src_datasets.natix_multicam._natix_geometry import (
     BODY_FROM_OPTICAL,

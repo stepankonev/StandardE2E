@@ -1,14 +1,14 @@
 # flake8: noqa: E501
 """Tests for the nuScenes processor.
 
-* **Unit tests** (always run): the ``category_name`` -> ``DetectionType``
+* **Unit tests** (no data needed): the ``category_name`` -> ``DetectionType``
   taxonomy (incl. the two-wheeler split and the unknown fallback), the
   ``CAM_*`` -> ``CameraDirection`` mapping, the global -> ego box transform
   (translation, +90 deg rotation, ``size`` -> length/width/height reorder), the
-  lidar ``float32 x 5`` -> xyz decode, the vendored split lists, and -- on a
-  synthetic JSON tree -- the reverse-index reconstruction
-  (``sample['data']``/``anns``, keyframe filtering, channel + category joins)
-  plus a full hermetic processor build with tiny on-disk image / lidar files.
+  devkit's split lists, and -- on a synthetic JSON tree the devkit loads -- frame
+  resolution (keyframe cameras + lidar, categories, ego pose), partial-download
+  detection and a full hermetic processor build with tiny on-disk image / lidar
+  files.
 * **Real-frame checks** (skipped unless ``NUSCENES_DATAROOT`` points at an
   extracted dataroot): a built frame exposes the 6 surround cameras under their
   canonical ``CameraDirection`` with pinhole intrinsics and 4x4 extrinsics,
@@ -25,13 +25,17 @@ import cv2
 import numpy as np
 import pytest
 
-from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_arcline as arc
+# nuscenes-devkit is installed in the nuScenes environment only (datasets/nuscenes/).
+pytest.importorskip("nuscenes")
+
 from standard_e2e.caching.src_datasets.nuscenes import _nuscenes_io as io
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_map import NuscMap
 from standard_e2e.caching.src_datasets.nuscenes._nuscenes_splits import (
-    SPLITS,
     VERSION_FOR_SPLIT,
     scenes_for_split,
+)
+from standard_e2e.caching.src_datasets.nuscenes.nuscenes_dataset_converter import (
+    NuscenesDatasetConverter,
 )
 from standard_e2e.caching.src_datasets.nuscenes.nuscenes_dataset_processor import (
     _CHANNEL_TO_DIRECTION,
@@ -143,32 +147,10 @@ def test_box_to_ego_rotation_maps_axes_and_heading():
 
 
 # --------------------------------------------------------------------------- #
-# IO unit tests (synthetic files)
-# --------------------------------------------------------------------------- #
-def test_read_lidar_xyz_keeps_first_three_columns(tmp_path):
-    points = np.arange(2 * 5, dtype=np.float32).reshape(2, 5)
-    path = tmp_path / "a.pcd.bin"
-    points.tofile(path)
-    xyz = io.read_lidar_xyz(str(path))
-    assert xyz.shape == (2, 3) and xyz.dtype == np.float32
-    np.testing.assert_allclose(xyz, points[:, :3])
-
-
-def test_read_lidar_xyz_empty_and_bad_size(tmp_path):
-    empty = tmp_path / "empty.pcd.bin"
-    empty.write_bytes(b"")
-    assert io.read_lidar_xyz(str(empty)).shape == (0, 3)
-    bad = tmp_path / "bad.pcd.bin"
-    np.arange(7, dtype=np.float32).tofile(bad)  # 7 not divisible by 5
-    with pytest.raises(ValueError):
-        io.read_lidar_xyz(str(bad))
-
-
-# --------------------------------------------------------------------------- #
 # Split unit tests (no data required)
 # --------------------------------------------------------------------------- #
-def test_vendored_splits_counts_and_versions():
-    assert {k: len(v) for k, v in SPLITS.items()} == {
+def test_splits_counts_and_versions():
+    assert {split: len(scenes_for_split(split)) for split in VERSION_FOR_SPLIT} == {
         "train": 700,
         "val": 150,
         "test": 150,
@@ -180,23 +162,37 @@ def test_vendored_splits_counts_and_versions():
     assert VERSION_FOR_SPLIT["train"] == "v1.0-trainval"
     assert VERSION_FOR_SPLIT["test"] == "v1.0-test"
     # train and val are disjoint within the trainval version.
-    assert not (set(SPLITS["train"]) & set(SPLITS["val"]))
+    assert not (scenes_for_split("train") & scenes_for_split("val"))
 
 
 # --------------------------------------------------------------------------- #
-# Synthetic-tree tests for the reverse-index reconstruction + processor build
+# Synthetic-tree tests for frame resolution + processor build
 # --------------------------------------------------------------------------- #
 def _write_tree(root: Path, *, version: str = "v1.0-mini") -> Path:
     """Write a minimal but schema-faithful nuScenes metadata tree.
 
     One scene, two samples (linked), CAM_FRONT + LIDAR_TOP keyframes plus a
     non-keyframe CAM sweep (which must be excluded from ``sample['data']``), and
-    two annotations on the first sample (a pedestrian and a car).
+    two annotations on the first sample (a pedestrian and a car). The devkit also
+    loads the attribute / visibility / map tables and checks that the map's
+    raster exists, so those are written too.
     """
     meta = root / version
     meta.mkdir(parents=True)
+    (root / "maps").mkdir()
+    cv2.imwrite(str(root / "maps/map_0.png"), np.zeros((4, 4), dtype=np.uint8))
     intr = [[1000.0, 0.0, 800.0], [0.0, 1000.0, 450.0], [0.0, 0.0, 1.0]]
     tables = {
+        "attribute": [],
+        "visibility": [],
+        "map": [
+            {
+                "token": "map_0",
+                "log_tokens": ["log_0"],
+                "category": "semantic_prior",
+                "filename": "maps/map_0.png",
+            }
+        ],
         "sensor": [
             {"token": "sen_cam", "channel": "CAM_FRONT", "modality": "camera"},
             {"token": "sen_lid", "channel": "LIDAR_TOP", "modality": "lidar"},
@@ -383,13 +379,13 @@ def _write_tree(root: Path, *, version: str = "v1.0-mini") -> Path:
     return root
 
 
-def test_resolve_frame_rebuilds_reverse_indices(tmp_path):
+def test_resolve_frame(tmp_path):
     root = _write_tree(tmp_path)
-    tables = io.NuscTables(str(root), "v1.0-mini")
+    nusc = io.load_nuscenes(str(root), "v1.0-mini")
     # Sample order follows the ``next`` chain.
-    assert tables.scene_sample_tokens(tables.scenes[0]) == ["samp_0", "samp_1"]
+    assert io.scene_sample_tokens(nusc, nusc.scene[0]) == ["samp_0", "samp_1"]
 
-    frame = tables.resolve_frame("samp_0")
+    frame = io.resolve_frame(nusc, "samp_0")
     assert frame.scene_name == "scene-0103"
     assert frame.frame_id == 0
     # The non-keyframe CAM sweep is excluded: exactly one camera (CAM_FRONT).
@@ -400,7 +396,7 @@ def test_resolve_frame_rebuilds_reverse_indices(tmp_path):
     # LIDAR_TOP resolved with ego-frame extrinsics.
     assert frame.lidar_path is not None and frame.lidar_path.endswith("a.pcd.bin")
     assert frame.lidar_extrinsics.shape == (4, 4)
-    # category_name resolved via instance -> category (not on the annotation).
+    # category_name comes via instance -> category (not on the annotation).
     assert {b.category_name for b in frame.detections} == {
         "human.pedestrian.adult",
         "vehicle.car",
@@ -408,7 +404,7 @@ def test_resolve_frame_rebuilds_reverse_indices(tmp_path):
     # Ego pose is the LIDAR_TOP ego_pose (translation passthrough).
     np.testing.assert_allclose(frame.pose_global_from_ego[:3, 3], [100.0, 200.0, 0.0])
     # The second sample carries no annotations.
-    assert tables.resolve_frame("samp_1").detections == ()
+    assert io.resolve_frame(nusc, "samp_1").detections == ()
 
 
 def test_scene_has_sensor_data_detects_partial_download(tmp_path):
@@ -416,14 +412,61 @@ def test_scene_has_sensor_data_detects_partial_download(tmp_path):
     # (the trainval *_blobs.tgz arrive one at a time), so a partial download
     # converts cleanly instead of crashing on a missing file.
     root = _write_tree(tmp_path)
-    tables = io.NuscTables(str(root), "v1.0-mini")
-    scene = tables.scenes[0]
+    nusc = io.load_nuscenes(str(root), "v1.0-mini")
+    scene = nusc.scene[0]
     # Metadata present but no sensor files materialised yet -> not downloaded.
-    assert tables.scene_has_sensor_data(scene) is False
+    assert io.scene_has_sensor_data(nusc, scene) is False
     # Materialise the first sample's LIDAR_TOP file -> downloaded.
     (root / "samples/LIDAR_TOP").mkdir(parents=True)
     (root / "samples/LIDAR_TOP/a.pcd.bin").write_bytes(b"\x00" * 20)
-    assert tables.scene_has_sensor_data(scene) is True
+    assert io.scene_has_sensor_data(nusc, scene) is True
+
+
+def test_load_nuscenes_requires_the_metadata(tmp_path):
+    with pytest.raises(FileNotFoundError, match="v1.0-mini/sample.json"):
+        io.load_nuscenes(str(tmp_path), "v1.0-mini")
+
+
+def test_scenes_for_split_rejects_unknown_split():
+    with pytest.raises(KeyError):
+        scenes_for_split("trainval")
+
+
+def _converter(root: Path, split: str = "mini_val") -> NuscenesDatasetConverter:
+    # The converter checks its own split, so the processor keeps a valid one.
+    proc = NuscenesDatasetProcessor(
+        common_output_path=str(root / "out"), split="mini_val", context_aggregators=[]
+    )
+    return NuscenesDatasetConverter(
+        source_processor=proc,
+        input_path=str(root),
+        split=split,
+        num_workers=1,
+        do_parallel_processing=False,
+    )
+
+
+def test_converter_yields_the_split_frames_with_sensor_data(tmp_path, monkeypatch):
+    root = _write_tree(tmp_path)
+    (root / "samples/LIDAR_TOP").mkdir(parents=True)
+    (root / "samples/LIDAR_TOP/a.pcd.bin").write_bytes(b"\x00" * 20)
+    for debug in ("false", "true"):  # debug keeps the first scene: the only one
+        monkeypatch.setenv("STANDARD_E2E_DEBUG", debug)
+        frames = list(_converter(root)._source_dataset_iterator)
+        assert [f.sample_token for f in frames] == ["samp_0", "samp_1"]
+        assert {f.scene_name for f in frames} == {"scene-0103"}
+
+
+def test_converter_rejects_unusable_inputs(tmp_path):
+    root = _write_tree(tmp_path)
+    with pytest.raises(ValueError, match="Unknown nuScenes split"):
+        _converter(root, split="trainval")
+    # The tree's only scene belongs to mini_val, not mini_train.
+    with pytest.raises(FileNotFoundError, match="No 'mini_train' scenes"):
+        _converter(root, split="mini_train")
+    # Metadata lists the scene, but its sensor files are not on disk.
+    with pytest.raises(FileNotFoundError, match="none have sensor data"):
+        _converter(root)
 
 
 def test_processor_builds_frame_hermetically(tmp_path):
@@ -439,8 +482,8 @@ def test_processor_builds_frame_hermetically(tmp_path):
     lidar = np.array([[c, c + 1, c + 2, 0.5, 0] for c in range(6)], dtype=np.float32)
     lidar.tofile(root / "samples/LIDAR_TOP/a.pcd.bin")
 
-    tables = io.NuscTables(str(root), "v1.0-mini")
-    frame = tables.resolve_frame("samp_0")
+    nusc = io.load_nuscenes(str(root), "v1.0-mini")
+    frame = io.resolve_frame(nusc, "samp_0")
 
     out = tmp_path / "out"
     proc = NuscenesDatasetProcessor(
@@ -476,11 +519,11 @@ def built():
     if not _NUSCENES_DATAROOT or not Path(_NUSCENES_DATAROOT).exists():
         pytest.skip("no nuScenes data available (set NUSCENES_DATAROOT)")
     try:
-        tables = io.NuscTables(_NUSCENES_DATAROOT, _NUSCENES_VERSION)
+        nusc = io.load_nuscenes(_NUSCENES_DATAROOT, _NUSCENES_VERSION)
     except FileNotFoundError:
         pytest.skip(f"no {_NUSCENES_VERSION} metadata under NUSCENES_DATAROOT")
-    scene = tables.scenes[0]
-    frame = tables.resolve_frame(tables.scene_sample_tokens(scene)[0])
+    scene = nusc.scene[0]
+    frame = io.resolve_frame(nusc, io.scene_sample_tokens(nusc, scene)[0])
     out = Path(_NUSCENES_DATAROOT).parent / "_nusc_test_out"
     proc = NuscenesDatasetProcessor(
         common_output_path=str(out), split="mini_val", context_aggregators=[]
@@ -549,21 +592,6 @@ def test_real_hd_map_present(built):
 # --------------------------------------------------------------------------- #
 # HD-map unit tests (vendored arcline + synthetic vector map; no data required)
 # --------------------------------------------------------------------------- #
-def test_arcline_discretize_straight_segment():
-    # One 10 m straight middle segment ('S'), zero-length end arcs.
-    path = {
-        "start_pose": [0.0, 0.0, 0.0],
-        "shape": "RSR",
-        "radius": 1000.0,
-        "segment_length": [0.0, 10.0, 0.0],
-    }
-    pts = np.array(arc.discretize_lane([path], resolution_meters=1.0))
-    assert pts.shape[0] == 11
-    np.testing.assert_allclose(pts[0], [0.0, 0.0, 0.0], atol=1e-9)
-    np.testing.assert_allclose(pts[-1], [10.0, 0.0, 0.0], atol=1e-6)
-    assert np.all(np.abs(pts[:, 1]) < 1e-6)  # collinear along x
-
-
 def _write_map_json(path: Path) -> None:
     """A minimal but schema-faithful map-expansion location: one straight lane,
     a lane divider, a square polygon reused for crossing / drivable / intersection."""

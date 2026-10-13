@@ -2,7 +2,6 @@ from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
-import torch
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -12,9 +11,8 @@ from standard_e2e.enums import (
     LidarComponent,
     MapElementType,
 )
-from standard_e2e.enums import TrajectoryComponent as TC
 
-from .trajectory_data import BatchedTrajectory, Trajectory
+from .trajectory_data import Trajectory
 
 
 class CameraData(BaseModel):
@@ -322,117 +320,6 @@ class LidarPointCloud:
         return f"LidarPointCloud(N={self.num_points}, components=[{comps}])"
 
 
-class BatchedLidarPointCloud:
-    """Batched lidar point clouds in concat-with-batch-index format.
-
-    Single concatenated tensor of shape ``(sum_N, K)`` with a parallel
-    ``batch_idx`` tensor of shape ``(sum_N,)`` mapping each point back to its
-    sample.
-
-    All inputs must share the same ``components`` list (validated).
-    """
-
-    def __init__(
-        self,
-        point_clouds: Sequence[LidarPointCloud],
-        device: Optional[torch.device] = None,
-    ) -> None:
-        if not point_clouds:
-            raise ValueError(
-                "BatchedLidarPointCloud requires a non-empty list of LidarPointCloud."
-            )
-        if not all(isinstance(pc, LidarPointCloud) for pc in point_clouds):
-            raise TypeError("all entries must be LidarPointCloud instances")
-        first_components = point_clouds[0].components
-        for i, pc in enumerate(point_clouds):
-            if pc.components != first_components:
-                raise ValueError(
-                    f"sample {i} has components {[c.name for c in pc.components]}, "
-                    f"expected {[c.name for c in first_components]}"
-                )
-        self._device = device or torch.device("cpu")
-        self._components = first_components
-        self._batch_size = len(point_clouds)
-        sizes = [pc.num_points for pc in point_clouds]
-        if sum(sizes) == 0:
-            self._points = torch.zeros(
-                (0, len(self._components)),
-                dtype=torch.float32,
-                device=self._device,
-            )
-            self._batch_idx = torch.zeros((0,), dtype=torch.int64, device=self._device)
-        else:
-            self._points = torch.from_numpy(
-                np.concatenate([pc.points for pc in point_clouds], axis=0)
-            ).to(device=self._device)
-            self._batch_idx = torch.cat(
-                [
-                    torch.full((n,), i, dtype=torch.int64, device=self._device)
-                    for i, n in enumerate(sizes)
-                ]
-            )
-
-    @property
-    def points(self) -> torch.Tensor:
-        return self._points
-
-    @property
-    def batch_idx(self) -> torch.Tensor:
-        return self._batch_idx
-
-    @property
-    def components(self) -> List[LidarComponent]:
-        return list(self._components)
-
-    @property
-    def batch_size(self) -> int:
-        return self._batch_size
-
-    @property
-    def device(self) -> torch.device:
-        return self._device
-
-    def get(
-        self,
-        components: Union[LidarComponent, Sequence[LidarComponent]],
-    ) -> torch.Tensor:
-        """Return the requested component columns as a ``(sum_N, K_req)`` tensor."""
-        if isinstance(components, LidarComponent):
-            requested = [components]
-        else:
-            requested = list(components)
-            if not all(isinstance(c, LidarComponent) for c in requested):
-                raise TypeError("components must all be LidarComponent members")
-        missing = [c for c in requested if c not in self._components]
-        if missing:
-            available = ", ".join(c.name for c in self._components)
-            needed = ", ".join(c.name for c in missing)
-            raise KeyError(f"Missing component(s): {needed}. Available: [{available}]")
-        idx = [self._components.index(c) for c in requested]
-        return self._points[:, idx]
-
-    def to(self, device: torch.device) -> "BatchedLidarPointCloud":
-        """Move points and batch index to ``device`` (in-place)."""
-        if device == self._device:
-            return self
-        self._points = self._points.to(device=device, non_blocking=True)
-        self._batch_idx = self._batch_idx.to(device=device, non_blocking=True)
-        self._device = device
-        return self
-
-    def cuda(self, device: Optional[int] = None) -> "BatchedLidarPointCloud":
-        dev = torch.device(f"cuda:{device}" if device is not None else "cuda")
-        return self.to(dev)
-
-    def __repr__(self) -> str:
-        comps = ",".join(c.name for c in self._components)
-        return (
-            f"BatchedLidarPointCloud(batch_size={self._batch_size}, "
-            f"sum_N={int(self._points.shape[0])}, components=[{comps}], "
-            f"device={self._device})"
-        )
-
-
 class Detection3D(BaseModel):
     """Holds 3D detections"""
 
@@ -449,77 +336,3 @@ class FrameDetections3D(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     detections: list[Detection3D]
-
-
-class BatchedFrameDetections3D:
-    """Holds 3D detections for multiple frames"""
-
-    _trajectory_components = [
-        TC.TIMESTAMP,
-        TC.X,
-        TC.Y,
-        TC.Z,
-        TC.HEADING,
-        TC.LENGTH,
-        TC.WIDTH,
-        TC.HEIGHT,
-    ]
-
-    def __init__(self, frames_detections: list[FrameDetections3D]):
-        """Batch detections across frames and expose trajectory tensors.
-
-        Args:
-            frames_detections: Sequence of per-frame detection containers.
-        """
-        if not isinstance(frames_detections, list) or not all(
-            isinstance(fd, FrameDetections3D) for fd in frames_detections
-        ):
-            raise TypeError("frames_detections must be a sequence of FrameDetections3D")
-        self._batched_detections = frames_detections
-        self._batched_trajectories = []
-        for frame_detections in frames_detections:
-            frame_detections_trajectories = [
-                detection.trajectory for detection in frame_detections.detections
-            ]
-            self._batched_trajectories.append(
-                BatchedTrajectory(frame_detections_trajectories)
-            )
-        # ``strict=False``: detection trajectories from segment-context
-        # aggregators (e.g. ``FutureDetectionsAggregator``) only carry
-        # X/Y/HEADING; missing components are filled with zeros so collation
-        # works for both per-frame snapshots (8 components) and aggregated
-        # future-trajectory detections (3 components).
-        self._batched_trajectories_tensors = [
-            td.get(self._trajectory_components, strict=False)
-            for td in self._batched_trajectories
-        ]
-        self._detection_types = []
-        self._unique_agent_ids = []
-
-        for frame_detections in frames_detections:
-            self._detection_types.append(
-                [detection.detection_type for detection in frame_detections.detections]
-            )
-            self._unique_agent_ids.append(
-                [detection.unique_agent_id for detection in frame_detections.detections]
-            )
-
-    @property
-    def trajectory_components(self) -> list[TC]:
-        """Trajectory components preserved in the batched tensors."""
-        return self._trajectory_components
-
-    @property
-    def detection_types(self):
-        """Detection types for the first frame (assumed consistent across batch)."""
-        return self._detection_types[0]
-
-    @property
-    def unique_agent_ids(self):
-        """Unique agent identifiers for the first frame."""
-        return self._unique_agent_ids[0]
-
-    @property
-    def trajectories(self):
-        """Tensor view of trajectories for the first frame in the batch."""
-        return self._batched_trajectories_tensors[0]

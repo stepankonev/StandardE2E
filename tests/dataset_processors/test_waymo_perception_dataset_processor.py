@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+# TensorFlow is installed in the Waymo environments only (datasets/waymo_*/).
+pytest.importorskip("tensorflow")
+
 from standard_e2e.caching.adapters import (
     Detections3DIdentityAdapter,
     HDMapBEVAdapter,

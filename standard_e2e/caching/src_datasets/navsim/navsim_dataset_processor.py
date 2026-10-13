@@ -3,10 +3,10 @@
 NAVSIM ships scenes as per-log pickle files (lists of frame dicts) plus
 a parallel ``sensor_blobs`` tree with the actual camera JPEGs and merged
 lidar PCDs, and an HD-map archive at ``maps/<city>/<version>/map.gpkg``.
-We read the dicts and PCDs directly (sidestepping NAVSIM's own data
-classes), and call into ``nuplan-devkit``'s map factory for the HD map
-— the maps subtree of nuplan-devkit imports cleanly without torch /
-hydra / pytorch-lightning, so adding the dep is safe.
+We read the dicts directly (sidestepping NAVSIM's own data classes) and
+use ``nuplan-devkit`` for the rest: its ``PointCloud`` parses the merged
+lidar PCDs and its map factory serves the HD map. Both import cleanly
+without torch / hydra / pytorch-lightning.
 
 Modality coverage: cameras (8), lidar (merged sweep), HD map (vector
 lanes, drivable area, intersections, stop lines, crosswalks, walkways
@@ -25,6 +25,8 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
+from nuplan.database.utils.pointclouds.pointcloud import PointCloud
 from PIL import Image
 
 from standard_e2e.caching import SourceDatasetProcessor
@@ -42,7 +44,6 @@ from standard_e2e.caching.segment_context import (
     SegmentContextAggregator,
 )
 from standard_e2e.caching.src_datasets.navsim._navsim_map import build_navsim_hd_map
-from standard_e2e.caching.src_datasets.navsim._pcd import read_navsim_pcd_xyz
 from standard_e2e.data_structures import (
     CameraData,
     Detection3D,
@@ -261,10 +262,6 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         if maps_root is None:
             self._map_cache[map_location] = None
             return None
-        # Imported here to keep module import cheap when nuplan-devkit isn't
-        # installed (e.g., docs build).
-        from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
-
         nuplan_map = get_maps_api(str(maps_root), _NUPLAN_MAP_VERSION, map_location)
         self._map_cache[map_location] = nuplan_map
         return nuplan_map
@@ -338,7 +335,8 @@ class NavsimDatasetProcessor(SourceDatasetProcessor):
         full_path = sensor_blobs_root / lidar_path
         if not full_path.exists():
             return None
-        xyz = read_navsim_pcd_xyz(full_path)
+        points = PointCloud.parse_from_file(str(full_path)).points
+        xyz = np.stack([points["x"], points["y"], points["z"]], axis=1)
         return LidarData(
             points=pd.DataFrame(xyz, columns=[c.value for c in LidarComponent])
         )

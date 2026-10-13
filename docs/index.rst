@@ -28,7 +28,7 @@ Key Features
 Getting Started
 ---------------
 
-Install from PyPI:
+Install from PyPI (the training environment: StandardE2E with PyTorch):
 
 .. code-block:: bash
 
@@ -42,7 +42,10 @@ Or for development:
    cd StandardE2E
    uv sync --all-extras
 
-Refer to the :doc:`quickstart` guide for detailed usage.
+Each dataset is preprocessed in its own isolated environment, with a pipeline run by
+`stepix <https://github.com/stepankonev/stepix>`_, e.g.
+``uvx stepix run datasets/waymo_e2e/README.md``. Refer to the :doc:`quickstart` guide
+for detailed usage.
 
 Documentation
 -------------

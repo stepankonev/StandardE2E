@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, cast
 
-import pandas as pd
+import numpy as np
 from av2.map.map_api import ArgoverseStaticMap
+from av2.utils.io import read_city_SE3_ego
 
 from standard_e2e.caching.adapters import (
     AbstractAdapter,
@@ -29,7 +29,6 @@ from standard_e2e.caching.segment_context import (
 )
 from standard_e2e.caching.src_datasets.av2_sensor.av2_sensor_dataset_processor import (
     Av2SensorDatasetProcessor,
-    _se3_from_quat_translation,
 )
 from standard_e2e.data_structures import CameraData, Detection3D
 from standard_e2e.enums import CameraDirection
@@ -76,13 +75,10 @@ class Av2LidarDatasetProcessor(Av2SensorDatasetProcessor):
         self._camera_image_paths.clear()
         self._annotations_by_ts = {}
 
-        ego_df = pd.read_feather(log_dir / "city_SE3_egovehicle.feather")
-        self._ego_pose_by_ts = {}
-        for raw_row in ego_df.itertuples(index=False):
-            row = cast(Any, raw_row)
-            self._ego_pose_by_ts[int(row.timestamp_ns)] = _se3_from_quat_translation(
-                row.qw, row.qx, row.qy, row.qz, row.tx_m, row.ty_m, row.tz_m
-            )
+        self._ego_pose_by_ts = {
+            int(timestamp_ns): city_SE3_ego.transform_matrix.astype(np.float32)
+            for timestamp_ns, city_SE3_ego in read_city_SE3_ego(log_dir).items()
+        }
 
         self._map = ArgoverseStaticMap.from_map_dir(log_dir / "map", build_raster=False)
         self._cached_log_dir = log_dir

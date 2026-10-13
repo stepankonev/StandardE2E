@@ -17,9 +17,9 @@ samples carry on disk.
 
 Prerequisites:
     - Both Waymo E2E and Waymo Perception preprocessed under a common
-      output root using this YAML's adapter list.
-      ``scripts/prepare_datasets_waymo_e2e_perception.sh`` is the easy
-      way to produce both.
+      output root using this YAML's adapter list. The
+      ``datasets/waymo_e2e`` and ``datasets/waymo_perception`` pipelines
+      produce both (set their ``config`` param to this file).
 
 Run from the repo root::
 
@@ -36,9 +36,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from standard_e2e import UnifiedE2EDataset
 from standard_e2e.caching.adapters import HDMapBEVAdapter, get_adapters_from_config
-from standard_e2e.dataset_utils.augmentation import MultipleFramesImageAugmentation
 from standard_e2e.dataset_utils.modality_defaults import (
     HDMapBEVDefaults,
     IntentDefaults,
@@ -47,6 +45,7 @@ from standard_e2e.dataset_utils.modality_defaults import (
 )
 from standard_e2e.enums import Modality, TrajectoryComponent
 from standard_e2e.indexing import get_multi_dataset_index
+from standard_e2e.training import MultipleFramesImageAugmentation, UnifiedE2EDataset
 from standard_e2e.utils import load_yaml_config
 
 

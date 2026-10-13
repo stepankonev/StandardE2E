@@ -1,10 +1,10 @@
 # View-of-Delft (VoD) preprocessing config.
 #
 # PREREQUISITE -- extract the data first. VoD ships as zips; unzip the ``lidar/``
-# tree into the devkit layout before processing (scripts/extract_vod.sh), then
-# ``--input_path`` points at the extracted ``view_of_delft_PUBLIC``. The easiest
-# path is ``scripts/prepare_dataset_vod.sh``, which extracts and converts in one
-# go.
+# tree into the devkit layout before processing (``datasets/vod/extract.sh``),
+# then ``--input_path`` points at the extracted ``view_of_delft_PUBLIC``. The
+# easiest path is the ``datasets/vod/README.md`` pipeline, which extracts and
+# converts in one go.
 preprocessing:
   # VoD carries a single front camera, a 64-layer Velodyne LiDAR and KITTI 3D
   # boxes. The past/future ego trajectories are added by the
