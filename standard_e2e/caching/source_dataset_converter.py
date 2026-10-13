@@ -10,8 +10,10 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union, final
 
+import cv2
 import pandas as pd
 import yaml
+from threadpoolctl import threadpool_limits
 from tqdm import tqdm
 
 from standard_e2e.caching.segment_context import SegmentContextAggregator
@@ -32,6 +34,11 @@ _WORKER_PROCESSOR: Optional[SourceDatasetProcessor] = None
 def _init_worker(processor: SourceDatasetProcessor) -> None:
     global _WORKER_PROCESSOR
     _WORKER_PROCESSOR = processor
+    # The pool is the parallelism: OpenCV and BLAS would otherwise start a thread
+    # per core inside every worker and oversubscribe the CPU (up to 2x the CPU
+    # time for the same output), so both run single-threaded in pool workers.
+    cv2.setNumThreads(0)
+    threadpool_limits(limits=1)
 
 
 def _process_frame_in_worker(raw_frame_data: Any) -> FrameIndexData:

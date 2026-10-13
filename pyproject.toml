@@ -37,6 +37,7 @@ dependencies = [
     "tqdm",
     "pydantic>=2.6,<3",
     "scipy>=1.10",
+    "threadpoolctl>=3.1",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -212,6 +213,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pyarrow.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "threadpoolctl"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
