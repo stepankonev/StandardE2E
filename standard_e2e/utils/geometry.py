@@ -17,6 +17,22 @@ import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 from scipy.spatial.transform import Rotation
 
+# Rigid transform (a pure rotation) from the OpenCV optical camera axes (x right,
+# y down, z forward -- the axes ``CameraData.intrinsics`` projects from) to the
+# FLU body axes (x forward, y left, z up) the ego frames use: its columns are the
+# optical axes expressed in FLU. A ``T_ego_from_camera`` stated for an FLU camera
+# body becomes the optical one ``CameraData.extrinsics`` expects by
+# right-multiplication: ``T_ego_from_camera_flu @ FLU_FROM_OPTICAL``.
+FLU_FROM_OPTICAL = np.array(
+    [
+        [0.0, 0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+    dtype=np.float64,
+)
+
 
 def quats_wxyz_to_rotmats(quats_wxyz: ArrayLike) -> np.ndarray:
     """Convert ``(N, 4)`` Hamilton ``(w, x, y, z)`` quaternions to ``(N, 3, 3)``

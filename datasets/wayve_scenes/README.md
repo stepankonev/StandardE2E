@@ -12,7 +12,8 @@ cloud). It ships no sensor lidar, HD map or boxes.
 ## What StandardE2E extracts
 
 - **One frame = one `front-forward` image timestamp**; **one segment = one scene**.
-- **cameras**: the five fisheye cameras with their COLMAP intrinsics and distortion.
+- **cameras**: the five fisheye cameras with their COLMAP intrinsics and distortion, and
+  `T_ego_from_camera` extrinsics in the OpenCV optical frame (x right, y down, z forward).
 - **lidar_pc**: no sensor lidar exists, so the scene's **COLMAP SfM** point cloud is
   used instead. It is filtered (reprojection error ≤ 6, track length ≥ 2), converted
   from OpenCV to FLU axes, moved into each frame's ego frame and clipped to 50 m, so it

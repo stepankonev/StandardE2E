@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 960 440" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <title>CameraData.extrinsics: the ego frame, the optical camera frame, and the FLU camera frame some datasets ship</title>
+  <defs>
+    <marker id="ego" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#0F6E56"/>
+    </marker>
+    <marker id="opt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#993C1D"/>
+    </marker>
+    <marker id="flu" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#5F5E5A"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="960" height="440" fill="#ffffff"/>
+
+  <!-- Panel 1: the vehicle, its ego frame and the camera's optical frame -->
+  <rect x="16" y="16" width="312" height="408" rx="10" fill="#ffffff" stroke="#d0d0d0"/>
+  <text x="172" y="44" text-anchor="middle" font-size="15" font-weight="600" fill="#222222">1. Ego frame and camera</text>
+  <line x1="36" y1="311" x2="312" y2="311" stroke="#9a9a9a" stroke-width="1.5"/>
+  <rect x="120" y="230" width="180" height="60" rx="12" fill="#e8eef4" stroke="#7a8a99"/>
+  <path d="M165 230 L185 195 L260 195 L285 230 Z" fill="#d6e0ea" stroke="#7a8a99"/>
+  <circle cx="150" cy="295" r="16" fill="#444444"/>
+  <circle cx="150" cy="295" r="6" fill="#bbbbbb"/>
+  <circle cx="275" cy="295" r="16" fill="#444444"/>
+  <circle cx="275" cy="295" r="6" fill="#bbbbbb"/>
+  <rect x="246" y="199" width="16" height="11" rx="2" fill="#ffffff" stroke="#993C1D" stroke-width="1.5"/>
+  <line x1="248" y1="204" x2="150" y2="122" stroke="#993C1D" stroke-width="1" stroke-dasharray="3 3"/>
+  <!-- optical triad of the camera -->
+  <line x1="150" y1="120" x2="225" y2="120" stroke="#993C1D" stroke-width="2" marker-end="url(#opt)"/>
+  <line x1="150" y1="120" x2="150" y2="172" stroke="#993C1D" stroke-width="2" marker-end="url(#opt)"/>
+  <circle cx="150" cy="120" r="6" fill="#ffffff" stroke="#993C1D" stroke-width="1.5"/>
+  <line x1="146" y1="116" x2="154" y2="124" stroke="#993C1D" stroke-width="1.5"/>
+  <line x1="154" y1="116" x2="146" y2="124" stroke="#993C1D" stroke-width="1.5"/>
+  <text x="232" y="124" fill="#993C1D">z forward</text>
+  <text x="157" y="178" fill="#993C1D">y down</text>
+  <text x="140" y="104" text-anchor="end" fill="#993C1D">x right (into page)</text>
+  <text x="60" y="124" text-anchor="end" font-weight="600" fill="#993C1D">camera</text>
+  <!-- ego FLU triad -->
+  <line x1="60" y1="311" x2="118" y2="311" stroke="#0F6E56" stroke-width="2" marker-end="url(#ego)"/>
+  <line x1="60" y1="311" x2="60" y2="256" stroke="#0F6E56" stroke-width="2" marker-end="url(#ego)"/>
+  <circle cx="60" cy="311" r="6" fill="#ffffff" stroke="#0F6E56" stroke-width="1.5"/>
+  <circle cx="60" cy="311" r="2" fill="#0F6E56"/>
+  <text x="66" y="330" fill="#0F6E56">x forward</text>
+  <text x="66" y="262" fill="#0F6E56">z up</text>
+  <text x="36" y="352" fill="#0F6E56">y left (out of page)</text>
+  <text x="36" y="240" font-weight="600" fill="#0F6E56">ego frame</text>
+  <text x="172" y="390" text-anchor="middle" fill="#333333">extrinsics = T_ego_from_camera:</text>
+  <text x="172" y="408" text-anchor="middle" fill="#333333">optical camera axes → ego frame</text>
+
+  <!-- Panel 2: the same camera, two axis labels -->
+  <rect x="344" y="16" width="296" height="408" rx="10" fill="#ffffff" stroke="#d0d0d0"/>
+  <text x="492" y="44" text-anchor="middle" font-size="15" font-weight="600" fill="#222222">2. One camera, two axis labels</text>
+  <text x="492" y="80" text-anchor="middle" font-weight="600" fill="#993C1D">Optical (OpenCV) — StandardE2E's rule</text>
+  <line x1="430" y1="150" x2="510" y2="150" stroke="#993C1D" stroke-width="2" marker-end="url(#opt)"/>
+  <line x1="430" y1="150" x2="430" y2="205" stroke="#993C1D" stroke-width="2" marker-end="url(#opt)"/>
+  <circle cx="430" cy="150" r="6" fill="#ffffff" stroke="#993C1D" stroke-width="1.5"/>
+  <line x1="426" y1="146" x2="434" y2="154" stroke="#993C1D" stroke-width="1.5"/>
+  <line x1="434" y1="146" x2="426" y2="154" stroke="#993C1D" stroke-width="1.5"/>
+  <text x="517" y="154" fill="#993C1D">z forward (lens)</text>
+  <text x="437" y="212" fill="#993C1D">y down</text>
+  <text x="420" y="138" text-anchor="end" fill="#993C1D">x right</text>
+  <text x="492" y="236" text-anchor="middle" font-size="12" fill="#666666">nuScenes · AV2 · NAVSIM · KITScenes · VoD</text>
+  <text x="492" y="252" text-anchor="middle" font-size="12" fill="#666666">TruckDrive · NATIX</text>
+  <text x="492" y="286" text-anchor="middle" font-weight="600" fill="#5F5E5A">FLU body — what four datasets ship</text>
+  <line x1="430" y1="356" x2="510" y2="356" stroke="#5F5E5A" stroke-width="2" marker-end="url(#flu)"/>
+  <line x1="430" y1="356" x2="430" y2="301" stroke="#5F5E5A" stroke-width="2" marker-end="url(#flu)"/>
+  <circle cx="430" cy="356" r="6" fill="#ffffff" stroke="#5F5E5A" stroke-width="1.5"/>
+  <circle cx="430" cy="356" r="2" fill="#5F5E5A"/>
+  <text x="517" y="360" fill="#5F5E5A">x forward (lens)</text>
+  <text x="437" y="306" fill="#5F5E5A">z up</text>
+  <text x="420" y="376" text-anchor="end" fill="#5F5E5A">y left</text>
+  <text x="492" y="400" text-anchor="middle" font-size="12" fill="#666666">Waymo E2E · Waymo Perception</text>
+  <text x="492" y="416" text-anchor="middle" font-size="12" fill="#666666">WayveScenes101 · comma2k19</text>
+
+  <!-- Panel 3: the rule and the fix -->
+  <rect x="656" y="16" width="288" height="408" rx="10" fill="#ffffff" stroke="#d0d0d0"/>
+  <text x="800" y="44" text-anchor="middle" font-size="15" font-weight="600" fill="#222222">3. The rule and the fix</text>
+  <text x="800" y="80" text-anchor="middle" font-weight="600" fill="#333333">extrinsics is optical for every dataset.</text>
+  <text x="800" y="106" text-anchor="middle" fill="#333333">Read an FLU matrix as optical and the lens</text>
+  <text x="800" y="124" text-anchor="middle" fill="#333333">"points at the sky": nothing projects.</text>
+  <text x="800" y="166" text-anchor="middle" font-family="Menlo, Consolas, monospace" font-size="14" fill="#222222">T = T_dataset @ FLU_FROM_OPTICAL</text>
+  <path d="M722 192 L714 192 L714 290 L722 290" fill="none" stroke="#333333" stroke-width="1.5"/>
+  <path d="M878 192 L886 192 L886 290 L878 290" fill="none" stroke="#333333" stroke-width="1.5"/>
+  <text x="800" y="214" text-anchor="middle" font-family="Menlo, Consolas, monospace" font-size="14" fill="#222222" xml:space="preserve"> 0   0   1   0</text>
+  <text x="800" y="236" text-anchor="middle" font-family="Menlo, Consolas, monospace" font-size="14" fill="#222222" xml:space="preserve">-1   0   0   0</text>
+  <text x="800" y="258" text-anchor="middle" font-family="Menlo, Consolas, monospace" font-size="14" fill="#222222" xml:space="preserve"> 0  -1   0   0</text>
+  <text x="800" y="280" text-anchor="middle" font-family="Menlo, Consolas, monospace" font-size="14" fill="#222222" xml:space="preserve"> 0   0   0   1</text>
+  <text x="800" y="316" text-anchor="middle" font-size="12" fill="#666666">columns: the optical x, y, z axes in FLU</text>
+  <text x="800" y="356" text-anchor="middle" fill="#333333">Applied once, in preprocessing, for the</text>
+  <text x="800" y="374" text-anchor="middle" fill="#333333">four FLU datasets. The other nine are</text>
+  <text x="800" y="392" text-anchor="middle" fill="#333333">already optical and do not change.</text>
+</svg>

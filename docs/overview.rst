@@ -68,6 +68,20 @@ Preprocessing uses a two-stage data transformation:
 - As the final stage :class:`~standard_e2e.caching.segment_context.SegmentContextAggregator` may be applied to aggregate
    segment-level context into frame-level data (e.g., current position into trajectory).
 
+Coordinate frames
+-----------------
+
+.. image:: ../assets/camera_extrinsics_convention.svg
+   :alt: The ego frame (x forward, y left, z up) and the optical camera frame (x right, y down, z forward) that CameraData.extrinsics maps between
+
+Every per-frame modality lives in the **ego frame** of its
+:class:`~standard_e2e.data_structures.frame_data.StandardFrameData`: x forward, y left,
+z up, metres. :class:`~standard_e2e.data_structures.containers.CameraData` carries the
+pinhole ``intrinsics`` (``K``) and the ``extrinsics`` ``T_ego_from_camera``, which maps
+the camera's **optical** axes (x right, y down, z forward: the axes ``K`` projects from)
+into the ego frame, for every dataset. Projecting an ego-frame point into an image is
+``p_cam = inv(T) @ p_ego`` followed by ``K @ p_cam / p_cam[2]``.
+
 Training
 --------
 

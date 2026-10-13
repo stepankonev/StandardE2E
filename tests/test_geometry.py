@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from standard_e2e.utils.geometry import (
+    FLU_FROM_OPTICAL,
     intrinsics_matrix,
     quat_wxyz_to_rotmat,
     quats_wxyz_to_rotmats,
@@ -51,6 +52,19 @@ def test_quats_shape_and_norm_validation():
         quats_wxyz_to_rotmats(np.zeros((1, 3)))  # wrong shape
     with pytest.raises(ValueError):
         quats_wxyz_to_rotmats(np.zeros((1, 4)))  # zero-norm (scipy rejects)
+
+
+def test_flu_from_optical_relabels_the_camera_axes():
+    # Columns are the optical axes in FLU: x (right) -> -y, y (down) -> -z,
+    # z (forward, the lens axis) -> +x. A pure rotation, no translation.
+    rotation = FLU_FROM_OPTICAL[:3, :3]
+    np.testing.assert_allclose(rotation @ [1, 0, 0], [0, -1, 0])
+    np.testing.assert_allclose(rotation @ [0, 1, 0], [0, 0, -1])
+    np.testing.assert_allclose(rotation @ [0, 0, 1], [1, 0, 0])
+    np.testing.assert_allclose(rotation @ rotation.T, np.eye(3))
+    assert np.isclose(np.linalg.det(rotation), 1.0)
+    np.testing.assert_allclose(FLU_FROM_OPTICAL[:3, 3], 0.0)
+    np.testing.assert_allclose(FLU_FROM_OPTICAL[3], [0, 0, 0, 1])
 
 
 def test_se3_assembles_and_respects_dtype():

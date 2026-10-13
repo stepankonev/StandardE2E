@@ -6,6 +6,7 @@ from standard_e2e.utils.common import (
     matrix_to_xyz_heading,
 )
 from standard_e2e.utils.geometry import (
+    FLU_FROM_OPTICAL,
     intrinsics_matrix,
     quat_wxyz_to_rotmat,
     quats_wxyz_to_rotmats,
@@ -20,6 +21,7 @@ __all__ = [
     "_assert_strictly_increasing",
     "_check_list_of_objects_or_none",
     "matrix_to_xyz_heading",
+    "FLU_FROM_OPTICAL",
     "quats_wxyz_to_rotmats",
     "quat_wxyz_to_rotmat",
     "se3",

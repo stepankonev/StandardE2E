@@ -32,6 +32,8 @@ Logic for processing original datasets is contained in `standard_e2e/caching/src
 
  `SourceDatasetProcessor` also keeps `AbstractAdapter`s and `SegmentContextAggregator`s. We cover `SegmentContextAggregator` usage later in this instruction.
 
+Every per-frame modality of `StandardFrameData` is expressed in the frame's ego frame (x forward, y left, z up, metres), and camera extrinsics are `T_ego_from_camera` with the camera in the OpenCV optical frame (x right, y down, z forward) -- see `CameraData`. Datasets that describe their cameras with x-forward (FLU) axes, as Waymo and comma2k19 do, right-multiply by `standard_e2e.utils.FLU_FROM_OPTICAL`. A quick check that your extrinsics are right: project the frame's lidar, or its own driven path, into each image with `K` and `inv(T)`; the points must land on the road, not off-image.
+
 ### Dataset Converter
 [`SourceDatasetConverter`](../source_dataset_converter.py) holds the general logic for preprocessing dataset. First, user needs to implement `_get_source_dataset_iterator()` which should return the frame-by-frame iterable over the dataset. Preprocessing the main logic is held in `convert()` method which consists of 2 main parts:
 1. `_convert_frames()` -> `index_df`
