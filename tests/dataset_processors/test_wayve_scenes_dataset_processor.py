@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -242,3 +243,50 @@ def test_sfm_cloud_matches_sdk_filter(built_frame):
     opencv = np.c_[-flu[:, 1], -flu[:, 2], flu[:, 0]]
     tol = 1e-4  # float32 storage
     assert (opencv >= bbox.min - tol).all() and (opencv <= bbox.max + tol).all()
+
+
+def test_camera_extrinsics_are_optical_frame(tmp_path):
+    """Extrinsics map OpenCV optical axes (x-right, y-down, z-forward) to FLU ego.
+
+    Regression guard for emitting the FLU camera *body* frame, in which the
+    intrinsics cannot project. Synthetic, so it always runs (no dataset needed).
+    """
+    proc = WayveScenesDatasetProcessor(
+        common_output_path=str(tmp_path),
+        split="test",
+        adapters=[],
+        context_aggregators=[],
+    )
+    image = tmp_path / "front.png"
+    cv2.imwrite(str(image), np.zeros((4, 6, 3), dtype=np.uint8))
+    # COLMAP identity pose: the front camera sits at the ego origin, looking
+    # along ego +x, and also defines the (identity) ego pose.
+    T_world_cam = _world_from_cam_flu(np.array([1.0, 0, 0, 0]), np.zeros(3))
+    np.testing.assert_allclose(T_world_cam, np.eye(4), atol=1e-12)
+    proc._cam_calib = {1: (np.eye(3, dtype=np.float32), np.zeros(4, np.float32))}
+    proc._position_camera_id = {"front-forward": 1}
+
+    proc._frame_cams = {0: {"front-forward": (image, T_world_cam)}}
+
+    T = proc._build_cameras(0, np.eye(4))[CameraDirection.FRONT].extrinsics
+    R = T[:3, :3]
+    np.testing.assert_allclose(R @ [0, 0, 1], [1, 0, 0], atol=1e-6)  # fwd -> +x
+    np.testing.assert_allclose(R @ [1, 0, 0], [0, -1, 0], atol=1e-6)  # right -> -y
+    np.testing.assert_allclose(R @ [0, 1, 0], [0, 0, -1], atol=1e-6)  # down -> -z
+
+
+def test_sfm_cloud_projects_into_front_camera(built_frame):
+    """Ego-frame SfM points seen through the FRONT extrinsics + K land in the image."""
+    _proc, fd = built_frame
+    assert fd.lidar is not None
+    cam = fd.cameras[CameraDirection.FRONT]
+    ego = fd.lidar.points.to_numpy().astype(np.float64)
+    T_cam_ego = np.linalg.inv(cam.extrinsics.astype(np.float64))
+    pts_cam = ego @ T_cam_ego[:3, :3].T + T_cam_ego[:3, 3]
+    ahead = pts_cam[pts_cam[:, 2] > 0.5]
+    assert len(ahead) > 0.5 * len(pts_cam)  # most of the cloud is in front
+    uv = ahead[:, :2] / ahead[:, 2:] @ cam.intrinsics[:2, :2].T + cam.intrinsics[:2, 2]
+    h, w = cam.image.shape[:2]
+    in_image = ((uv >= 0) & (uv < [w, h])).all(axis=1)
+    # Pinhole-only check on fisheye images: a coarse, not a pixel-exact, bound.
+    assert in_image.mean() > 0.3
