@@ -23,7 +23,10 @@ protos per segment.
   converter pre-scans every segment's first record before the worker pool starts,
   caches the world-frame features (in `/dev/shm` when it has 500 MB free, else the
   output directory or the system temp directory), and every frame applies its inverse
-  pose.
+  pose, with the frame's `map_pose_offset` added to the pose's translation first, as the
+  SDK's maps tutorial does. The offset is Waymo's correction for the pose drifting
+  against the map along a segment: about zero on the first frame, it reached 0.55 m
+  horizontally and 0.81 m vertically in 17 sampled v1.4.3 segments.
 - **past/future ego trajectories and future detections**: from the per-frame poses and
   boxes, via the `FuturePastStatesFromMatricesAggregator` and
   `FutureDetectionsAggregator` after all frames are written.
@@ -51,11 +54,6 @@ fails on, and `domain_adaptation/` nests its own `training/`, `testing/` and
   the two lists by position, so these two cameras get each other's intrinsics,
   extrinsics and distortion. Waymo Open E2E lists both in the same order and is not
   affected.
-- **The HD map is not corrected for pose drift** (StandardE2E bug, not fixed yet). Each
-  frame carries a `map_pose_offset` that, per Waymo, must be added to align the frame
-  with the map features. StandardE2E ignores it, so the ego-frame map is off by up to
-  about 0.3 m horizontally and 0.8 m vertically (the offset is zero on a segment's first
-  frame and drifts along it).
 
 ## Environment
 

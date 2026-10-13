@@ -104,7 +104,8 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
     HD-map handling: Waymo's proto puts ``map_features`` only on the
     first frame of each segment. This processor caches the decoded
     world-frame map features per ``segment_id`` and applies the per-frame
-    inverse pose on every frame. :class:`WaymoPerceptionDatasetConverter`
+    inverse pose, corrected by the frame's ``map_pose_offset``, on every
+    frame. :class:`WaymoPerceptionDatasetConverter`
     pre-populates the cache before parallel work begins, so both
     sequential and parallel preprocessing produce HD maps for every frame.
     """
@@ -262,9 +263,20 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
             self._segment_map_cache[segment_id] = cached
 
     def _build_hd_map(
-        self, segment_id: str, pose_world_from_vehicle: np.ndarray
+        self,
+        segment_id: str,
+        pose_world_from_vehicle: np.ndarray,
+        map_pose_offset: np.ndarray,
     ) -> HDMap | None:
-        """Apply inverse pose to the cached features and build vehicle-frame HDMap."""
+        """Move the cached map features into the frame's vehicle frame.
+
+        ``map_pose_offset`` corrects the frame's pose for drift against the
+        map. Waymo's dataset.proto says it "must be added to lidar points from
+        this frame to compensate for pose drift and align with the map
+        features", and the SDK's ``tutorial_maps.ipynb`` adds it after the pose
+        has moved the points into the world frame: ``map = pose @ p + offset``.
+        Map to vehicle is the inverse of that.
+        """
         cached = self._segment_map_cache.get(segment_id)
         if cached is None and self._segment_cache_dir is not None:
             # Disk-spill mode: lazy-load this segment's cache from disk
@@ -277,7 +289,9 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
                 self._segment_map_cache[segment_id] = cached
         if cached is None:
             return None
-        T_v_w = np.linalg.inv(pose_world_from_vehicle).astype(np.float32)
+        pose_map_from_vehicle = pose_world_from_vehicle.copy()
+        pose_map_from_vehicle[:3, 3] += map_pose_offset
+        T_v_w = np.linalg.inv(pose_map_from_vehicle).astype(np.float32)
         elements: list[MapElement] = []
         for entry in cached:
             world_pts = entry["points_world"]
@@ -371,6 +385,8 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         )
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
+        offset = frame.map_pose_offset
+        map_pose_offset = np.array([offset.x, offset.y, offset.z])
         if (
             self.needs_attr(StandardFrameDataField.HD_MAP)
             and len(frame.map_features) > 0
@@ -378,7 +394,7 @@ class WaymoPerceptionDatasetProcessor(SourceDatasetProcessor):
         ):
             self._cache_map_features_for_segment(segment_id, frame.map_features)
         hd_map = (
-            self._build_hd_map(segment_id, pose)
+            self._build_hd_map(segment_id, pose, map_pose_offset)
             if self.needs_attr(StandardFrameDataField.HD_MAP)
             else None
         )
