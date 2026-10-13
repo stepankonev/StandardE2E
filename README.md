@@ -72,6 +72,35 @@ Where the data can be fetched by a script (Waymo, Argoverse 2, nuScenes mini, co
 KITScenes, NATIX Edge Case), setting `download = true` in the README makes the pipeline
 download the split first, with the dataset's own tool and your access.
 
+## ⬆️ Upgrading from 0.0.x
+
+0.1.0 splits StandardE2E into the training environment (the repository root) and one
+environment per dataset with that dataset's SDK. Data processed with 0.0.x loads
+unchanged; code needs these changes:
+
+- **PyTorch-side names moved to `standard_e2e.training`**, the only sub-package that
+  imports PyTorch (`import standard_e2e` no longer does):
+
+  | 0.0.x | 0.1.0 |
+  |---|---|
+  | `standard_e2e.UnifiedE2EDataset`, `standard_e2e.unified_dataset.UnifiedE2EDataset` | `standard_e2e.training.UnifiedE2EDataset` |
+  | `standard_e2e.dataset_utils.augmentation.MultipleFramesImageAugmentation` | `standard_e2e.training.MultipleFramesImageAugmentation` |
+  | `TransformedFrameDataBatch`, `BatchedTrajectory`, `BatchedLidarPointCloud`, `BatchedFrameDetections3D`, `collate_modalities` from `standard_e2e.data_structures` | the same names from `standard_e2e.training` |
+
+- **TensorFlow-side names moved to modules of their own**, importable where TensorFlow is
+  installed (the Waymo environments):
+
+  | 0.0.x | 0.1.0 |
+  |---|---|
+  | `standard_e2e.caching.TFRecSourceDatasetConverter` | `standard_e2e.caching.tfrec_source_dataset_converter.TFRecSourceDatasetConverter` |
+  | `standard_e2e.utils.image_utils.waymo_fetch_images_from_frame`, `WAYMO_CAMERAS_ORDER` | the same names from `standard_e2e.utils.waymo_image_utils` |
+
+- **Preprocessing runs in the dataset's environment.** TensorFlow and the other dataset
+  SDKs are no longer installed with StandardE2E. Run the dataset's pipeline
+  (`uvx stepix run datasets/<name>/README.md`), or the same CLI or your own script in that
+  environment: `uv run --project datasets/<name> python -m standard_e2e.caching.process_source_dataset <name> ...`.
+  Outside a checkout, install the SDK listed in `datasets/<name>/pyproject.toml`.
+
 ## Supported datasets
 
 
