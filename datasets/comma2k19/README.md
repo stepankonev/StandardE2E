@@ -14,7 +14,9 @@ ego pose and CAN telemetry.
 - **One frame = one video frame** of a segment; **one segment = one ~1-minute
   segment** (`<dongle>|<route>/<segment>`).
 - **cameras**: the single `CameraDirection.FRONT` image, with the EON pinhole
-  intrinsics and identity extrinsics (the dataset's pose *is* the camera pose).
+  intrinsics and `T_ego_from_camera` extrinsics in the OpenCV optical frame (x right,
+  y down, z forward). The dataset's pose *is* the camera pose, so the extrinsics only
+  relabel the axes: the camera sits at the ego origin looking along ego +x.
 - **global_position**: the ego pose derived from the ECEF `global_pose` into a
   per-segment local FLU frame (x-forward / y-left / z-up, origin at the segment
   start), so absolute X/Y/Z and heading are segment-relative. It also carries the

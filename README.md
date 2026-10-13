@@ -76,7 +76,8 @@ download the split first, with the dataset's own tool and your access.
 
 0.1.0 splits StandardE2E into the training environment (the repository root) and one
 environment per dataset with that dataset's SDK. Data processed with 0.0.x loads
-unchanged; code needs these changes:
+unchanged, except for the camera extrinsics of four datasets (last point); code needs
+these changes:
 
 - **PyTorch-side names moved to `standard_e2e.training`**, the only sub-package that
   imports PyTorch (`import standard_e2e` no longer does):
@@ -100,6 +101,15 @@ unchanged; code needs these changes:
   (`uvx stepix run datasets/<name>/README.md`), or the same CLI or your own script in that
   environment: `uv run --project datasets/<name> python -m standard_e2e.caching.process_source_dataset <name> ...`.
   Outside a checkout, install the SDK listed in `datasets/<name>/pyproject.toml`.
+
+- **Camera extrinsics are in the OpenCV optical frame for every dataset.**
+  `CameraData.extrinsics` is `T_ego_from_camera` with camera axes x right, y down,
+  z forward (the frame `intrinsics` projects from). In 0.0.x, Waymo Open E2E, Waymo Open
+  Perception, WayveScenes101 and comma2k19 stored an x-forward / y-left / z-up camera
+  frame instead, so `K` could not project through their `T`. Re-preprocess data of these
+  four datasets that was made with the `cameras_identity_adapter`, or convert it in place
+  with `T_new = T_old @ FLU_FROM_OPTICAL` (`standard_e2e.utils.FLU_FROM_OPTICAL`). Data
+  made with the `pano_adapter` carries no extrinsics and is unaffected.
 
 ## Supported datasets
 

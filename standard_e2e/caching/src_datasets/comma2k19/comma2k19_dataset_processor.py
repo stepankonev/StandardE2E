@@ -10,8 +10,9 @@ Mapping to ``StandardFrameData``:
 
 * One frame = one video frame of a segment; one segment = one cache segment.
 * **cameras**: the single ``CameraDirection.FRONT`` image at that frame, with
-  the EON pinhole intrinsics and identity extrinsics (the dataset's pose *is*
-  the camera pose, so the ego frame and the camera coincide).
+  the EON pinhole intrinsics and ``T_ego_from_camera`` extrinsics that only
+  turn the optical camera axes into FLU (the dataset's pose *is* the camera
+  pose, so the camera sits at the ego origin looking along ego +x).
 * **global_position** / ``aux_data["pose_matrix"]``: the ego pose in a
   per-segment local world frame (FLU), derived from the ECEF position +
   orientation in ``global_pose`` (see :mod:`._comma_geometry`). It also carries
@@ -66,7 +67,11 @@ from standard_e2e.data_structures import (  # noqa: E402
 from standard_e2e.enums import CameraDirection, StandardFrameDataField  # noqa: E402
 from standard_e2e.enums import TrajectoryComponent as TC  # noqa: E402
 from standard_e2e.indexing import IndexDataGenerator  # noqa: E402
-from standard_e2e.utils import intrinsics_matrix, matrix_to_xyz_heading  # noqa: E402
+from standard_e2e.utils import (  # noqa: E402
+    FLU_FROM_OPTICAL,
+    intrinsics_matrix,
+    matrix_to_xyz_heading,
+)
 
 # Single decode thread per worker process: comma2k19 parallelism is across
 # segments/frames in the pool, so letting each VideoCapture spin up its own
@@ -208,8 +213,9 @@ class Comma2k19DatasetProcessor(SourceDatasetProcessor):
                 camera_direction=CameraDirection.FRONT,
                 image=self._read_frame(frame_idx),
                 intrinsics=self.camera_intrinsics,
-                # The pose is the camera pose, so camera == ego (FLU).
-                extrinsics=np.eye(4, dtype=np.float32),
+                # The pose is the camera pose: the camera sits at the ego origin
+                # looking along ego +x, so only the optical->FLU axes differ.
+                extrinsics=FLU_FROM_OPTICAL.astype(np.float32),
                 is_fisheye=False,
             )
         }

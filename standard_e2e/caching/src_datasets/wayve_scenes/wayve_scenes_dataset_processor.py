@@ -10,7 +10,7 @@ Mapping to ``StandardFrameData``:
 * One frame = one timestamp of a scene; one scene = one segment. The
   reconstruction is read with ``pycolmap``, as the official SDK does.
 * **cameras**: the (up to) 5 images at that timestamp, with intrinsics and
-  ego-relative extrinsics.
+  ``T_ego_from_camera`` extrinsics in the OpenCV optical camera frame.
 * **global_position** / ``aux_data["pose_matrix"]``: the ego pose in a world
   FLU frame, derived from the front-forward camera's COLMAP pose. The
   past/future ego trajectories are produced by
@@ -263,7 +263,9 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
                 continue
             cid = self._position_camera_id[position]
             K, dist = self._cam_calib[cid]
-            T_ego_cam = (T_ego_world @ T_world_cam).astype(np.float32)
+            # FLU camera body -> OpenCV optical (x-right, y-down, z-forward), the
+            # frame K projects from and the SDK's g_world_cam uses.
+            T_ego_cam = (T_ego_world @ T_world_cam @ _FLU_RDF).astype(np.float32)
             out[direction] = CameraData(
                 camera_direction=direction,
                 image=_decode_rgb(img_path),

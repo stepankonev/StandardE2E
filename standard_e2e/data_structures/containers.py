@@ -18,6 +18,16 @@ from .trajectory_data import Trajectory
 class CameraData(BaseModel):
     """Camera sample containing image + calibration matrices.
 
+    Conventions (the same for every dataset):
+    - intrinsics (K) is the pinhole matrix of ``image``; distortion (D) follows
+      OpenCV's Brown-Conrady or fisheye model.
+    - extrinsics (T) is ``T_ego_from_camera``: a 4x4 rigid transform, in metres,
+      from the camera's **optical** frame -- x right, y down, z forward along the
+      lens axis, the frame K and D project from -- to the ego frame of the
+      ``StandardFrameData`` the camera belongs to (x forward, y left, z up; the
+      frame its lidar, boxes, map and trajectories use). To project an
+      ego-frame point: ``p_cam = inv(T) @ p_ego``, then ``K @ p_cam / p_cam[2]``.
+
     Validation rules:
     - intrinsics (K): shape (3,3) float32
     - extrinsics (T): shape (4,4) float32

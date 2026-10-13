@@ -13,7 +13,9 @@ protos per segment.
 
 - **One frame = one `Frame` proto**; **one segment = one TFRecord** (a 20 s segment).
 - **cameras**: the five cameras (`FRONT`, `FRONT_LEFT`, `FRONT_RIGHT`, `SIDE_LEFT`,
-  `SIDE_RIGHT`) with intrinsics, extrinsics and distortion from the calibration.
+  `SIDE_RIGHT`) with intrinsics and distortion from the calibration, and
+  `T_ego_from_camera` extrinsics converted from Waymo's x-forward camera frame to the
+  OpenCV optical frame (x right, y down, z forward).
 - **lidar_pc**: the first return of all five lidars in the vehicle frame. The range
   images are decoded by `standard_e2e/utils/waymo_lidar_numpy.py`, a NumPy port of the
   SDK's `frame_utils` decode kept because it is about 2.7× faster per frame than the

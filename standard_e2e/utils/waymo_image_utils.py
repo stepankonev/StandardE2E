@@ -12,6 +12,7 @@ from standard_e2e.enums import CameraDirection
 
 # pylint: disable=no-name-in-module
 from standard_e2e.third_party.waymo_open_dataset.dataset_pb2 import Frame as WaymoFrame
+from standard_e2e.utils import FLU_FROM_OPTICAL
 
 WAYMO_CAMERAS_ORDER = {
     CameraDirection.FRONT: 1,
@@ -50,10 +51,14 @@ def waymo_fetch_images_from_frame(
 
             # https://github.com/waymo-research/waymo-open-dataset/blob/master/src/waymo_open_dataset/dataset.proto#L78
             # 4x4 row major transform matrix that tranforms 3d points from one frame to
-            # another.
-            extrinsics_matrix = np.array(
-                frame.context.camera_calibrations[image_idx].extrinsic.transform
-            ).reshape(4, 4)
+            # another. Waymo's camera frame is x-forward / y-left / z-up; CameraData
+            # expects the optical frame (x-right / y-down / z-forward).
+            extrinsics_matrix = (
+                np.array(
+                    frame.context.camera_calibrations[image_idx].extrinsic.transform
+                ).reshape(4, 4)
+                @ FLU_FROM_OPTICAL
+            ).astype(np.float32)
 
             distortion_array = np.array(
                 frame.context.camera_calibrations[image_idx].intrinsic

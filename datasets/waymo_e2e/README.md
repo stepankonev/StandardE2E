@@ -15,8 +15,9 @@ split, rater-scored preference trajectories. It ships as sharded TFRecords of
 - **One frame = one `E2EDFrame`**; **one segment = one run** (the part of the context
   name before `-`, the frame id after it). Frame timestamps are `frame_id × 0.1 s`.
 - **cameras**: the eight cameras (`FRONT`, `FRONT_LEFT`, `FRONT_RIGHT`, `SIDE_LEFT`,
-  `SIDE_RIGHT`, `REAR_LEFT`, `REAR`, `REAR_RIGHT`) with intrinsics, extrinsics and
-  distortion from the frame's calibration.
+  `SIDE_RIGHT`, `REAR_LEFT`, `REAR`, `REAR_RIGHT`) with intrinsics and distortion from
+  the frame's calibration, and `T_ego_from_camera` extrinsics converted from Waymo's
+  x-forward camera frame to the OpenCV optical frame (x right, y down, z forward).
 - **past_states / future_states**: the ego trajectories shipped inside each frame
   (positions, plus velocity and acceleration for the past), at 0.25 s steps.
 - **intent**: the driving command.

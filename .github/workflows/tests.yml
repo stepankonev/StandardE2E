@@ -71,7 +71,7 @@ jobs:
       matrix:
         include:
           - dataset: waymo_e2e
-            tests: tests/dataset_processors/test_waymo_e2e_dataset_processor.py
+            tests: tests/dataset_processors/test_waymo_e2e_dataset_processor.py tests/test_waymo_image_utils.py
           - dataset: waymo_perception
             tests: tests/dataset_processors/test_waymo_perception_dataset_processor.py tests/test_waymo_lidar_numpy.py
           - dataset: av2_sensor

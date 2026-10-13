@@ -36,6 +36,7 @@ from standard_e2e.caching.src_datasets.comma2k19.comma2k19_dataset_processor imp
 )
 from standard_e2e.enums import CameraDirection
 from standard_e2e.enums import TrajectoryComponent as TC
+from standard_e2e.utils import FLU_FROM_OPTICAL
 
 # Real-frame checks read comma2k19 only from this env var; they skip when unset.
 _COMMA2K19_ROOT = os.environ.get("COMMA2K19_ROOT", "")
@@ -176,7 +177,9 @@ def test_frame_has_single_front_camera(built):
     assert cam.image.shape == (874, 1164, 3)
     assert cam.intrinsics.shape == (3, 3)
     assert cam.extrinsics.shape == (4, 4)
-    np.testing.assert_allclose(cam.extrinsics, np.eye(4), atol=1e-6)
+    # The camera is the ego: at the origin, lens (optical z) along ego +x.
+    np.testing.assert_allclose(cam.extrinsics, FLU_FROM_OPTICAL, atol=1e-6)
+    np.testing.assert_allclose(cam.extrinsics[:3, :3] @ [0, 0, 1], [1, 0, 0])
     assert not cam.is_fisheye and cam.distortion is None
 
 
