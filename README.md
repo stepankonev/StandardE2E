@@ -145,6 +145,11 @@ Each dataset's folder describes what StandardE2E extracts from it, its caveats, 
 - [multi_dataset_training_and_filtering.ipynb](notebooks/multi_dataset_training_and_filtering.ipynb) - Multi-dataset training and filtering
 - [creating_custom_adapter.ipynb](notebooks/creating_custom_adapter.ipynb) - Creating custom dataset adapters
 
+The first three read data that a dataset's pipeline has already processed, so they run in
+the training environment: `uv run --with jupyter jupyter lab`. The adapter notebook
+preprocesses Waymo End-to-end data itself, so start it from that dataset's environment:
+`uv run --project datasets/waymo_e2e --with jupyter jupyter lab`.
+
 ### Code Examples
 
 Run from the project root. Training-side examples use the default environment (`uv run`); preprocessing runs in the dataset's own environment (`uv run --project datasets/<name>`).
