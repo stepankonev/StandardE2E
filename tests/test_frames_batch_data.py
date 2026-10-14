@@ -390,6 +390,20 @@ def test_modality_none_in_some_frames_without_empty_element_raises():
     assert "1 with ndarray float32 (1, 2, 2): ds/train/seg2_2.npz" in note
 
 
+def test_arrays_of_different_shapes_raise_with_the_policy():
+    f1 = make_frame(1)
+    f1.set_modality_data(Modality.CAMERAS, np.zeros((4, 12, 3), dtype=np.uint8))
+    f2 = make_frame(2)
+    f2.set_modality_data(Modality.CAMERAS, np.zeros((3, 12, 3), dtype=np.uint8))
+
+    with pytest.raises(ValueError, match="not resize at batch time") as info:
+        TransformedFrameDataBatch([f1, f2])
+    note = "\n".join(info.value.__notes__)
+    assert "CAMERAS" in note
+    assert "1 with ndarray uint8 (4, 12, 3): ds/train/seg1_1.npz" in note
+    assert "1 with ndarray uint8 (3, 12, 3): ds/train/seg2_2.npz" in note
+
+
 def test_batched_trajectory_resample_with_none_entries():
     batch = BatchedTrajectory(
         [

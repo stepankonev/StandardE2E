@@ -848,6 +848,15 @@ def collate_modalities(
             f"{type(first).__name__} modality, which has no empty element; set a "
             "ModalityDefaults handler to fill it"
         )
+    if isinstance(first, np.ndarray):
+        shapes = {sample.shape for sample in batch}
+        if len(shapes) > 1:
+            raise ValueError(
+                f"frames hold arrays of different shapes {sorted(shapes)}; "
+                "StandardE2E does not resize at batch time: panoramas of different "
+                "rigs and BEV rasters of different grids are not guaranteed to "
+                "batch, so batch those datasets separately"
+            )
     # Collate fn map must accept broader key types required by torch's internal typing
     extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
         Trajectory: collate_trajectory_fn,
