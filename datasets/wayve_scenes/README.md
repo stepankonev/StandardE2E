@@ -18,9 +18,9 @@ cloud). It ships no sensor lidar, HD map or boxes.
   used instead. It is filtered as in the official SDK (inside the 1st–99th percentile
   bounding box, reprojection error ≤ 6, track length ≥ 2), converted from OpenCV to
   FLU axes, moved into each frame's ego frame and clipped to 50 m, so it flows through
-  the lidar adapters. It is photogrammetric (sparse, up to scale), not a
-  sensor measurement; a frame's cloud lifted by `aux_data["pose_matrix"]` reproduces the
-  source SfM cloud.
+  the lidar adapters. It is photogrammetric (sparse, up to scale), not a sensor
+  measurement; a frame's cloud lifted by `aux_data["pose_matrix"]` reproduces the source
+  SfM cloud.
 - **past/future ego trajectories**: from the COLMAP poses, via the
   `FuturePastStatesFromMatricesAggregator`.
 

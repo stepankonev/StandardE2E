@@ -1,11 +1,13 @@
 # flake8: noqa: E501
 """Tests for the WayveScenes101 processor.
 
-* **Coordinate math** (no data needed): the OpenCV->FLU point conversion and the
-  ``world_from_cam`` conjugation, on synthetic inputs.
+* **Coordinate math and units** (no data needed): the OpenCV->FLU point
+  conversion, the ``world_from_cam`` conjugation, microsecond timestamps and
+  optical-frame camera extrinsics, on synthetic inputs.
 * **Real-frame checks** (skipped unless an extracted scene is present): a built
-  frame has the 5 cameras, an ego-frame range-clipped point cloud, and a finite
-  ego pose — i.e. the modalities line up with the lidar-consistent design.
+  frame has the 5 cameras, an ego-frame range-clipped point cloud matching the
+  SDK's filter, a finite ego pose, and a cloud that projects into the front
+  camera — i.e. the modalities line up with the lidar-consistent design.
 """
 
 from __future__ import annotations
@@ -265,7 +267,6 @@ def test_camera_extrinsics_are_optical_frame(tmp_path):
     np.testing.assert_allclose(T_world_cam, np.eye(4), atol=1e-12)
     proc._cam_calib = {1: (np.eye(3, dtype=np.float32), np.zeros(4, np.float32))}
     proc._position_camera_id = {"front-forward": 1}
-
     proc._frame_cams = {0: {"front-forward": (image, T_world_cam)}}
 
     T = proc._build_cameras(0, np.eye(4))[CameraDirection.FRONT].extrinsics
