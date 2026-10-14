@@ -6,6 +6,7 @@ preprocessing environment (``datasets/<name>/``) can leave PyTorch out.
 """
 
 from standard_e2e.training.batching import (
+    BatchedCameraData,
     BatchedFrameDetections3D,
     BatchedLidarPointCloud,
     BatchedTrajectory,
@@ -22,6 +23,7 @@ __all__ = [
     "TransformedFrameDataBatch",
     "BatchedTrajectory",
     "BatchedLidarPointCloud",
+    "BatchedCameraData",
     "BatchedFrameDetections3D",
     "collate_modalities",
     "MultipleFramesImageAugmentation",

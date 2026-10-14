@@ -3,8 +3,10 @@
 :meth:`UnifiedE2EDataset.collate_fn
 <standard_e2e.training.UnifiedE2EDataset.collate_fn>` turns a list of
 ``TransformedFrameData`` into a :class:`TransformedFrameDataBatch`: trajectories,
-lidar point clouds and 3D detections become the batched containers below, and
-every other leaf goes through PyTorch's default collation.
+lidar point clouds, cameras and 3D detections become the batched containers
+below (a frame missing one of them batches as its empty element), a modality
+that is ``None`` in every frame stays ``None``, and every other leaf goes
+through PyTorch's default collation.
 """
 
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
@@ -15,6 +17,7 @@ from torch.utils.data._utils.collate import collate as _torch_collate
 from torch.utils.data._utils.collate import default_collate_fn_map
 
 from standard_e2e.data_structures.containers import (
+    CameraData,
     FrameDetections3D,
     LidarPointCloud,
 )
@@ -24,7 +27,7 @@ from standard_e2e.data_structures.trajectory_data import (
     Trajectory,
     _validate_components_arg,
 )
-from standard_e2e.enums import LidarComponent, Modality
+from standard_e2e.enums import CameraDirection, DetectionType, LidarComponent, Modality
 from standard_e2e.enums import TrajectoryComponent
 from standard_e2e.enums import TrajectoryComponent as TC
 
@@ -65,10 +68,10 @@ class BatchedTrajectory:
             raise ValueError(
                 "BatchedTrajectory requires a non-empty list of trajectories."
             )
-        self._original_trajectories = trajectories
         self._side = side
         self._strict = strict
         trajectories = self._replace_none_with_empty_trajs(trajectories)
+        self._original_trajectories = trajectories
         self._device = device or torch.device("cpu")
         self._data: Dict[TrajectoryComponent, torch.Tensor] = {}
 
@@ -439,8 +442,162 @@ class BatchedLidarPointCloud:
         )
 
 
+class BatchedCameraData:
+    """Batched ``CameraData`` of one camera direction.
+
+    Each ``CameraData`` field gains a leading batch dimension ``B``. A sample
+    without this camera (``None``) is zero-filled and flagged in
+    ``is_empty_mask``.
+
+    - ``image``: ``(B, H, W, C)`` uint8. Images are zero-padded at the bottom and
+      right to the largest ``H`` and ``W`` in the batch, which keeps the
+      intrinsics valid; ``size`` holds each sample's unpadded ``(H, W)``.
+    - ``intrinsics``: ``(B, 3, 3)`` and ``extrinsics``: ``(B, 4, 4)`` float32.
+    - ``distortion``: ``(B, D)`` float32, or ``None`` when no sample has one;
+      samples without one are zero-filled. All distortions must have the same
+      length (a 4-term fisheye and a 5-term Brown–Conrady model do not mix).
+    - ``is_fisheye`` and ``is_empty_mask``: ``(B,)`` bool.
+    """
+
+    def __init__(
+        self,
+        cameras: Sequence[Optional[CameraData]],
+        device: Optional[torch.device] = None,
+    ) -> None:
+        present = [camera for camera in cameras if camera is not None]
+        if not present:
+            raise ValueError("BatchedCameraData requires at least one CameraData.")
+        if not all(isinstance(camera, CameraData) for camera in present):
+            raise TypeError("all entries must be CameraData instances or None")
+        channels = {camera.shape[2] for camera in present}
+        if len(channels) != 1:
+            raise ValueError(f"images have different channel counts: {channels}")
+        distortion_sizes = {
+            camera.distortion.size
+            for camera in present
+            if camera.distortion is not None
+        }
+        if len(distortion_sizes) > 1:
+            raise ValueError(f"distortions have different lengths: {distortion_sizes}")
+        self._device = device or torch.device("cpu")
+        batch_size = len(cameras)
+        height = max(camera.shape[0] for camera in present)
+        width = max(camera.shape[1] for camera in present)
+        image = np.zeros((batch_size, height, width, channels.pop()), dtype=np.uint8)
+        size = np.zeros((batch_size, 2), dtype=np.int64)
+        intrinsics = np.zeros((batch_size, 3, 3), dtype=np.float32)
+        extrinsics = np.zeros((batch_size, 4, 4), dtype=np.float32)
+        distortion = (
+            np.zeros((batch_size, distortion_sizes.pop()), dtype=np.float32)
+            if distortion_sizes
+            else None
+        )
+        is_fisheye = np.zeros(batch_size, dtype=bool)
+        for i, camera in enumerate(cameras):
+            if camera is None:
+                continue
+            h, w, _ = camera.shape
+            image[i, :h, :w] = camera.image
+            size[i] = (h, w)
+            intrinsics[i] = camera.intrinsics
+            extrinsics[i] = camera.extrinsics
+            if distortion is not None and camera.distortion is not None:
+                distortion[i] = camera.distortion
+            is_fisheye[i] = camera.is_fisheye
+        self._image = torch.from_numpy(image).to(device=self._device)
+        self._size = torch.from_numpy(size).to(device=self._device)
+        self._intrinsics = torch.from_numpy(intrinsics).to(device=self._device)
+        self._extrinsics = torch.from_numpy(extrinsics).to(device=self._device)
+        self._distortion = (
+            None
+            if distortion is None
+            else torch.from_numpy(distortion).to(device=self._device)
+        )
+        self._is_fisheye = torch.from_numpy(is_fisheye).to(device=self._device)
+        self._is_empty_mask = torch.tensor(
+            [camera is None for camera in cameras],
+            dtype=torch.bool,
+            device=self._device,
+        )
+
+    @property
+    def image(self) -> torch.Tensor:
+        return self._image
+
+    @property
+    def size(self) -> torch.Tensor:
+        return self._size
+
+    @property
+    def intrinsics(self) -> torch.Tensor:
+        return self._intrinsics
+
+    @property
+    def extrinsics(self) -> torch.Tensor:
+        return self._extrinsics
+
+    @property
+    def distortion(self) -> Optional[torch.Tensor]:
+        return self._distortion
+
+    @property
+    def is_fisheye(self) -> torch.Tensor:
+        return self._is_fisheye
+
+    @property
+    def is_empty_mask(self) -> torch.Tensor:
+        return self._is_empty_mask
+
+    @property
+    def batch_size(self) -> int:
+        return int(self._image.shape[0])
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    def to(self, device: torch.device) -> "BatchedCameraData":
+        """Move every tensor to ``device`` (in-place)."""
+        if device == self._device:
+            return self
+        self._image = self._image.to(device=device, non_blocking=True)
+        self._size = self._size.to(device=device, non_blocking=True)
+        self._intrinsics = self._intrinsics.to(device=device, non_blocking=True)
+        self._extrinsics = self._extrinsics.to(device=device, non_blocking=True)
+        if self._distortion is not None:
+            self._distortion = self._distortion.to(device=device, non_blocking=True)
+        self._is_fisheye = self._is_fisheye.to(device=device, non_blocking=True)
+        self._is_empty_mask = self._is_empty_mask.to(device=device, non_blocking=True)
+        self._device = device
+        return self
+
+    def cuda(self, device: Optional[int] = None) -> "BatchedCameraData":
+        dev = torch.device(f"cuda:{device}" if device is not None else "cuda")
+        return self.to(dev)
+
+    def __repr__(self) -> str:
+        return (
+            f"BatchedCameraData(batch_size={self.batch_size}, "
+            f"image_shape={tuple(self._image.shape)}, device={self._device})"
+        )
+
+
 class BatchedFrameDetections3D:
-    """Holds 3D detections for multiple frames"""
+    """3D detections of a batch of frames in concat-with-batch-index format.
+
+    Every detection of the batch is one row, as the points of a
+    :class:`BatchedLidarPointCloud` are: ``batch_idx`` maps each row to its
+    frame, and ``unique_agent_ids`` and ``detection_types`` are flat lists in
+    row order. A frame without detections has no rows.
+
+    ``trajectories`` is a ``(sum_N, T, K)`` tensor over ``trajectory_components``
+    built from one :class:`BatchedTrajectory` of all detection trajectories:
+    ``T`` is the longest trajectory in the batch, shorter ones are zero-padded
+    on the right and ``is_valid`` is ``False`` on the padded steps. Components a
+    detection does not carry are zero, so per-frame snapshots (all 8
+    components) and the X/Y/HEADING-only tracks of ``FutureDetectionsAggregator``
+    batch alike.
+    """
 
     _trajectory_components = [
         TC.TIMESTAMP,
@@ -453,64 +610,105 @@ class BatchedFrameDetections3D:
         TC.HEIGHT,
     ]
 
-    def __init__(self, frames_detections: list[FrameDetections3D]):
-        """Batch detections across frames and expose trajectory tensors.
-
-        Args:
-            frames_detections: Sequence of per-frame detection containers.
-        """
+    def __init__(
+        self,
+        frames_detections: list[FrameDetections3D],
+        device: Optional[torch.device] = None,
+    ):
+        """Batch the detections of ``frames_detections``, one entry per frame."""
         if not isinstance(frames_detections, list) or not all(
             isinstance(fd, FrameDetections3D) for fd in frames_detections
         ):
             raise TypeError("frames_detections must be a sequence of FrameDetections3D")
-        self._batched_detections = frames_detections
-        self._batched_trajectories = []
-        for frame_detections in frames_detections:
-            frame_detections_trajectories = [
-                detection.trajectory for detection in frame_detections.detections
-            ]
-            self._batched_trajectories.append(
-                BatchedTrajectory(frame_detections_trajectories)
-            )
-        # ``strict=False``: detection trajectories from segment-context
-        # aggregators (e.g. ``FutureDetectionsAggregator``) only carry
-        # X/Y/HEADING; missing components are filled with zeros so collation
-        # works for both per-frame snapshots (8 components) and aggregated
-        # future-trajectory detections (3 components).
-        self._batched_trajectories_tensors = [
-            td.get(self._trajectory_components, strict=False)
-            for td in self._batched_trajectories
+        self._device = device or torch.device("cpu")
+        self._batch_size = len(frames_detections)
+        detections = [
+            detection
+            for frame_detections in frames_detections
+            for detection in frame_detections.detections
         ]
-        self._detection_types = []
-        self._unique_agent_ids = []
-
-        for frame_detections in frames_detections:
-            self._detection_types.append(
-                [detection.detection_type for detection in frame_detections.detections]
+        self._batch_idx = torch.tensor(
+            [
+                i
+                for i, frame_detections in enumerate(frames_detections)
+                for _ in frame_detections.detections
+            ],
+            dtype=torch.int64,
+            device=self._device,
+        )
+        self._unique_agent_ids = [d.unique_agent_id for d in detections]
+        self._detection_types = [d.detection_type for d in detections]
+        num_components = len(self._trajectory_components)
+        if detections:
+            batched = BatchedTrajectory(
+                [d.trajectory for d in detections], device=self._device
             )
-            self._unique_agent_ids.append(
-                [detection.unique_agent_id for detection in frame_detections.detections]
+            self._trajectories = batched.get(self._trajectory_components, strict=False)
+            self._is_valid = batched.get(TC.IS_VALID)[..., 0].bool()
+        else:
+            self._trajectories = torch.zeros(
+                (0, 0, num_components), dtype=torch.float32, device=self._device
             )
+            self._is_valid = torch.zeros((0, 0), dtype=torch.bool, device=self._device)
 
     @property
     def trajectory_components(self) -> list[TC]:
-        """Trajectory components preserved in the batched tensors."""
+        """Trajectory components, in the order of the last ``trajectories`` axis."""
         return self._trajectory_components
 
     @property
-    def detection_types(self):
-        """Detection types for the first frame (assumed consistent across batch)."""
-        return self._detection_types[0]
+    def trajectories(self) -> torch.Tensor:
+        """``(sum_N, T, K)`` float32 detection trajectories."""
+        return self._trajectories
 
     @property
-    def unique_agent_ids(self):
-        """Unique agent identifiers for the first frame."""
-        return self._unique_agent_ids[0]
+    def is_valid(self) -> torch.Tensor:
+        """``(sum_N, T)`` bool; ``False`` on the zero-padded steps."""
+        return self._is_valid
 
     @property
-    def trajectories(self):
-        """Tensor view of trajectories for the first frame in the batch."""
-        return self._batched_trajectories_tensors[0]
+    def batch_idx(self) -> torch.Tensor:
+        """``(sum_N,)`` int64 index of each detection's frame in the batch."""
+        return self._batch_idx
+
+    @property
+    def unique_agent_ids(self) -> list[str]:
+        """Agent identifier of each detection, in row order."""
+        return self._unique_agent_ids
+
+    @property
+    def detection_types(self) -> list[DetectionType]:
+        """Type of each detection, in row order."""
+        return self._detection_types
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    def to(self, device: torch.device) -> "BatchedFrameDetections3D":
+        """Move every tensor to ``device`` (in-place)."""
+        if device == self._device:
+            return self
+        self._trajectories = self._trajectories.to(device=device, non_blocking=True)
+        self._is_valid = self._is_valid.to(device=device, non_blocking=True)
+        self._batch_idx = self._batch_idx.to(device=device, non_blocking=True)
+        self._device = device
+        return self
+
+    def cuda(self, device: Optional[int] = None) -> "BatchedFrameDetections3D":
+        dev = torch.device(f"cuda:{device}" if device is not None else "cuda")
+        return self.to(dev)
+
+    def __repr__(self) -> str:
+        return (
+            f"BatchedFrameDetections3D(batch_size={self._batch_size}, "
+            f"sum_N={int(self._trajectories.shape[0])}, "
+            f"length={int(self._trajectories.shape[1])}, device={self._device})"
+        )
 
 
 def _to_device_recursive(x: Any, device: torch.device) -> Any:
@@ -521,6 +719,12 @@ def _to_device_recursive(x: Any, device: torch.device) -> Any:
         x.to(device)  # in-place; returns self
         return x
     if isinstance(x, BatchedLidarPointCloud):
+        x.to(device)  # in-place; returns self
+        return x
+    if isinstance(x, BatchedCameraData):
+        x.to(device)  # in-place; returns self
+        return x
+    if isinstance(x, BatchedFrameDetections3D):
         x.to(device)  # in-place; returns self
         return x
     if isinstance(x, dict):
@@ -565,14 +769,81 @@ def collate_lidar_fn(
     return BatchedLidarPointCloud(batch)
 
 
+def _collate_camera_dicts(
+    batch: Sequence[Optional[Dict[CameraDirection, CameraData]]],
+) -> Dict[CameraDirection, BatchedCameraData]:
+    """Collate per-frame camera dicts into ``{direction: BatchedCameraData}``.
+
+    The directions are the union over the batch, in ``CameraDirection`` order;
+    a frame without a direction (or without cameras, ``None``) is an empty
+    sample of that direction.
+    """
+    frames: List[Dict[CameraDirection, CameraData]] = []
+    for cameras in batch:
+        if cameras is not None and not isinstance(cameras, dict):
+            raise TypeError(f"cannot batch camera dicts with {type(cameras)}")
+        frames.append(cameras or {})
+    return {
+        direction: BatchedCameraData([cameras.get(direction) for cameras in frames])
+        for direction in CameraDirection
+        if any(direction in cameras for cameras in frames)
+    }
+
+
 def collate_modalities(
     batch: List[Any], *, device: Optional[torch.device] = None
 ) -> Any:
-    """
-    Exactly like torch's default_collate, except leaves of type `Trajectory`
-    are turned into a `BatchedTrajectory`. Everything else is native behavior.
+    """Collate one modality across a batch of frames.
+
+    Like torch's default collate, with StandardE2E's containers batched into
+    the classes above: ``Trajectory`` to :class:`BatchedTrajectory`,
+    ``FrameDetections3D`` to :class:`BatchedFrameDetections3D`,
+    ``LidarPointCloud`` to :class:`BatchedLidarPointCloud` and
+    ``{CameraDirection: CameraData}`` dicts to
+    ``{CameraDirection: BatchedCameraData}``.
+
+    A frame that lacks the modality (``None``) batches as the container's
+    empty element: an empty trajectory, no detections, no points or no
+    cameras, each flagged by the container. A modality that is ``None`` in
+    every frame collates to ``None``. Arrays, numbers and lists have no empty
+    element, so ``None`` among them raises; a ``ModalityDefaults`` handler
+    declares what fills a missing modality of that kind.
     """
     device = device or torch.device("cpu")
+    present = [sample for sample in batch if sample is not None]
+    if batch and not present:
+        return None
+    if any(
+        isinstance(sample, dict)
+        and any(isinstance(value, CameraData) for value in sample.values())
+        for sample in present
+    ):
+        return _collate_camera_dicts(batch)
+    # torch dispatches on the type of the first sample, which may be None;
+    # dispatch on the first present one and fill the missing ones.
+    first = present[0] if present else None
+    if isinstance(first, Trajectory):
+        return BatchedTrajectory(batch)
+    if isinstance(first, FrameDetections3D):
+        return BatchedFrameDetections3D(
+            [
+                sample if sample is not None else FrameDetections3D(detections=[])
+                for sample in batch
+            ]
+        )
+    if isinstance(first, LidarPointCloud):
+        empty = LidarPointCloud(
+            np.zeros((0, len(first.components)), dtype=np.float32), first.components
+        )
+        return BatchedLidarPointCloud(
+            [sample if sample is not None else empty for sample in batch]
+        )
+    if len(present) != len(batch):
+        raise ValueError(
+            f"{len(batch) - len(present)} of {len(batch)} frames have None for a "
+            f"{type(first).__name__} modality, which has no empty element; set a "
+            "ModalityDefaults handler to fill it"
+        )
     # Collate fn map must accept broader key types required by torch's internal typing
     extended_map: dict[Union[type, tuple[type, ...]], Callable[..., Any]] = {
         Trajectory: collate_trajectory_fn,
@@ -638,13 +909,15 @@ class TransformedFrameDataBatch:
         )
         # Collate each modality across frames using PyTorch's
         # collate + Trajectory override
-        self._modality_data = {
-            modality: collate_modalities(
-                [f.get_modality_data(modality) for f in frames],
-                device=device,
-            )
-            for modality in all_modalities
-        }
+        self._modality_data = {}
+        for modality in all_modalities:
+            try:
+                self._modality_data[modality] = collate_modalities(
+                    [f.get_modality_data(modality) for f in frames], device=device
+                )
+            except Exception as exc:
+                exc.add_note(f"while batching modality {modality.name}")
+                raise
 
         # Aux data: if dict-like across frames,
         # you may also want to collate it with the same helper.
