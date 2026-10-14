@@ -12,6 +12,7 @@ from .modality_defaults import (
     LidarBEVDefaults,
     LidarPointCloudDefaults,
     ModalityDefaults,
+    PanoImageDefaults,
     PreferredTrajectoryDefaults,
 )
 
@@ -51,6 +52,7 @@ __all__ = [
     "LidarBEVDefaults",
     "LidarPointCloudDefaults",
     "ModalityDefaults",
+    "PanoImageDefaults",
     "PreferredTrajectoryDefaults",
     "_check_modality_defaults_dict",
 ]

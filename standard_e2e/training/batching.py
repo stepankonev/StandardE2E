@@ -781,7 +781,11 @@ def _collate_camera_dicts(
     frames: List[Dict[CameraDirection, CameraData]] = []
     for cameras in batch:
         if cameras is not None and not isinstance(cameras, dict):
-            raise TypeError(f"cannot batch camera dicts with {type(cameras)}")
+            raise TypeError(
+                "frames hold cameras in different forms: per-camera dicts "
+                f"(cameras_identity_adapter) and {type(cameras).__name__} "
+                "(pano_adapter); process the datasets with the same camera adapter"
+            )
         frames.append(cameras or {})
     return {
         direction: BatchedCameraData([cameras.get(direction) for cameras in frames])
@@ -855,6 +859,48 @@ def collate_modalities(
     return _torch_collate(batch, collate_fn_map=extended_map)
 
 
+def _describe_payload(value: Any) -> str:
+    """One-line description of a modality payload, for batching error reports."""
+    if value is None:
+        return "None"
+    if isinstance(value, np.ndarray):
+        return f"ndarray {value.dtype} {tuple(value.shape)}"
+    if isinstance(value, dict) and any(
+        isinstance(camera, CameraData) for camera in value.values()
+    ):
+        directions = ", ".join(str(getattr(k, "value", k)) for k in value)
+        shapes = sorted({camera.shape for camera in value.values()})
+        return f"cameras {{{directions}}} with images {shapes}"
+    if isinstance(value, Trajectory):
+        components = ", ".join(c.name for c in value.components())
+        return f"Trajectory(N={value.length}, components=[{components}])"
+    if isinstance(value, FrameDetections3D):
+        return f"FrameDetections3D({len(value.detections)} detections)"
+    if isinstance(value, (list, tuple)):
+        inner = _describe_payload(value[0]) if value else "nothing"
+        return f"{type(value).__name__}[{len(value)}] of {inner}"
+    if isinstance(value, dict):
+        return f"dict with keys {sorted(str(k) for k in value)}"
+    return f"{type(value).__name__} {value!r}"[:80]
+
+
+def _batching_report(
+    modality: Modality, frames: Sequence[TransformedFrameData], values: Sequence[Any]
+) -> str:
+    """Which frames held what for ``modality``: the frames grouped by payload,
+    each group with the files that reproduce it."""
+    groups: Dict[str, List[str]] = {}
+    for frame, value in zip(frames, values):
+        groups.setdefault(_describe_payload(value), []).append(str(frame.filename))
+    lines = [f"while batching modality {modality.name} of {len(frames)} frames:"]
+    for description, filenames in groups.items():
+        more = f", +{len(filenames) - 5} more" if len(filenames) > 5 else ""
+        lines.append(
+            f"  {len(filenames)} with {description}: {', '.join(filenames[:5])}{more}"
+        )
+    return "\n".join(lines)
+
+
 class TransformedFrameDataBatch:
     """
     Data structure to hold a batch of frame data (PyTorch-friendly).
@@ -911,12 +957,15 @@ class TransformedFrameDataBatch:
         # collate + Trajectory override
         self._modality_data = {}
         for modality in all_modalities:
+            values = [f.get_modality_data(modality) for f in frames]
             try:
                 self._modality_data[modality] = collate_modalities(
-                    [f.get_modality_data(modality) for f in frames], device=device
+                    values, device=device
                 )
             except Exception as exc:
-                exc.add_note(f"while batching modality {modality.name}")
+                # Batches are sampled at random, so name the frames: they
+                # reproduce the failure without the DataLoader.
+                exc.add_note(_batching_report(modality, frames, values))
                 raise
 
         # Aux data: if dict-like across frames,

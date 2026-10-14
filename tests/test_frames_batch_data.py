@@ -383,8 +383,11 @@ def test_modality_none_in_some_frames_without_empty_element_raises():
 
     with pytest.raises(ValueError, match="ModalityDefaults") as info:
         TransformedFrameDataBatch([f1, f2])
-    # The failing modality is named in the traceback.
-    assert "HD_MAP_BEV" in "".join(info.value.__notes__)
+    # The traceback names the modality and, per payload, the frames' files.
+    note = "\n".join(info.value.__notes__)
+    assert "HD_MAP_BEV" in note
+    assert "1 with None: ds/train/seg1_1.npz" in note
+    assert "1 with ndarray float32 (1, 2, 2): ds/train/seg2_2.npz" in note
 
 
 def test_batched_trajectory_resample_with_none_entries():
