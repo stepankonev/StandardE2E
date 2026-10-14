@@ -228,9 +228,9 @@ class WayveScenesDatasetProcessor(SourceDatasetProcessor):
             if _REFERENCE_CAMERA in by_cam:
                 self._ego_pose[ts] = by_cam[_REFERENCE_CAMERA]
 
-        # SfM points, in point3D_id order: replicate the SDK filter (inside the
+        # SfM points, in point3D_id order, with the SDK's filter (inside the
         # 1st-99th percentile bounding box, error <= 6, track length >= 2),
-        # convert to FLU world once for the whole scene.
+        # converted to FLU world once for the whole scene.
         bbox = reconstruction.compute_bounding_box(0.01, 0.99)
         points = [
             reconstruction.points3D[pid] for pid in sorted(reconstruction.points3D)

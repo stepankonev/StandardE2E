@@ -27,14 +27,30 @@ cloud). It ships no sensor lidar, HD map or boxes.
 The dataset has no perception split, so `split` is a passthrough label for the output
 folder.
 
+## Known issues
+
+- **The official SDK cannot be installed** (SDK, verified 2026-10-14 at commit
+  `2fc2fa9`). `src/wayve_scenes/` has no `__init__.py`, so `setup.py`'s `find_packages()`
+  finds nothing: a regular install yields an empty wheel and an editable one does not
+  import either; only `PYTHONPATH=src` works. It also runs only on pycolmap ≤ 3.11
+  (`Image.cam_from_world` and `compute_bounding_box` changed in 3.12), and its loader
+  imports PyTorch3D, which has no Linux wheels. StandardE2E therefore reads the
+  reconstructions with pycolmap directly, as the SDK does; on `scene_001` the two agree
+  (camera poses to 2.5 µm, intrinsics, distortion and timestamps exactly, ego-frame
+  extrinsics to 5e-7), except for the bounding-box points below.
+- **The SfM cloud's bounding box depends on the pycolmap version** (COLMAP, verified).
+  `compute_bounding_box(0.01, 0.99)` keeps 6 more boundary points of `scene_001` with
+  pycolmap 4.2.1 (136,193 points) than with the SDK's pycolmap 3.11 (136,187).
+
 ## Environment
 
 This folder is its own [uv](https://docs.astral.sh/uv/) project.
 [`pyproject.toml`](pyproject.toml) and [`uv.lock`](uv.lock) pin StandardE2E (this
 checkout, editable) and [pycolmap](https://pypi.org/project/pycolmap/), COLMAP's
 Python bindings, which read the reconstructions as in the official
-[WayveScenes SDK](https://github.com/wayveai/wayve_scenes) (the SDK itself is not
-packaged), without StandardE2E's training-only dependencies (PyTorch), which
+[WayveScenes SDK](https://github.com/wayveai/wayve_scenes) (the SDK itself cannot be
+installed, see [Known issues](#known-issues)), without StandardE2E's training-only
+dependencies (PyTorch), which
 preprocessing never imports. pycolmap publishes wheels for Linux x86-64, macOS on Apple
 silicon (14+) and Windows x64 only, so the environment does not install on other
 platforms. [`.python-version`](.python-version) pins Python 3.12 (`requires-python`

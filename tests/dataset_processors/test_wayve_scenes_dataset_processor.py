@@ -224,8 +224,9 @@ def test_ego_pose_and_global_position_finite(built_frame):
 
 
 def test_sfm_cloud_matches_sdk_filter(built_frame):
-    """The scene cloud is exactly the SDK's: inside the 1st-99th percentile
-    bounding box, reprojection error <= 6 px, track length >= 2."""
+    """The scene cloud is the SDK's filter (inside the 1st-99th percentile
+    bounding box, reprojection error <= 6 px, track length >= 2) as computed by
+    the installed pycolmap."""
     proc, _fd = built_frame
     reconstruction = pycolmap.Reconstruction(
         str(proc._cached_scene_dir / "colmap_sparse" / "rig")
