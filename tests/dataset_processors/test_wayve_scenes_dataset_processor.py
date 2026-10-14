@@ -1,11 +1,13 @@
 # flake8: noqa: E501
 """Tests for the WayveScenes101 processor.
 
-* **Coordinate math** (no data needed): the OpenCV->FLU point conversion and the
-  ``world_from_cam`` conjugation, on synthetic inputs.
+* **Coordinate math and units** (no data needed): the OpenCV->FLU point
+  conversion, the ``world_from_cam`` conjugation, microsecond timestamps and
+  optical-frame camera extrinsics, on synthetic inputs.
 * **Real-frame checks** (skipped unless an extracted scene is present): a built
-  frame has the 5 cameras, an ego-frame range-clipped point cloud, and a finite
-  ego pose — i.e. the modalities line up with the lidar-consistent design.
+  frame has the 5 cameras, an ego-frame range-clipped point cloud matching the
+  SDK's filter, a finite ego pose, and a cloud that projects into the front
+  camera — i.e. the modalities line up with the lidar-consistent design.
 """
 
 from __future__ import annotations
@@ -13,11 +15,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
 # pycolmap is installed in the WayveScenes environment only (datasets/wayve_scenes/).
-pytest.importorskip("pycolmap")
+pycolmap = pytest.importorskip("pycolmap")
 
 from standard_e2e.caching.adapters import LidarAdapter
 from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_processor import (
@@ -27,6 +30,7 @@ from standard_e2e.caching.src_datasets.wayve_scenes.wayve_scenes_dataset_process
     _world_from_cam_flu,
 )
 from standard_e2e.enums import CameraDirection
+from standard_e2e.enums import TrajectoryComponent as TC
 
 # Real-frame checks read an extracted scene only from this env var; no
 # machine-specific path is hard-coded. They skip when it is unset.
@@ -104,6 +108,37 @@ def test_lidar_uses_world_to_ego_not_ego_to_world(tmp_path):
     np.testing.assert_allclose(at_car, [0, 0, 0], atol=1e-4)  # car -> origin
     np.testing.assert_allclose(ahead, [10, 0, 0], atol=1e-4)  # forward -> +x
     np.testing.assert_allclose(behind, [-10, 0, 0], atol=1e-4)  # behind  -> -x
+
+
+def test_timestamps_are_microseconds(tmp_path):
+    """Image stems are 16-digit microsecond stamps, 100000 apart at 10 Hz.
+
+    Regression guard for reading them as nanoseconds, which made every frame
+    timestamp (and the trajectory delta_t derived from it) 1000x too small.
+    Synthetic, so it always runs (no dataset needed).
+    """
+    proc = WayveScenesDatasetProcessor(
+        common_output_path=str(tmp_path),
+        split="test",
+        adapters=[],
+        context_aggregators=[],
+    )
+    ts0 = 1_620_000_000_000_000  # 2021-05-03, in microseconds
+    ts1 = ts0 + 100_000  # next frame at 10 Hz
+    scene = tmp_path / "scene_synth"
+    proc._ego_pose = {ts0: np.eye(4), ts1: np.eye(4)}
+    proc._frame_cams = {ts0: {}, ts1: {}}
+    proc._cached_scene_dir = scene  # makes _refresh_scene_cache a no-op
+
+    fd0 = proc._prepare_standardized_frame_data((str(scene), ts0))
+    fd1 = proc._prepare_standardized_frame_data((str(scene), ts1))
+    assert fd0.timestamp == pytest.approx(1_620_000_000.0)
+    assert fd1.timestamp - fd0.timestamp == pytest.approx(0.1)
+    # Trajectories store float32, so only the unit (not 0.1 s) is pinned here.
+    assert fd0.global_position is not None
+    np.testing.assert_allclose(
+        fd0.global_position.get(TC.TIMESTAMP), [[fd0.timestamp]], rtol=1e-6
+    )
 
 
 def test_lidar_round_trips_to_world_via_pose_matrix(built_frame):
@@ -186,3 +221,74 @@ def test_ego_pose_and_global_position_finite(built_frame):
     assert T.shape == (4, 4)
     assert np.isfinite(T).all()
     assert fd.global_position is not None
+
+
+def test_sfm_cloud_matches_sdk_filter(built_frame):
+    """The scene cloud is the SDK's filter (inside the 1st-99th percentile
+    bounding box, reprojection error <= 6 px, track length >= 2) as computed by
+    the installed pycolmap."""
+    proc, _fd = built_frame
+    reconstruction = pycolmap.Reconstruction(
+        str(proc._cached_scene_dir / "colmap_sparse" / "rig")
+    )
+    bbox = reconstruction.compute_bounding_box(0.01, 0.99)
+    expected = sum(
+        1
+        for p in reconstruction.points3D.values()
+        if (p.xyz >= bbox.min).all()
+        and (p.xyz <= bbox.max).all()
+        and p.error <= 6.0
+        and p.track.length() >= 2
+    )
+    assert len(proc._points_world_flu) == expected
+    # FLU (z, -x, -y) back to OpenCV: every kept point lies inside the box.
+    flu = proc._points_world_flu.astype(np.float64)
+    opencv = np.c_[-flu[:, 1], -flu[:, 2], flu[:, 0]]
+    tol = 1e-4  # float32 storage
+    assert (opencv >= bbox.min - tol).all() and (opencv <= bbox.max + tol).all()
+
+
+def test_camera_extrinsics_are_optical_frame(tmp_path):
+    """Extrinsics map OpenCV optical axes (x-right, y-down, z-forward) to FLU ego.
+
+    Regression guard for emitting the FLU camera *body* frame, in which the
+    intrinsics cannot project. Synthetic, so it always runs (no dataset needed).
+    """
+    proc = WayveScenesDatasetProcessor(
+        common_output_path=str(tmp_path),
+        split="test",
+        adapters=[],
+        context_aggregators=[],
+    )
+    image = tmp_path / "front.png"
+    cv2.imwrite(str(image), np.zeros((4, 6, 3), dtype=np.uint8))
+    # COLMAP identity pose: the front camera sits at the ego origin, looking
+    # along ego +x, and also defines the (identity) ego pose.
+    T_world_cam = _world_from_cam_flu(np.array([1.0, 0, 0, 0]), np.zeros(3))
+    np.testing.assert_allclose(T_world_cam, np.eye(4), atol=1e-12)
+    proc._cam_calib = {1: (np.eye(3, dtype=np.float32), np.zeros(4, np.float32))}
+    proc._position_camera_id = {"front-forward": 1}
+    proc._frame_cams = {0: {"front-forward": (image, T_world_cam)}}
+
+    T = proc._build_cameras(0, np.eye(4))[CameraDirection.FRONT].extrinsics
+    R = T[:3, :3]
+    np.testing.assert_allclose(R @ [0, 0, 1], [1, 0, 0], atol=1e-6)  # fwd -> +x
+    np.testing.assert_allclose(R @ [1, 0, 0], [0, -1, 0], atol=1e-6)  # right -> -y
+    np.testing.assert_allclose(R @ [0, 1, 0], [0, 0, -1], atol=1e-6)  # down -> -z
+
+
+def test_sfm_cloud_projects_into_front_camera(built_frame):
+    """Ego-frame SfM points seen through the FRONT extrinsics + K land in the image."""
+    _proc, fd = built_frame
+    assert fd.lidar is not None
+    cam = fd.cameras[CameraDirection.FRONT]
+    ego = fd.lidar.points.to_numpy().astype(np.float64)
+    T_cam_ego = np.linalg.inv(cam.extrinsics.astype(np.float64))
+    pts_cam = ego @ T_cam_ego[:3, :3].T + T_cam_ego[:3, 3]
+    ahead = pts_cam[pts_cam[:, 2] > 0.5]
+    assert len(ahead) > 0.5 * len(pts_cam)  # most of the cloud is in front
+    uv = ahead[:, :2] / ahead[:, 2:] @ cam.intrinsics[:2, :2].T + cam.intrinsics[:2, 2]
+    h, w = cam.image.shape[:2]
+    in_image = ((uv >= 0) & (uv < [w, h])).all(axis=1)
+    # Pinhole-only check on fisheye images: a coarse, not a pixel-exact, bound.
+    assert in_image.mean() > 0.3

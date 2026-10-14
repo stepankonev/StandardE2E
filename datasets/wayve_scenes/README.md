@@ -15,11 +15,12 @@ cloud). It ships no sensor lidar, HD map or boxes.
 - **cameras**: the five fisheye cameras with their COLMAP intrinsics and distortion, and
   `T_ego_from_camera` extrinsics in the OpenCV optical frame (x right, y down, z forward).
 - **lidar_pc**: no sensor lidar exists, so the scene's **COLMAP SfM** point cloud is
-  used instead. It is filtered (reprojection error ≤ 6, track length ≥ 2), converted
-  from OpenCV to FLU axes, moved into each frame's ego frame and clipped to 50 m, so it
-  flows through the lidar adapters. It is photogrammetric (sparse, up to scale), not a
-  sensor measurement; a frame's cloud lifted by `aux_data["pose_matrix"]` reproduces the
-  source SfM cloud.
+  used instead. It is filtered as in the official SDK (inside the 1st–99th percentile
+  bounding box, reprojection error ≤ 6, track length ≥ 2), converted from OpenCV to
+  FLU axes, moved into each frame's ego frame and clipped to 50 m, so it flows through
+  the lidar adapters. It is photogrammetric (sparse, up to scale), not a sensor
+  measurement; a frame's cloud lifted by `aux_data["pose_matrix"]` reproduces the source
+  SfM cloud.
 - **past/future ego trajectories**: from the COLMAP poses, via the
   `FuturePastStatesFromMatricesAggregator`.
 
@@ -28,14 +29,18 @@ folder.
 
 ## Known issues
 
-- **Timestamps are 1000× too small** (StandardE2E bug, not fixed yet). The image file
-  names are microsecond timestamps, but StandardE2E reads them as nanoseconds, so frame
-  timestamps and the trajectories' `TIMESTAMP` deltas come out 1000× too small (0.0001 s
-  between frames instead of 0.1 s). Positions are unaffected.
-- **The SfM cloud keeps points the SDK drops** (StandardE2E, differs from the SDK). The
-  official SDK also discards the points outside the reconstruction's 1st–99th
-  percentile bounding box (`compute_bounding_box(0.01, 0.99)`); StandardE2E does not, so
-  its cloud has about 5% more points (7,812 of 144,005 in `scene_001`).
+- **The official SDK cannot be installed** (SDK, verified 2026-10-14 at commit
+  `2fc2fa9`). `src/wayve_scenes/` has no `__init__.py`, so `setup.py`'s `find_packages()`
+  finds nothing: a regular install yields an empty wheel and an editable one does not
+  import either; only `PYTHONPATH=src` works. It also runs only on pycolmap ≤ 3.11
+  (`Image.cam_from_world` and `compute_bounding_box` changed in 3.12), and its loader
+  imports PyTorch3D, which has no Linux wheels. StandardE2E therefore reads the
+  reconstructions with pycolmap directly, as the SDK does; on `scene_001` the two agree
+  (camera poses to 2.5 µm, intrinsics, distortion and timestamps exactly, ego-frame
+  extrinsics to 5e-7), except for the bounding-box points below.
+- **The SfM cloud's bounding box depends on the pycolmap version** (COLMAP, verified).
+  `compute_bounding_box(0.01, 0.99)` keeps 6 more boundary points of `scene_001` with
+  pycolmap 4.2.1 (136,193 points) than with the SDK's pycolmap 3.11 (136,187).
 
 ## Environment
 
@@ -43,8 +48,9 @@ This folder is its own [uv](https://docs.astral.sh/uv/) project.
 [`pyproject.toml`](pyproject.toml) and [`uv.lock`](uv.lock) pin StandardE2E (this
 checkout, editable) and [pycolmap](https://pypi.org/project/pycolmap/), COLMAP's
 Python bindings, which read the reconstructions as in the official
-[WayveScenes SDK](https://github.com/wayveai/wayve_scenes) (the SDK itself is not
-packaged), without StandardE2E's training-only dependencies (PyTorch), which
+[WayveScenes SDK](https://github.com/wayveai/wayve_scenes) (the SDK itself cannot be
+installed, see [Known issues](#known-issues)), without StandardE2E's training-only
+dependencies (PyTorch), which
 preprocessing never imports. pycolmap publishes wheels for Linux x86-64, macOS on Apple
 silicon (14+) and Windows x64 only, so the environment does not install on other
 platforms. [`.python-version`](.python-version) pins Python 3.12 (`requires-python`

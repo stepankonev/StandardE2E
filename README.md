@@ -76,8 +76,8 @@ download the split first, with the dataset's own tool and your access.
 
 0.1.0 splits StandardE2E into the training environment (the repository root) and one
 environment per dataset with that dataset's SDK. Data processed with 0.0.x loads
-unchanged, except for the camera extrinsics of four datasets (last point); code needs
-these changes:
+unchanged, except for the camera extrinsics of four datasets and WayveScenes101
+timestamps and SfM clouds (last two points); code needs these changes:
 
 - **PyTorch-side names moved to `standard_e2e.training`**, the only sub-package that
   imports PyTorch (`import standard_e2e` no longer does):
@@ -110,6 +110,12 @@ these changes:
   four datasets that was made with the `cameras_identity_adapter`, or convert it in place
   with `T_new = T_old @ FLU_FROM_OPTICAL` (`standard_e2e.utils.FLU_FROM_OPTICAL`). Data
   made with the `pano_adapter` carries no extrinsics and is unaffected.
+
+- **WayveScenes101 timestamps and SfM clouds changed.** 0.0.x read the image
+  timestamps as nanoseconds instead of microseconds, so frame timestamps and the
+  past/future trajectories' time deltas were 1000× too small, and its SfM cloud kept
+  the ~5% of points outside the 1st–99th percentile bounding box that the official SDK
+  drops. Re-preprocess WayveScenes101 data made with 0.0.x.
 
 ## Supported datasets
 
