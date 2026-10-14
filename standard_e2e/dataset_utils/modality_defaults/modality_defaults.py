@@ -186,3 +186,25 @@ class Detections3DBEVDefaults(ModalityDefaults):
     ) -> "Detections3DBEVDefaults":
         """Build defaults whose empty shape matches ``adapter.output_shape``."""
         return cls(shape=adapter.output_shape)
+
+
+class PanoImageDefaults(ModalityDefaults):
+    """Substitute a missing ``CAMERAS`` panorama (the ``pano_adapter`` output)
+    with a zero ``(H, W, C)`` uint8 image of the given shape, so datasets
+    without cameras batch with panorama datasets. The per-camera dicts of the
+    ``cameras_identity_adapter`` batch without a default.
+    """
+
+    def __init__(self, shape: tuple[int, int, int]) -> None:
+        if len(shape) != 3 or any(d <= 0 for d in shape):
+            raise ValueError(f"shape must be (H, W, C) of positive ints; got {shape}")
+        self._shape = shape
+
+    def _normalize(self, raw_value: Any, modality: Modality) -> Any:
+        if modality is Modality.CAMERAS and raw_value is None:
+            return np.zeros(self._shape, dtype=np.uint8)
+        return raw_value
+
+    @property
+    def allowed_modalities(self) -> list[Modality]:
+        return [Modality.CAMERAS]

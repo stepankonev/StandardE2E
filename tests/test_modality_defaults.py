@@ -14,6 +14,7 @@ from standard_e2e.dataset_utils.modality_defaults import (
     LidarBEVDefaults,
     LidarPointCloudDefaults,
     ModalityDefaults,
+    PanoImageDefaults,
     PreferredTrajectoryDefaults,
     _check_modality_defaults_dict,
 )
@@ -243,3 +244,27 @@ def test_detections_3d_bev_defaults_wrong_modality():
     handler = Detections3DBEVDefaults(shape=(1, 4, 4))
     with pytest.raises(ValueError):
         handler.normalize(None, Modality.INTENT)
+
+
+def test_pano_image_defaults_returns_zero_image_when_none():
+    handler = PanoImageDefaults(shape=(4, 12, 3))
+    val = handler.normalize(None, Modality.CAMERAS)
+    assert isinstance(val, np.ndarray)
+    assert val.shape == (4, 12, 3)
+    assert val.dtype == np.uint8
+    assert (val == 0).all()
+
+
+def test_pano_image_defaults_passes_through_existing():
+    handler = PanoImageDefaults(shape=(4, 12, 3))
+    existing = np.ones((4, 12, 3), dtype=np.uint8)
+    assert handler.normalize(existing, Modality.CAMERAS) is existing
+
+
+def test_pano_image_defaults_invalid_shape_or_modality_raises():
+    with pytest.raises(ValueError):
+        PanoImageDefaults(shape=(4, 12))  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        PanoImageDefaults(shape=(0, 12, 3))
+    with pytest.raises(ValueError):
+        PanoImageDefaults(shape=(4, 12, 3)).normalize(None, Modality.INTENT)

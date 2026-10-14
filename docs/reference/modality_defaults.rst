@@ -21,3 +21,5 @@ Per-modality defaults:
    standard_e2e.dataset_utils.modality_defaults.LidarPointCloudDefaults
    standard_e2e.dataset_utils.modality_defaults.LidarBEVDefaults
    standard_e2e.dataset_utils.modality_defaults.HDMapBEVDefaults
+   standard_e2e.dataset_utils.modality_defaults.Detections3DBEVDefaults
+   standard_e2e.dataset_utils.modality_defaults.PanoImageDefaults

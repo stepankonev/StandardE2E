@@ -21,5 +21,6 @@ Batching
    TransformedFrameDataBatch
    BatchedTrajectory
    BatchedLidarPointCloud
+   BatchedCameraData
    BatchedFrameDetections3D
    collate_modalities

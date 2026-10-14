@@ -117,6 +117,12 @@ timestamps and SfM clouds (last two points); code needs these changes:
   the ~5% of points outside the 1st–99th percentile bounding box that the official SDK
   drops. Re-preprocess WayveScenes101 data made with 0.0.x.
 
+- **`BatchedFrameDetections3D` holds every frame's detections.** 0.0.x exposed only the
+  first frame's. `trajectories`, `unique_agent_ids` and `detection_types` now run over all
+  detections of the batch, in the concat-with-batch-index form of
+  `BatchedLidarPointCloud`: `batch_idx` maps each row to its frame and `is_valid` marks
+  the time padding. A batch of one frame is unchanged.
+
 ## Supported datasets
 
 
