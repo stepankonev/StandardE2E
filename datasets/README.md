@@ -57,6 +57,7 @@ missing. The other datasets are downloaded by hand, as their READMEs describe.
 | KITScenes LongTail | [`kitscenes_longtail`](kitscenes_longtail/README.md) | — | 3.12 (≤ 3.14) | `hf` (gated) |
 | NATIX Multi-Camera | [`natix_multicam`](natix_multicam/README.md) | pyproj | 3.12 (≤ 3.14) | — |
 | NATIX Edge Case | [`natix_edgecase`](natix_edgecase/README.md) | pyproj | 3.12 (≤ 3.14) | `hf` (gated) |
+| MUHOS | [`muhos`](muhos/README.md) | laspy, pyproj | 3.12 (≤ 3.14) | `curl` |
 
 The Python column is the version `.python-version` pins, with the newest one the
 environment's `requires-python` allows in parentheses. The last column is the tool the

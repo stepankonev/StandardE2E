@@ -118,6 +118,13 @@ the corresponding default value via
      - —
      - —
      - —
+   * - `MUHOS <https://github.com/stepankonev/StandardE2E/blob/main/datasets/muhos/README.md>`__ (Finnish roads incl. gravel)
+     - ✓ (front fisheye; calibration estimated)
+     - ✓
+     - —
+     - —
+     - —
+     - —
 
 All datasets also emit the ego **past/future trajectory** (from each
 dataset's poses, via the segment-context aggregator) regardless of the
