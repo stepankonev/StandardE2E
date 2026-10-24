@@ -1,0 +1,42 @@
+# MUHOS preprocessing config.
+#
+# Extract the set's archives first (``datasets/muhos/README.md`` pipeline, which can
+# also download them); ``--input_path`` then points at the folder holding the extracted
+# sets (or at one set).
+preprocessing:
+  # MUHOS carries the MultiSense S27 colour camera (wide-angle, Kannala-Brandt model,
+  # stored as FRONT), a Hesai OT128 lidar and the vehicle bus + GPS the ego trajectory is
+  # built from (aligned to the sensor clock with the lidar's IMU). No HD map,
+  # 3D boxes or driving command. The past/future ego trajectories are added by the
+  # FuturePastStatesFromMatrices context aggregator (the processor's default), not a
+  # per-frame adapter.
+  adapters:
+    # The 960x594 colour frame passes through (its distortion travels with the
+    # camera). Add ``params: {max_size: N}`` to downscale the longest side
+    # (intrinsics scaled to match).
+    - name: cameras_identity_adapter
+    # Hesai OT128 xyz in the ego frame, motion-compensated to the image's exposure time.
+    # Add ``params: {max_points: N}`` to cap points per frame; left uncapped.
+    - name: lidar_adapter
+dataset:
+  features:
+    - frame_name: current_sensors
+      modalities:
+        - cameras
+        - lidar_pc
+        - past_states
+      selector:
+        name: current
+  labels:
+    - frame_name: current_future_states
+      modalities:
+        - future_states
+      selector:
+        name: current
+    - frame_name: future_3seconds
+      modalities:
+        - future_states
+      selector:
+        name: closest_timestamp
+        parameters:
+          delta_t: 3.0
