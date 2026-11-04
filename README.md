@@ -69,8 +69,8 @@ uvx stepix run datasets/waymo_e2e/README.md
 ```
 
 Where the data can be fetched by a script (Waymo, Argoverse 2, nuScenes mini, comma2k19,
-KITScenes, NATIX Edge Case), setting `download = true` in the README makes the pipeline
-download the split first, with the dataset's own tool and your access.
+KITScenes, NATIX Edge Case, MUHOS), setting `download = true` in the README makes the
+pipeline download the split first, with the dataset's own tool and your access.
 
 ## ⬆️ Upgrading from 0.0.x
 
@@ -142,6 +142,7 @@ timestamps and SfM clouds (last two points); code needs these changes:
 | [KITScenes LongTail](datasets/kitscenes_longtail/README.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/circle-darkgreen) | ❌ | ❌ | ❌ | ✅ | ✅ |
 | [NATIX Multi-Camera](datasets/natix_multicam/README.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/ring_4--6_cam-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | [NATIX Edge Case](datasets/natix_edgecase/README.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/ring_4--6_cam-orange) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| [MUHOS](datasets/muhos/README.md) ![](https://img.shields.io/badge/supported-darkgreen) | ![](https://img.shields.io/badge/front_fisheye-darkred) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | [Argoverse 2 Map Change](https://www.argoverse.org/av2.html#mapchange-link) ![](https://img.shields.io/badge/TBD-gray) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | [KITTI](https://www.cvlibs.net/datasets/kitti/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) | ✅ | ❓ | ❓ | ❓ | ❓ |
 | [KITTI-360](https://www.cvlibs.net/datasets/kitti-360/) ![](https://img.shields.io/badge/TBD-gray) | ![](https://img.shields.io/badge/front-darkred) + 2 x ![](https://img.shields.io/badge/side%20fisheye-blue) | ✅ | ❓ | ❓ | ❓ | ❓ |

@@ -98,6 +98,8 @@ jobs:
             tests: tests/dataset_processors/test_natix_multicam_dataset_processor.py
           - dataset: natix_edgecase
             tests: tests/dataset_processors/test_natix_edgecase_dataset_processor.py
+          - dataset: muhos
+            tests: tests/dataset_processors/test_muhos_dataset_processor.py
 
     steps:
     - name: Checkout code

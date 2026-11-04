@@ -204,6 +204,10 @@ module = "pyproj.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "laspy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "nuscenes.*"
 ignore_missing_imports = true
 

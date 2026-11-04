@@ -41,6 +41,7 @@ DATASETS: dict[str, tuple[str, str]] = {
         "NatixEdgeCaseDatasetConverter",
         "NatixEdgeCaseDatasetProcessor",
     ),
+    "muhos": ("MuhosDatasetConverter", "MuhosDatasetProcessor"),
 }
 
 
