@@ -13,7 +13,7 @@ The PyTorch dataset and batching live in :mod:`standard_e2e.training`
 that imports PyTorch, so importing ``standard_e2e`` itself does not.
 """
 
-__version__ = "0.0.7"
+__version__ = "0.1.0"
 __author__ = "stepankonev"
 
 from standard_e2e.data_structures import (
